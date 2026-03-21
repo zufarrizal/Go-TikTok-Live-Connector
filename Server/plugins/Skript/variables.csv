@@ -1,0 +1,36 @@
+# === Skript's variable storage ===
+# Please do not modify this file manually!
+#
+# version: 2.14.3
+
+bedrock.lastpos::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, string, 800E776F726C643A3A3234383A3A3433
+bedrockpath::world::2::-2, boolean, 01
+bedrockpath::world::2::-1, boolean, 01
+bedrockpath::world::82::-30, boolean, 01
+bedrockpath::world::82::-29, boolean, 01
+bedrockpath::world::82::-28, boolean, 01
+bedrockpath::world::83::-30, boolean, 01
+bedrockpath::world::83::-29, boolean, 01
+bedrockpath::world::83::-28, boolean, 01
+bedrockpath::world::84::-30, boolean, 01
+bedrockpath::world::84::-29, boolean, 01
+bedrockpath::world::84::-28, boolean, 01
+bedrockpath::world::85::-30, boolean, 01
+bedrockpath::world::85::-29, boolean, 01
+bedrockpath::world::86::-30, boolean, 01
+bedrockpath::world::86::-29, boolean, 01
+bedrockpath::world::87::-31, boolean, 01
+bedrockpath::world::87::-30, boolean, 01
+bedrockpath::world::88::-31, boolean, 01
+bedrockpath::world::89::-33, boolean, 01
+bedrockpath::world::89::-32, boolean, 01
+bedrockpath::world::89::-31, boolean, 01
+bedrockpath::world::90::-33, boolean, 01
+bedrockpath::world::90::-32, boolean, 01
+bedrockpath::world::90::-31, boolean, 01
+bedrockpath::world::90::-30, boolean, 01
+diamond.balance::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000199
+diamond.debt::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000000
+diamond.lastscore::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000199
+win.done::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, boolean, 01
+

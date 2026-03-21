@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoTik Live Viewer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="head">
+      <h1 class="title">GoTik Live Connector</h1>
+      <div id="status" class="status">connecting to server...</div>
+    </header>
+
+    <section class="toolbar">
+      <input id="username" type="text" value="masjup88" placeholder="TikTok username, e.g. masjup88" />
+      <button id="connectBtn" class="primary">Connect</button>
+      <button id="stopBtn" class="stop">Stop</button>
+    </section>
+
+    <section class="tools-grid">
+      <section class="mc">
+        <h2>Minecraft Connector</h2>
+        <div id="mcStatus" class="mc-status">loading RCON status...</div>
+        <div class="mc-row">
+          <input id="mcHost" type="text" placeholder="Host (e.g. 127.0.0.1)" />
+          <input id="mcPort" type="number" min="1" max="65535" placeholder="Port (e.g. 25575)" />
+          <input id="mcPassword" type="password" placeholder="RCON password" />
+          <button id="mcConnectBtn" type="button">Connect RCON</button>
+          <button id="mcDisconnectBtn" type="button">Disconnect</button>
+        </div>
+        <div class="mc-row">
+          <input id="mcCommand" type="text" placeholder="Minecraft command (e.g. list)" />
+          <button id="mcSendBtn" type="button">Send Command</button>
+        </div>
+        <pre id="mcOutput" class="mc-output"></pre>
+      </section>
+
+      <section class="mc">
+        <h2>Event Simulator</h2>
+        <div class="mc-status">simulate events for local testing</div>
+        <div class="mc-row">
+          <select id="testEventType">
+            <option value="gift">GiftEvent</option>
+            <option value="chat">ChatEvent</option>
+            <option value="user_join">UserEvent (Join)</option>
+            <option value="user_share">UserEvent (Share)</option>
+            <option value="like">LikeEvent</option>
+            <option value="room">RoomEvent</option>
+            <option value="viewers">ViewersEvent</option>
+            <option value="question">QuestionEvent</option>
+            <option value="control">ControlEvent</option>
+            <option value="mic_battle">MicBattleEvent</option>
+            <option value="battles">BattlesEvent</option>
+            <option value="room_banner">RoomBannerEvent</option>
+            <option value="intro">IntroEvent</option>
+          </select>
+          <input id="testEventUsername" type="text" value="TestPlayer" placeholder="Tester TikTok username" />
+          <select id="testEventGift"></select>
+          <input id="testEventCount" type="number" min="1" value="1" placeholder="Count" />
+          <input id="testEventText" type="text" placeholder="Text/Message (optional)" />
+          <button id="testEventBtn" type="button">Simulate Event</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="event-layout">
+      <section class="crud">
+        <div class="crud-top">
+          <h2>Event Panel</h2>
+          <button id="openEventModalBtn" type="button">Add Event</button>
+        </div>
+        <div class="crud-table-wrap">
+          <table class="crud-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Gift Name</th>
+                <th>Diamond</th>
+                <th>MC Command</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="eventRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="history-panel">
+        <h2 class="history-head">History</h2>
+        <ul id="events" class="events"></ul>
+      </section>
+    </section>
+
+    <div id="eventModal" class="modal" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3 id="eventModalTitle">Add Event</h3>
+          <button id="closeEventModalBtn" type="button">Close</button>
+        </div>
+        <form id="eventForm" class="modal-form">
+          <select id="eventType" required>
+            <option value="join">join</option>
+            <option value="comment">comment</option>
+            <option value="like">like</option>
+            <option value="gift">gift</option>
+            <option value="share">share</option>
+          </select>
+          <input id="eventLabel" type="text" placeholder="Event label (optional)" />
+          <select id="eventGift"></select>
+          <input id="eventDiamond" type="number" min="0" placeholder="Diamond" readonly />
+          <input id="eventMCCommand" class="full" type="text" placeholder="Minecraft command (e.g. say Welcome {username})" required />
+          <div class="placeholder-help full">
+            <strong>Available placeholders:</strong>
+            <span><code>{event_type}</code> <code>{username}</code> <code>{comment}</code> <code>{likes}</code> <code>{total_likes}</code> <code>{gift_name}</code> <code>{gift_id}</code> <code>{diamond}</code> <code>{repeat_count}</code></span>
+          </div>
+          <div class="modal-actions full">
+            <button id="resetEventBtn" type="button">Reset</button>
+            <button id="saveEventBtn" type="submit" class="save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+# Diamond balance scoreboard (can go negative)
+# Formula: diamond inventory - diamond debt
+
+on load:
+    execute console command "scoreboard objectives remove diamond_count"
+    execute console command "scoreboard objectives add diamond_count dummy"
+    execute console command "scoreboard objectives setdisplay sidebar diamond_count"
+
+on join:
+    if {diamond.debt::%uuid of player%} is not set:
+        set {diamond.debt::%uuid of player%} to 0
+    execute console command "scoreboard objectives setdisplay sidebar diamond_count"
+
+every 10 ticks:
+    loop all players:
+        if {diamond.debt::%uuid of loop-player%} is not set:
+            set {diamond.debt::%uuid of loop-player%} to 0
+
+        set {_debt} to {diamond.debt::%uuid of loop-player%}
+        set {_inv} to amount of diamond in loop-player's inventory
+
+        # If player still has debt, inventory diamonds are used to pay debt first.
+        if {_debt} > 0:
+            set {_use} to {_inv}
+            if {_use} > {_debt}:
+                set {_use} to {_debt}
+            if {_use} > 0:
+                remove {_use} of diamond from loop-player's inventory
+                remove {_use} from {diamond.debt::%uuid of loop-player%}
+                remove {_use} from {_inv}
+                remove {_use} from {_debt}
+
+        set {_count} to {_inv} - {_debt}
+
+        # Max diamond balance = 1000
+        if {_count} > 1000:
+            set {_excess} to {_count} - 1000
+            if {_excess} > 0:
+                remove {_excess} of diamond from loop-player's inventory
+            set {_count} to 1000
+
+        set {diamond.balance::%uuid of loop-player%} to {_count}
+        if {diamond.lastscore::%uuid of loop-player%} is not {_count}:
+            set {diamond.lastscore::%uuid of loop-player%} to {_count}
+            execute console command "scoreboard players set %loop-player% diamond_count %{_count}%"
+
+        # Auto-start countdown when balance reaches 1000
+        if {_count} >= 1000:
+            if {win.countdown::%uuid of loop-player%} is not set:
+                set {win.countdown::%uuid of loop-player%} to 15
+        else:
+            delete {win.countdown::%uuid of loop-player%}
+
+every 1 second:
+    loop all players:
+        if {win.countdown::%uuid of loop-player%} is set:
+            set {_bal} to {diamond.balance::%uuid of loop-player%}
+            if {_bal} < 1000:
+                delete {win.countdown::%uuid of loop-player%}
+            else:
+                set {_left} to {win.countdown::%uuid of loop-player%}
+                send title "&6DIAMOND MAX!" with subtitle "&eWIN in %{_left}% seconds" to loop-player
+
+                if {_left} <= 1:
+                    delete {win.countdown::%uuid of loop-player%}
+                    send title "&aWIN PLAYER!" with subtitle "&e%loop-player%" to players
+                    broadcast "&6WIN Player: &e%loop-player%"
+                    remove all diamond from loop-player's inventory
+                    set {diamond.debt::%uuid of loop-player%} to 0
+                    set {diamond.balance::%uuid of loop-player%} to 0
+                    set {diamond.lastscore::%uuid of loop-player%} to 0
+                    execute console command "scoreboard players set %loop-player% diamond_count 0"
+                else:
+                    remove 1 from {win.countdown::%uuid of loop-player%}
+
+# Reduce diamond balance (can go negative)
+command /dmin <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cAmount must be greater than 0."
+            stop
+
+        if {diamond.debt::%uuid of player%} is not set:
+            set {diamond.debt::%uuid of player%} to 0
+
+        set {_left} to arg-1
+        set {_inv} to amount of diamond in player's inventory
+        set {_take} to {_inv}
+        if {_take} > {_left}:
+            set {_take} to {_left}
+
+        if {_take} > 0:
+            remove {_take} of diamond from player's inventory
+            remove {_take} from {_left}
+
+        if {_left} > 0:
+            add {_left} to {diamond.debt::%uuid of player%}
+
+        set {_bal} to (amount of diamond in player's inventory) - {diamond.debt::%uuid of player%}
+        set {diamond.balance::%uuid of player%} to {_bal}
+        send "&eDiamond balance reduced by &c%arg-1%&e. Current balance: &f%{_bal}%"

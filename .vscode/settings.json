@@ -1,0 +1,13 @@
+{
+  "terminal.integrated.profiles.windows": {
+    "cmd": {
+      "path": "C:\\Windows\\System32\\cmd.exe",
+      "args": []
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "cmd",
+  "terminal.integrated.automationProfile.windows": {
+    "path": "C:\\Windows\\System32\\cmd.exe",
+    "args": []
+  }
+}

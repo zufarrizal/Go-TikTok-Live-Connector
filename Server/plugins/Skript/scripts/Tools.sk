@@ -1,0 +1,93 @@
+function give_tools(p: player):
+    # Slot 1-4 hotbar (index Skript: 0-3)
+    set slot 0 of {_p}'s inventory to netherite pickaxe
+    set slot 1 of {_p}'s inventory to netherite sword
+    set slot 2 of {_p}'s inventory to bow
+    set slot 3 of {_p}'s inventory to 64 arrow
+    set offhand tool of {_p} to shield
+
+    # Pickaxe full upgrade
+    enchant slot 0 of {_p}'s inventory with efficiency 5
+    enchant slot 0 of {_p}'s inventory with fortune 3
+    enchant slot 0 of {_p}'s inventory with unbreaking 3
+    enchant slot 0 of {_p}'s inventory with mending 1
+
+    # Sword full upgrade
+    enchant slot 1 of {_p}'s inventory with sharpness 5
+    enchant slot 1 of {_p}'s inventory with looting 3
+    enchant slot 1 of {_p}'s inventory with sweeping edge 3
+    enchant slot 1 of {_p}'s inventory with fire aspect 2
+    enchant slot 1 of {_p}'s inventory with unbreaking 3
+    enchant slot 1 of {_p}'s inventory with mending 1
+
+    # Bow full upgrade
+    enchant slot 2 of {_p}'s inventory with power 5
+    enchant slot 2 of {_p}'s inventory with punch 2
+    enchant slot 2 of {_p}'s inventory with flame 1
+    enchant slot 2 of {_p}'s inventory with infinity 1
+    enchant slot 2 of {_p}'s inventory with unbreaking 3
+
+function ensure_tools(p: player):
+    if slot 0 of {_p}'s inventory is not netherite pickaxe:
+        set slot 0 of {_p}'s inventory to netherite pickaxe
+        enchant slot 0 of {_p}'s inventory with efficiency 5
+        enchant slot 0 of {_p}'s inventory with fortune 3
+        enchant slot 0 of {_p}'s inventory with unbreaking 3
+        enchant slot 0 of {_p}'s inventory with mending 1
+
+    if slot 1 of {_p}'s inventory is not netherite sword:
+        set slot 1 of {_p}'s inventory to netherite sword
+        enchant slot 1 of {_p}'s inventory with sharpness 5
+        enchant slot 1 of {_p}'s inventory with looting 3
+        enchant slot 1 of {_p}'s inventory with sweeping edge 3
+        enchant slot 1 of {_p}'s inventory with fire aspect 2
+        enchant slot 1 of {_p}'s inventory with unbreaking 3
+        enchant slot 1 of {_p}'s inventory with mending 1
+
+    if slot 2 of {_p}'s inventory is not bow:
+        set slot 2 of {_p}'s inventory to bow
+        enchant slot 2 of {_p}'s inventory with power 5
+        enchant slot 2 of {_p}'s inventory with punch 2
+        enchant slot 2 of {_p}'s inventory with flame 1
+        enchant slot 2 of {_p}'s inventory with infinity 1
+        enchant slot 2 of {_p}'s inventory with unbreaking 3
+
+    if slot 3 of {_p}'s inventory is not arrow:
+        set slot 3 of {_p}'s inventory to 64 arrow
+
+    if offhand tool of {_p} is not shield:
+        set offhand tool of {_p} to shield
+
+on join:
+    wait 1 tick
+    give_tools(player)
+
+on respawn:
+    wait 1 tick
+    give_tools(player)
+
+every 10 ticks:
+    loop all players:
+        ensure_tools(loop-player)
+
+on drop:
+    if event-item is netherite pickaxe:
+        cancel event
+        stop
+    if event-item is netherite sword:
+        cancel event
+        stop
+    if event-item is bow:
+        cancel event
+        stop
+    if event-item is arrow:
+        cancel event
+        stop
+    if event-item is shield:
+        cancel event
+        stop
+
+command /tools:
+    trigger:
+        give_tools(player)
+        send "&aSlots 1-4 have been replaced with fully upgraded tools."

@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "type": "gift",
+    "label": "",
+    "gift_id": 10716,
+    "gift_name": "Blow a kiss",
+    "diamond": 1,
+    "mc_command": "dm 5 {username} {repeat_count}",
+    "created_at": "2026-03-19T17:53:09+07:00"
+  }
+]

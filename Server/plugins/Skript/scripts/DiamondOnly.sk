@@ -1,0 +1,37 @@
+# Only allow picking up diamonds from ground drops
+on pickup:
+    if event-item is not diamond:
+        cancel event
+        stop
+
+    if {diamond.debt::%uuid of player%} is not set:
+        set {diamond.debt::%uuid of player%} to 0
+
+    # If balance is still negative, picked diamonds are used to pay debt first.
+    if {diamond.debt::%uuid of player%} > 0:
+        set {_amt} to amount of event-item
+        wait 1 tick
+
+        set {_debt} to {diamond.debt::%uuid of player%}
+        if {_debt} <= 0:
+            stop
+
+        set {_use} to {_amt}
+        if {_use} > {_debt}:
+            set {_use} to {_debt}
+
+        if {_use} > 0:
+            remove {_use} of diamond from player's inventory
+            remove {_use} from {diamond.debt::%uuid of player%}
+
+# Inventory filter: allow only tools set + diamonds
+every 10 ticks:
+    loop all players:
+        loop items in loop-player's inventory:
+            if loop-item is not diamond:
+                if loop-item is not netherite pickaxe:
+                    if loop-item is not netherite sword:
+                        if loop-item is not bow:
+                            if loop-item is not arrow:
+                                if loop-item is not shield:
+                                    remove loop-item from loop-player's inventory

@@ -1,0 +1,176 @@
+# dm {value} {username} {repeat}
+command /dm <number> <text> <number> :
+    trigger:
+        set {_total} to arg-1 * arg-3
+        send title "&e%arg-2%" with subtitle "&aGive %{_total}% Diamonds" to players
+        loop all players:
+            play sound "entity.experience_orb.pickup" to loop-player
+            give {_total} of diamond to loop-player
+
+# summon commands: {value} {username} {repeat}
+command /chicken <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Chicken x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 chicken at {_loc}
+                wait 2 ticks
+
+command /zombie <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Zombie x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 zombie at {_loc}
+                wait 2 ticks
+
+command /skeleton <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Skeleton x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 skeleton at {_loc}
+                wait 2 ticks
+
+command /spider <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Spider x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 spider at {_loc}
+                wait 2 ticks
+
+command /creeper <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Creeper x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 creeper at {_loc}
+                wait 2 ticks
+
+command /cavespider <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon CaveSpider x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 cave spider at {_loc}
+                wait 2 ticks
+
+command /witch <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Witch x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 witch at {_loc}
+                wait 2 ticks
+
+command /enderman <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Enderman x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 enderman at {_loc}
+                wait 2 ticks
+
+command /blaze <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Blaze x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 blaze at {_loc}
+                wait 2 ticks
+
+command /witherskeleton <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon WitherSkeleton x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 wither skeleton at {_loc}
+                wait 2 ticks
+
+command /evoker <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Evoker x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 evoker at {_loc}
+                wait 2 ticks
+
+command /ravager <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_loc} to location of loop-player
+            add 1 to y-coordinate of {_loc}
+            send title "&e%arg-2%" with subtitle "&aSummon Ravager x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                spawn 1 ravager at {_loc}
+                wait 2 ticks
+
+command /tnt <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&e%arg-2%" with subtitle "&aSummon TNT x%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon tnt ~ ~1 ~ {fuse:40}"
+                wait 2 ticks
+
+command /nightmare <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&e%arg-2%" with subtitle "&aSummon Nightmare x%{_total}%" to loop-player
+            loop {_total} times:
+                execute console command "execute at %{_p}% run summon creeper ~ ~1 ~ {powered:1b}"
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon tnt ~ ~1 ~ {fuse:30}"
+                wait 2 ticks

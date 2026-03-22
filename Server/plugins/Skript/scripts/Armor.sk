@@ -1,0 +1,59 @@
+function give_armor(p: player):
+    set {_helmet} to diamond helmet
+    enchant {_helmet} with protection 4
+    enchant {_helmet} with unbreaking 3
+    enchant {_helmet} with mending 1
+    enchant {_helmet} with respiration 3
+    enchant {_helmet} with aqua affinity 1
+
+    set {_chestplate} to diamond chestplate
+    enchant {_chestplate} with protection 4
+    enchant {_chestplate} with unbreaking 3
+    enchant {_chestplate} with mending 1
+
+    set {_leggings} to diamond leggings
+    enchant {_leggings} with protection 4
+    enchant {_leggings} with unbreaking 3
+    enchant {_leggings} with mending 1
+
+    set {_boots} to diamond boots
+    enchant {_boots} with protection 4
+    enchant {_boots} with unbreaking 3
+    enchant {_boots} with mending 1
+    enchant {_boots} with feather falling 4
+    enchant {_boots} with depth strider 3
+
+    set the helmet of {_p} to {_helmet}
+    set the chestplate of {_p} to {_chestplate}
+    set the leggings of {_p} to {_leggings}
+    set the boots of {_p} to {_boots}
+
+function ensure_armor(p: player):
+    if the helmet of {_p} is not diamond helmet:
+        give_armor({_p})
+        stop
+    if the chestplate of {_p} is not diamond chestplate:
+        give_armor({_p})
+        stop
+    if the leggings of {_p} is not diamond leggings:
+        give_armor({_p})
+        stop
+    if the boots of {_p} is not diamond boots:
+        give_armor({_p})
+        stop
+
+on join:
+    wait 5 ticks
+    give_armor(player)
+
+on respawn:
+    wait 5 ticks
+    give_armor(player)
+
+every 10 ticks:
+    loop all players:
+        ensure_armor(loop-player)
+
+command /armor:
+    trigger:
+        give_armor(player)

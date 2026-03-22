@@ -34,4 +34,8 @@ every 10 ticks:
                         if loop-item is not bow:
                             if loop-item is not arrow:
                                 if loop-item is not shield:
-                                    remove loop-item from loop-player's inventory
+                                    if loop-item is not diamond helmet:
+                                        if loop-item is not diamond chestplate:
+                                            if loop-item is not diamond leggings:
+                                                if loop-item is not diamond boots:
+                                                    remove loop-item from loop-player's inventory

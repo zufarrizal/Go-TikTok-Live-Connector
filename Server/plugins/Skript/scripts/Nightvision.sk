@@ -1,9 +1,11 @@
 # Unlimited Night Vision for all players
 
 on join:
+    wait 5 ticks
     execute console command "effect give %player% minecraft:night_vision 1000000 0 true"
 
 on respawn:
+    wait 5 ticks
     execute console command "effect give %player% minecraft:night_vision 1000000 0 true"
 
 every 5 minutes:

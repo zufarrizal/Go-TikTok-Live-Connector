@@ -1,15 +1,41 @@
 # Diamond balance scoreboard (can go negative)
 # Formula: diamond inventory - diamond debt
 
+function update_win_scoreboard():
+    execute console command "scoreboard players set WIN diamond_count %{win.total}%"
+
+function update_player_scoreboard(p: player):
+    set {_count} to {diamond.balance::%uuid of {_p}%}
+    if {_count} is not set:
+        set {_count} to 0
+    set {diamond.lastscore::%uuid of {_p}%} to {_count}
+    execute console command "scoreboard players reset %{_p}% diamond_count"
+    execute console command "scoreboard players set Diamond diamond_count %{_count}%"
+
 on load:
+    if {diamond.target} is not set:
+        set {diamond.target} to 100
+    if {win.total} is not set:
+        set {win.total} to 0
+    delete {diamond.lastscore::*}
     execute console command "scoreboard objectives remove diamond_count"
-    execute console command "scoreboard objectives add diamond_count dummy"
+    execute console command "scoreboard objectives add diamond_count dummy SCOREBOARD"
     execute console command "scoreboard objectives setdisplay sidebar diamond_count"
+    update_win_scoreboard()
+    loop all players:
+        update_player_scoreboard(loop-player)
 
 on join:
     if {diamond.debt::%uuid of player%} is not set:
         set {diamond.debt::%uuid of player%} to 0
+    if {diamond.target} is not set:
+        set {diamond.target} to 100
+    if {win.total} is not set:
+        set {win.total} to 0
     execute console command "scoreboard objectives setdisplay sidebar diamond_count"
+    update_win_scoreboard()
+    set {diamond.balance::%uuid of player%} to (amount of diamond in player's inventory) - {diamond.debt::%uuid of player%}
+    update_player_scoreboard(player)
 
 every 10 ticks:
     loop all players:
@@ -32,20 +58,20 @@ every 10 ticks:
 
         set {_count} to {_inv} - {_debt}
 
-        # Max diamond balance = 1000
-        if {_count} > 1000:
-            set {_excess} to {_count} - 1000
+        # Max diamond balance follows current win target
+        set {_target} to {diamond.target}
+        if {_count} > {_target}:
+            set {_excess} to {_count} - {_target}
             if {_excess} > 0:
                 remove {_excess} of diamond from loop-player's inventory
-            set {_count} to 1000
+            set {_count} to {_target}
 
         set {diamond.balance::%uuid of loop-player%} to {_count}
         if {diamond.lastscore::%uuid of loop-player%} is not {_count}:
-            set {diamond.lastscore::%uuid of loop-player%} to {_count}
-            execute console command "scoreboard players set %loop-player% diamond_count %{_count}%"
+            update_player_scoreboard(loop-player)
 
-        # Auto-start countdown when balance reaches 1000
-        if {_count} >= 1000:
+        # Auto-start countdown when balance reaches target
+        if {_count} >= {_target}:
             if {win.countdown::%uuid of loop-player%} is not set:
                 set {win.countdown::%uuid of loop-player%} to 15
         else:
@@ -55,21 +81,24 @@ every 1 second:
     loop all players:
         if {win.countdown::%uuid of loop-player%} is set:
             set {_bal} to {diamond.balance::%uuid of loop-player%}
-            if {_bal} < 1000:
+            set {_target} to {diamond.target}
+            if {_bal} < {_target}:
                 delete {win.countdown::%uuid of loop-player%}
             else:
                 set {_left} to {win.countdown::%uuid of loop-player%}
-                send title "&6DIAMOND MAX!" with subtitle "&eWIN in %{_left}% seconds" to loop-player
+                send title "&6DIAMOND TARGET!" with subtitle "&eWIN in %{_left}% seconds" to loop-player
 
                 if {_left} <= 1:
                     delete {win.countdown::%uuid of loop-player%}
                     send title "&aWIN PLAYER!" with subtitle "&e%loop-player%" to players
                     broadcast "&6WIN Player: &e%loop-player%"
+                    add 1 to {win.total}
+                    update_win_scoreboard()
                     remove all diamond from loop-player's inventory
                     set {diamond.debt::%uuid of loop-player%} to 0
                     set {diamond.balance::%uuid of loop-player%} to 0
-                    set {diamond.lastscore::%uuid of loop-player%} to 0
-                    execute console command "scoreboard players set %loop-player% diamond_count 0"
+                    execute console command "scoreboard players reset %loop-player% diamond_count"
+                    update_player_scoreboard(loop-player)
                 else:
                     remove 1 from {win.countdown::%uuid of loop-player%}
 
@@ -98,4 +127,21 @@ command /dmin <number>:
 
         set {_bal} to (amount of diamond in player's inventory) - {diamond.debt::%uuid of player%}
         set {diamond.balance::%uuid of player%} to {_bal}
+        update_player_scoreboard(player)
         send "&eDiamond balance reduced by &c%arg-1%&e. Current balance: &f%{_bal}%"
+
+command /dmset <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cTarget diamond must be greater than 0."
+            stop
+
+        set {diamond.target} to arg-1
+        delete {win.countdown::*}
+        broadcast "&eDiamond win target set to &a%arg-1%&e."
+
+command /winreset:
+    trigger:
+        set {win.total} to 0
+        update_win_scoreboard()
+        broadcast "&eWIN score has been reset to &a0&e."

@@ -7,6 +7,14 @@ command /dm <number> <text> <number> :
             play sound "entity.experience_orb.pickup" to loop-player
             give {_total} of diamond to loop-player
 
+command /ega <number> <text> <number> :
+    trigger:
+        set {_total} to arg-1 * arg-3
+        send title "&e%arg-2%" with subtitle "&aGive %{_total}% Enchanted Golden Apples" to players
+        loop all players:
+            play sound "entity.experience_orb.pickup" to loop-player
+            give {_total} of enchanted golden apple to loop-player
+
 # summon commands: {value} {username} {repeat}
 command /chicken <number> <text> <number>:
     trigger:

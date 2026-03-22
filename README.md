@@ -11,6 +11,9 @@ Bridge TikTok Live events to Minecraft actions using:
 - Map gifts/events to Minecraft commands (via RCON)
 - Web UI for event rules and testing
 - Skript game rules (tools, diamond economy, scoreboard, auto effects)
+- Auto diamond armor + starter tools on join/respawn
+- Configurable diamond win target and global win counter
+- Broadcast item/event commands such as diamonds and enchanted golden apples
 
 ## Project Structure
 
@@ -44,12 +47,23 @@ http://localhost:8080
 ## Important Skript Files
 
 - `Tools.sk` - auto gear loadout and protection
+- `Armor.sk` - auto diamond armor loadout on join/respawn
 - `Pickaxe.sk` - 3x3x3 mining behavior
-- `DiamondOnly.sk` - diamond-only pickup rules
-- `Scoreboard.sk` - diamond balance, debt, max cap, win countdown
+- `DiamondOnly.sk` - inventory filter and diamond-only pickup rules
+- `Scoreboard.sk` - diamond balance, configurable target, win countdown, global win counter
 - `Nightvision.sk` - permanent night vision
-- `Bedrock.sk` - bedrock automation logic
-- `Survival.sk` - gift/event command actions
+- `Bedrock.sk` - bedrock automation logic with reduced fill spam
+- `Survival.sk` - gift/event command actions and broadcast reward commands
+
+## Gameplay Commands
+
+- `/dm <amount> <name> <repeat>` - give diamonds to all players
+- `/gap <amount> <name> <repeat>` - give enchanted golden apples to all players
+- `/dmset <amount>` - change the diamond win target (default: `100`)
+- `/dmin <amount>` - reduce a player's diamond balance
+- `/winreset` - reset the global `WIN` counter
+- `/tools` - reapply starter tools
+- `/armor` - reapply diamond armor
 
 ## Notes
 

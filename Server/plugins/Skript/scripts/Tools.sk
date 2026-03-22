@@ -90,4 +90,3 @@ on drop:
 command /tools:
     trigger:
         give_tools(player)
-        send "&aSlots 1-4 have been replaced with fully upgraded tools."

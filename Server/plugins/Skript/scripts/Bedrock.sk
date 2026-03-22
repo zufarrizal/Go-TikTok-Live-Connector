@@ -3,9 +3,11 @@
 on player move:
     set {_x} to floor(x-coordinate of player)
     set {_z} to floor(z-coordinate of player)
-    set {_pos} to "%world of player%::%{_x}%::%{_z}%"
+    set {_gridX} to floor({_x} / 16)
+    set {_gridZ} to floor({_z} / 16)
+    set {_pos} to "%world of player%::%{_gridX}%::%{_gridZ}%"
 
-    # Jalan hanya saat pindah blok (bukan tiap pixel gerak)
+    # Jalan hanya saat pemain masuk region 16x16 baru
     if {bedrock.lastpos::%uuid of player%} is {_pos}:
         stop
     set {bedrock.lastpos::%uuid of player%} to {_pos}

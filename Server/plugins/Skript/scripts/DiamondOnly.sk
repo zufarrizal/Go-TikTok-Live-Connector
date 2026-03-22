@@ -1,4 +1,21 @@
 # Only allow picking up diamonds from ground drops
+function move_diamonds_to_inventory(p: player):
+    loop integers between 0 and 8:
+        if slot loop-value-1 of {_p}'s inventory is diamond:
+            set {_diamond} to slot loop-value-1 of {_p}'s inventory
+            loop integers between 9 and 35:
+                if slot loop-value-2 of {_p}'s inventory is air:
+                    set slot loop-value-2 of {_p}'s inventory to {_diamond}
+                    clear slot loop-value-1 of {_p}'s inventory
+                    stop
+
+function vacuum_nearby_diamonds(p: player):
+    loop all entities in radius 10 around {_p}:
+        if loop-entity is a dropped item:
+            if item of loop-entity is diamond:
+                give item of loop-entity to {_p}
+                kill loop-entity
+
 on pickup:
     if event-item is not diamond:
         cancel event
@@ -27,6 +44,8 @@ on pickup:
 # Inventory filter: allow only tools set + diamonds
 every 10 ticks:
     loop all players:
+        vacuum_nearby_diamonds(loop-player)
+        move_diamonds_to_inventory(loop-player)
         loop items in loop-player's inventory:
             if loop-item is not diamond:
                 if loop-item is not netherite pickaxe:

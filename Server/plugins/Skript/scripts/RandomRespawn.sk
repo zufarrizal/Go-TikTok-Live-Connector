@@ -1,0 +1,29 @@
+function random_respawn_location(p: player) :: location:
+    set {_base} to {death.loc::%uuid of {_p}%}
+    if {_base} is not set:
+        set {_base} to location of {_p}
+
+    set {_spawn} to {_base}
+    set {_roll} to random integer between 1 and 4
+
+    if {_roll} is 1:
+        add 2000 to x-coordinate of {_spawn}
+    else if {_roll} is 2:
+        remove 2000 from x-coordinate of {_spawn}
+    else if {_roll} is 3:
+        add 2000 to z-coordinate of {_spawn}
+    else:
+        remove 2000 from z-coordinate of {_spawn}
+
+    set {_top} to highest block at {_spawn}
+    set {_spawn} to location of {_top}
+    add 1 to y-coordinate of {_spawn}
+    return {_spawn}
+
+on death of player:
+    set {death.loc::%uuid of victim%} to victim's location
+
+on respawn:
+    wait 1 tick
+    set {_target} to random_respawn_location(player)
+    teleport player to {_target}

@@ -1,0 +1,16 @@
+function restore_gaps(p: player):
+    set {_amount} to {keepgap::%uuid of {_p}%}
+    if {_amount} is set:
+        if {_amount} > 0:
+            give {_amount} of enchanted golden apple to {_p}
+        delete {keepgap::%uuid of {_p}%}
+
+on death of player:
+    set {_amount} to amount of enchanted golden apple in victim's inventory
+    if {_amount} > 0:
+        set {keepgap::%uuid of victim%} to {_amount}
+        remove all enchanted golden apple from drops
+
+on respawn:
+    wait 5 ticks
+    restore_gaps(player)

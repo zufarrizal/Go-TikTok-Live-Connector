@@ -6,6 +6,6 @@
     "gift_id": 10716,
     "gift_name": "Blow a kiss",
     "diamond": 1,
-    "mc_command": "tnt 10 {username} {repeat_count}"
+    "mc_command": "tntprison 1 {username} {repeat_count}"
   }
 ]

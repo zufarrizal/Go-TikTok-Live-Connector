@@ -198,6 +198,35 @@ command /tnt <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon tnt ~ ~1 ~ {fuse:40}"
                 wait 2 ticks
 
+# Menjatuhkan TNT secara acak 3 blok di atas pemain dalam area 5x5.
+command /tntrain <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&c&l%arg-2%" with subtitle "&6&lTNT RAIN &cx%{_total}%" to loop-player
+            loop {_total} times:
+                set {_x} to random integer between -2 and 2
+                set {_z} to random integer between -2 and 2
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon tnt ~%{_x}% ~3 ~%{_z}% {fuse:40}"
+                wait 2 ticks
+
+# Memasukkan pemain ke tengah lalu membuat penjara TNT 5x5 di sekelilingnya.
+command /tntprison <number> <text> <number>:
+    trigger:
+        loop all players:
+            set {_p} to loop-player
+            set {_center} to location of {_p}
+            add 15 to y-coordinate of {_center}
+            teleport {_p} to {_center}
+            send title "&c&l%arg-2%" with subtitle "&4&lTNT PRISON" to {_p}
+            execute console command "execute at %{_p}% run fill ~-8 ~-2 ~-8 ~8 ~14 ~8 air"
+            execute console command "execute at %{_p}% run fill ~-8 ~-2 ~-8 ~8 ~14 ~8 tnt hollow"
+            execute console command "execute at %{_p}% run fill ~-7 ~-1 ~-7 ~7 ~13 ~7 tnt hollow"
+            execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:40}"
+            play sound "entity.experience_orb.pickup" to {_p}
+
 # Kombinasi creeper charged dan TNT untuk mode chaos.
 command /nightmare <number> <text> <number>:
     trigger:

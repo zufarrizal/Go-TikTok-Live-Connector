@@ -3,7 +3,7 @@
 #
 # version: 2.14.3
 
-bedrock.lastpos::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, string, 800E776F726C643A3A2D363A3A2D3233
+bedrock.lastpos::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, string, 800D776F726C643A3A32333A3A3237
 bedrockpath::world::2::-2, boolean, 01
 bedrockpath::world::2::-1, boolean, 01
 bedrockpath::world::82::-30, boolean, 01
@@ -30,12 +30,12 @@ bedrockpath::world::90::-32, boolean, 01
 bedrockpath::world::90::-31, boolean, 01
 bedrockpath::world::90::-30, boolean, 01
 death.loc::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, location, 8605776F726C6480FF0000000181046E616D65208005776F726C64017809409F279763DEA9E70179094025E414449E033C017A09C07BC1B65E30649D0570697463680842AA666D037961770842C30001
-diamond.balance::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000001
+diamond.balance::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000041
 diamond.debt::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000000
-diamond.lastscore::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000001
-diamond.target, long, 0000000000000064
-scoreboard.diamond.line, string, 801CC2A762C2A76C4469616D6F6E643AC2A76631C2A7372FC2A765313030
-scoreboard.win.line, string, 800EC2A736C2A76C57494E3AC2A76531
+diamond.lastscore::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, long, 0000000000000041
+diamond.target, long, 0000000000000100
+scoreboard.diamond.line, string, 801DC2A762C2A76C4469616D6F6E643AC2A7663635C2A7372FC2A765323536
+scoreboard.win.line, string, 800EC2A736C2A76C57494E3AC2A76530
 win.done::57febd0c-33ec-3d0a-b120-c0aa8d611d8d, boolean, 01
-win.total, double, 3FF0000000000000
+win.total, long, 0000000000000000
 

@@ -16,7 +16,6 @@
 !Server/plugins/.paper-remapped/remap-classpath/5028247881868F33795961B8387BB1B13C018B83E4523A77C8A8D8EFCD8F6FEE.jar
 !Server/plugins/.paper-remapped/unknown-origin/index.json
 !Server/plugins/Skript-2.14.3.jar
-!Server/plugins/Skript/backups/variables_2026-03-19_21-00-53.csv
 !Server/plugins/Skript/config.sk
 !Server/plugins/Skript/features.sk
 !Server/plugins/Skript/lang/catalan.lang
@@ -52,7 +51,6 @@
 !Server/plugins/Skript/scripts/Scoreboard.sk
 !Server/plugins/Skript/scripts/Survival.sk
 !Server/plugins/Skript/scripts/Tools.sk
-!Server/plugins/Skript/variables.csv
 !Server/plugins/bStats/config.yml
 !Server/plugins/spark/config.json
 !Server/plugins/spark/tmp/about.txt

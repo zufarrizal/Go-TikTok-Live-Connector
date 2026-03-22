@@ -1,5 +1,6 @@
 *
 !*/
+!*.sk
 !.gitignore
 !.vscode/settings.json
 !LICENSE

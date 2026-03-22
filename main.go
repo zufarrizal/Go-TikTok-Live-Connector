@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -191,6 +192,14 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"time":  time.Now().Format(time.RFC3339),
 			}))
 		} else {
+			downloadedCount, downloadErrs := downloadGiftImages("giftimage", gifts)
+			if len(downloadErrs) > 0 {
+				c.hub.broadcast(mustJSON(map[string]any{
+					"type":  "error",
+					"error": fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")),
+					"time":  time.Now().Format(time.RFC3339),
+				}))
+			}
 			outFile, saveErr := saveGiftListJSON(username, gifts)
 			if saveErr != nil {
 				c.hub.broadcast(mustJSON(map[string]any{
@@ -201,7 +210,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			} else {
 				c.hub.broadcast(mustJSON(map[string]any{
 					"type":    "status",
-					"message": "Gift list saved to " + outFile + " and gift-list.json",
+					"message": fmt.Sprintf("Gift list saved to %s and downloaded %d gift image(s) to giftimage", outFile, downloadedCount),
 					"time":    time.Now().Format(time.RFC3339),
 				}))
 			}
@@ -1129,15 +1138,15 @@ func main() {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "event not found"})
 			return
 		}
-	cmd := applyCommandTemplate(item.MCCommand, map[string]string{
-		"event_type": "test",
-		"username":   "TestPlayer",
-		"comment":    "test comment",
-		"gift_name":  item.GiftName,
-		"gift_id":    strconv.Itoa(item.GiftID),
-		"diamond":    strconv.Itoa(item.Diamond),
-		"repeat_count": "1",
-	})
+		cmd := applyCommandTemplate(item.MCCommand, map[string]string{
+			"event_type":   "test",
+			"username":     "TestPlayer",
+			"comment":      "test comment",
+			"gift_name":    item.GiftName,
+			"gift_id":      strconv.Itoa(item.GiftID),
+			"diamond":      strconv.Itoa(item.Diamond),
+			"repeat_count": "1",
+		})
 		out, err := mcRCON.Execute(cmd)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
@@ -1248,10 +1257,10 @@ func main() {
 			resp["message"] = "SHARE"
 		case "like":
 			ev = gotiktoklive.LikeEvent{
-				Timestamp:    now,
-				Likes:        req.RepeatCount,
-				TotalLikes:   req.RepeatCount,
-				User:         user,
+				Timestamp:  now,
+				Likes:      req.RepeatCount,
+				TotalLikes: req.RepeatCount,
+				User:       user,
 			}
 			resp["message"] = fmt.Sprintf("%d likes", req.RepeatCount)
 		case "room":
@@ -1411,17 +1420,21 @@ func loadProperties(path string) (map[string]string, error) {
 }
 
 type giftCatalogItem struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Describe string `json:"describe"`
-	Diamonds int    `json:"diamonds"`
-	Type     int    `json:"type"`
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Describe  string `json:"describe"`
+	Diamonds  int    `json:"diamonds"`
+	Type      int    `json:"type"`
+	ImageURL  string `json:"image_url,omitempty"`
+	ImagePath string `json:"image_path,omitempty"`
 }
 
 type giftListJSONItem struct {
-	ID       int    `json:"id"`
-	NamaGift string `json:"nama_gift"`
-	Diamond  int    `json:"diamond"`
+	ID        int    `json:"id"`
+	NamaGift  string `json:"nama_gift"`
+	Diamond   int    `json:"diamond"`
+	ImageURL  string `json:"image_url,omitempty"`
+	ImagePath string `json:"image_path,omitempty"`
 }
 
 func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
@@ -1492,6 +1505,14 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 				Describe     string `json:"describe"`
 				DiamondCount int    `json:"diamond_count"`
 				Type         int    `json:"type"`
+				Image        struct {
+					URLList []string `json:"url_list"`
+					URI     string   `json:"uri"`
+				} `json:"image"`
+				Images []struct {
+					URLList []string `json:"url_list"`
+					URI     string   `json:"uri"`
+				} `json:"images"`
 			} `json:"gifts"`
 		} `json:"data"`
 	}
@@ -1510,6 +1531,7 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 			Describe: g.Describe,
 			Diamonds: g.DiamondCount,
 			Type:     g.Type,
+			ImageURL: firstNonEmptyGiftImageURL(g.Image.URLList, g.Images),
 		}
 	}
 
@@ -1535,9 +1557,11 @@ func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) 
 	items := make([]giftListJSONItem, 0, len(gifts))
 	for _, g := range gifts {
 		items = append(items, giftListJSONItem{
-			ID:       g.ID,
-			NamaGift: g.Name,
-			Diamond:  g.Diamonds,
+			ID:        g.ID,
+			NamaGift:  g.Name,
+			Diamond:   g.Diamonds,
+			ImageURL:  g.ImageURL,
+			ImagePath: g.ImagePath,
 		})
 	}
 
@@ -1549,6 +1573,142 @@ func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) 
 		return "", err
 	}
 	return "gift-list.json", nil
+}
+
+func firstNonEmptyGiftImageURL(primary []string, extras []struct {
+	URLList []string `json:"url_list"`
+	URI     string   `json:"uri"`
+}) string {
+	for _, u := range primary {
+		u = strings.TrimSpace(u)
+		if u != "" {
+			return u
+		}
+	}
+	for _, item := range extras {
+		for _, u := range item.URLList {
+			u = strings.TrimSpace(u)
+			if u != "" {
+				return u
+			}
+		}
+	}
+	return ""
+}
+
+func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return 0, []string{fmt.Sprintf("failed to create %s: %v", dir, err)}
+	}
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	downloaded := 0
+	var errs []string
+
+	for i := range gifts {
+		imageURL := strings.TrimSpace(gifts[i].ImageURL)
+		if gifts[i].ID <= 0 || imageURL == "" {
+			continue
+		}
+
+		fileBase := giftImageFileBase(gifts[i].Diamonds, gifts[i].Name, gifts[i].ID)
+		fileExt := detectGiftImageExt(imageURL, "")
+		targetPath := filepath.Join(dir, fileBase+fileExt)
+		if existingPath, ok := existingGiftImagePath(dir, fileBase); ok {
+			gifts[i].ImagePath = filepath.ToSlash(existingPath)
+			continue
+		}
+
+		req, err := http.NewRequest(http.MethodGet, imageURL, nil)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("gift %d: %v", gifts[i].ID, err))
+			continue
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("gift %d: %v", gifts[i].ID, err))
+			continue
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			errs = append(errs, fmt.Sprintf("gift %d: %v", gifts[i].ID, readErr))
+			continue
+		}
+		if resp.StatusCode >= 400 {
+			errs = append(errs, fmt.Sprintf("gift %d: status %d", gifts[i].ID, resp.StatusCode))
+			continue
+		}
+
+		fileExt = detectGiftImageExt(imageURL, resp.Header.Get("Content-Type"))
+		targetPath = filepath.Join(dir, fileBase+fileExt)
+		if err := os.WriteFile(targetPath, body, 0644); err != nil {
+			errs = append(errs, fmt.Sprintf("gift %d: %v", gifts[i].ID, err))
+			continue
+		}
+
+		gifts[i].ImagePath = filepath.ToSlash(targetPath)
+		downloaded++
+	}
+
+	return downloaded, errs
+}
+
+func existingGiftImagePath(dir string, fileBase string) (string, bool) {
+	pattern := filepath.Join(dir, fileBase+".*")
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		return "", false
+	}
+	return matches[0], true
+}
+
+func giftImageFileBase(diamonds int, name string, giftID int) string {
+	name = strings.TrimSpace(name)
+	name = strings.Map(func(r rune) rune {
+		switch r {
+		case '<', '>', ':', '"', '/', '\\', '|', '?', '*':
+			return -1
+		default:
+			return r
+		}
+	}, name)
+	name = strings.Join(strings.Fields(name), " ")
+	name = strings.Trim(name, ". ")
+	if name == "" {
+		name = strconv.Itoa(giftID)
+	}
+	prefix := strconv.Itoa(diamonds)
+	if diamonds < 0 {
+		prefix = "0"
+	}
+	return prefix + "_" + name
+}
+
+func detectGiftImageExt(rawURL string, contentType string) string {
+	if ct := strings.TrimSpace(contentType); ct != "" {
+		if exts, _ := mime.ExtensionsByType(strings.Split(ct, ";")[0]); len(exts) > 0 {
+			return exts[0]
+		}
+	}
+	if parsed, err := url.Parse(rawURL); err == nil {
+		ext := strings.ToLower(filepath.Ext(parsed.Path))
+		switch ext {
+		case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+			return ext
+		}
+	}
+	return ".jpg"
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func mustJSON(v any) string {

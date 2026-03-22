@@ -641,7 +641,19 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 			}))
 			continue
 		}
-		_ = out
+		a.hub.broadcast(mustJSON(map[string]any{
+			"type":         "trigger",
+			"event_id":     rule.ID,
+			"event_type":   eventType,
+			"event_label":  rule.Label,
+			"gift_id":      giftID,
+			"gift_name":    vars["gift_name"],
+			"username":     vars["username"],
+			"repeat_count": vars["repeat_count"],
+			"command":      cmd,
+			"output":       out,
+			"time":         time.Now().Format(time.RFC3339),
+		}))
 	}
 }
 
@@ -705,6 +717,14 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 	defer a.mu.Unlock()
 
 	state := a.giftCombo[g.GroupID]
+	// Some gift streams appear to reuse GroupID across separate combos.
+	// When the repeat counter restarts (or goes backwards), treat it as a new combo
+	// instead of carrying over state from the previous one.
+	if state.Last > 0 && current <= state.Last {
+		if current == 1 || current < state.Last {
+			state = giftComboProgress{}
+		}
+	}
 	if state.Last > 0 && current > state.Last {
 		state.SawIncrease = true
 	}
@@ -737,22 +757,27 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 	switch e := ev.(type) {
 	case gotiktoklive.ChatEvent:
-		username := safeUsernameFromUser(e.User)
+		username := historyUsernameFromEvent(e, e.User)
+		nickname := safeNicknameFromUser(e.User)
 		return "comment", map[string]string{
 			"event_type": "comment",
 			"username":   username,
+			"nickname":   nickname,
 			"comment":    e.Comment,
 		}, 0, 1
 	case gotiktoklive.LikeEvent:
-		username := safeUsernameFromUser(e.User)
+		username := historyUsernameFromEvent(e, e.User)
+		nickname := safeNicknameFromUser(e.User)
 		return "like", map[string]string{
 			"event_type":  "like",
 			"username":    username,
+			"nickname":    nickname,
 			"likes":       strconv.Itoa(e.Likes),
 			"total_likes": strconv.Itoa(e.TotalLikes),
 		}, 0, 1
 	case gotiktoklive.GiftEvent:
-		username := safeUsernameFromUser(e.User)
+		username := historyUsernameFromEvent(e, e.User)
+		nickname := safeNicknameFromUser(e.User)
 		loopCount := e.RepeatCount
 		if loopCount <= 0 {
 			loopCount = 1
@@ -760,28 +785,64 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 		return "gift", map[string]string{
 			"event_type":   "gift",
 			"username":     username,
+			"nickname":     nickname,
 			"gift_name":    e.Name,
 			"gift_id":      strconv.FormatInt(e.ID, 10),
 			"diamond":      strconv.Itoa(e.Diamonds),
 			"repeat_count": strconv.Itoa(e.RepeatCount),
 		}, int(e.ID), loopCount
 	case gotiktoklive.UserEvent:
-		username := safeUsernameFromUser(e.User)
+		username := historyUsernameFromEvent(e, e.User)
+		nickname := safeNicknameFromUser(e.User)
 		tag := strings.ToUpper(fmt.Sprint(e.Event))
 		if strings.Contains(tag, "JOIN") {
 			return "join", map[string]string{
 				"event_type": "join",
 				"username":   username,
+				"nickname":   nickname,
 			}, 0, 1
 		}
 		if strings.Contains(tag, "SHARE") {
 			return "share", map[string]string{
 				"event_type": "share",
 				"username":   username,
+				"nickname":   nickname,
 			}, 0, 1
 		}
 	}
 	return "", nil, 0, 0
+}
+
+func historyUsernameFromEvent(ev any, fallbackUser *gotiktoklive.User) string {
+	b, err := json.Marshal(ev)
+	if err == nil {
+		var payload map[string]any
+		if err := json.Unmarshal(b, &payload); err == nil {
+			if rawUser, ok := payload["user"].(map[string]any); ok {
+				if name := firstStringValue(rawUser["username"], rawUser["Username"]); name != "" {
+					return name
+				}
+			}
+			if rawUser, ok := payload["User"].(map[string]any); ok {
+				if name := firstStringValue(rawUser["username"], rawUser["Username"]); name != "" {
+					return name
+				}
+			}
+		}
+	}
+	return safeUsernameFromUser(fallbackUser)
+}
+
+func firstStringValue(values ...any) string {
+	for _, v := range values {
+		if s, ok := v.(string); ok {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 func safeUsernameFromUser(u *gotiktoklive.User) string {
@@ -790,7 +851,18 @@ func safeUsernameFromUser(u *gotiktoklive.User) string {
 	}
 	name := strings.TrimSpace(u.Username)
 	if name == "" {
-		name = strings.TrimSpace(u.Nickname)
+		return "TestPlayer"
+	}
+	return name
+}
+
+func safeNicknameFromUser(u *gotiktoklive.User) string {
+	if u == nil {
+		return "TestPlayer"
+	}
+	name := strings.TrimSpace(u.Nickname)
+	if name == "" {
+		name = strings.TrimSpace(u.Username)
 	}
 	if name == "" {
 		return "TestPlayer"
@@ -1141,6 +1213,7 @@ func main() {
 		cmd := applyCommandTemplate(item.MCCommand, map[string]string{
 			"event_type":   "test",
 			"username":     "TestPlayer",
+			"nickname":     "Test Player",
 			"comment":      "test comment",
 			"gift_name":    item.GiftName,
 			"gift_id":      strconv.Itoa(item.GiftID),

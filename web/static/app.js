@@ -114,6 +114,25 @@ const statusEl = document.getElementById("status");
         };
       }
 
+      if (payload.type === "trigger") {
+        const eventType = String(payload.event_type || "").toLowerCase();
+        const username = payload.username || "Unknown";
+        const ruleId = payload.event_id ?? "?";
+        const giftName = payload.gift_name || "Gift";
+        const repeatCount = Math.max(1, Number(payload.repeat_count || 1));
+        let detail = "event #" + esc(ruleId);
+
+        if (eventType === "gift") {
+          detail = "gift trigger " + esc(giftName) + " x" + esc(repeatCount) + " -> event #" + esc(ruleId);
+        } else if (eventType) {
+          detail = esc(eventType) + " trigger -> event #" + esc(ruleId);
+        }
+
+        return {
+          html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge system\">TRIGGER</span><span class=\"ev-text\">" + detail + "</span>"
+        };
+      }
+
       if (payload.type === "event") {
         const data = payload.data || {};
         const eventType = String(payload.eventType || "");

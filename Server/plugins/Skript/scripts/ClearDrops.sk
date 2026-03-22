@@ -1,0 +1,31 @@
+# Auto clear item drop di tanah secara berkala.
+
+options:
+    clear-drops-interval: 10 seconds
+
+# Menghitung jumlah item drop yang sedang ada di semua world.
+function count_dropped_items() :: number:
+    set {_count} to 0
+    loop all entities:
+        if loop-entity is a dropped item:
+            add 1 to {_count}
+    return {_count}
+
+# Menghapus semua item drop di tanah, lalu mengembalikan jumlah yang terhapus.
+function clear_dropped_items() :: number:
+    set {_removed} to 0
+    loop all entities:
+        if loop-entity is a dropped item:
+            kill loop-entity
+            add 1 to {_removed}
+    return {_removed}
+
+# Hapus item drop di tanah secara otomatis sesuai interval yang ditentukan.
+every {@clear-drops-interval}:
+    clear_dropped_items()
+
+# Command manual untuk clear drop kapan saja.
+command /cleardrops:
+    permission: op
+    trigger:
+        clear_dropped_items()

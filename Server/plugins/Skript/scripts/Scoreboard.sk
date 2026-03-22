@@ -27,7 +27,7 @@ function update_player_scoreboard(p: player):
 # Inisialisasi objective scoreboard saat skrip dimuat.
 on load:
     if {diamond.target} is not set:
-        set {diamond.target} to 100
+        set {diamond.target} to 256
     if {win.total} is not set:
         set {win.total} to 0
     delete {diamond.lastscore::*}
@@ -46,7 +46,7 @@ on join:
     if {diamond.debt::%uuid of player%} is not set:
         set {diamond.debt::%uuid of player%} to 0
     if {diamond.target} is not set:
-        set {diamond.target} to 100
+        set {diamond.target} to 256
     if {win.total} is not set:
         set {win.total} to 0
     execute console command "scoreboard objectives setdisplay sidebar diamond_count"

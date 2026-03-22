@@ -1,16 +1,20 @@
 # Unlimited Night Vision for all players
 
+# Memberikan efek night vision langsung lewat syntax Skript.
+function apply_nightvision(p: player):
+    apply infinite night vision 1 to {_p}
+
 # Berikan efek night vision saat pemain masuk.
 on join:
     wait 5 ticks
-    execute console command "effect give %player% minecraft:night_vision 1000000 0 true"
+    apply_nightvision(player)
 
 # Berikan ulang efek saat pemain respawn.
 on respawn:
     wait 5 ticks
-    execute console command "effect give %player% minecraft:night_vision 1000000 0 true"
+    apply_nightvision(player)
 
 # Refresh efek berkala agar durasinya tidak pernah habis.
 every 5 minutes:
     loop all players:
-        execute console command "effect give %loop-player% minecraft:night_vision 1000000 0 true"
+        apply_nightvision(loop-player)

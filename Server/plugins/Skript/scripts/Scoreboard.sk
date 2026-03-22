@@ -2,15 +2,23 @@
 # Formula: diamond inventory - diamond debt
 
 function update_win_scoreboard():
-    execute console command "scoreboard players set WIN diamond_count %{win.total}%"
+    if {scoreboard.win.line} is set:
+        execute console command "scoreboard players reset %{scoreboard.win.line}% diamond_count"
+    set {_line} to "§6§lWIN:§e%{win.total}%"
+    set {scoreboard.win.line} to {_line}
+    execute console command "scoreboard players set %{_line}% diamond_count 1"
 
 function update_player_scoreboard(p: player):
     set {_count} to {diamond.balance::%uuid of {_p}%}
     if {_count} is not set:
         set {_count} to 0
     set {diamond.lastscore::%uuid of {_p}%} to {_count}
+    if {scoreboard.diamond.line} is set:
+        execute console command "scoreboard players reset %{scoreboard.diamond.line}% diamond_count"
     execute console command "scoreboard players reset %{_p}% diamond_count"
-    execute console command "scoreboard players set Diamond diamond_count %{_count}%"
+    set {_line} to "§b§lDiamond:§f%{_count}%§7/§e%{diamond.target}%"
+    set {scoreboard.diamond.line} to {_line}
+    execute console command "scoreboard players set %{_line}% diamond_count 2"
 
 on load:
     if {diamond.target} is not set:
@@ -18,8 +26,11 @@ on load:
     if {win.total} is not set:
         set {win.total} to 0
     delete {diamond.lastscore::*}
+    delete {scoreboard.diamond.line}
+    delete {scoreboard.win.line}
     execute console command "scoreboard objectives remove diamond_count"
     execute console command "scoreboard objectives add diamond_count dummy SCOREBOARD"
+    execute console command "scoreboard objectives modify diamond_count numberformat blank"
     execute console command "scoreboard objectives setdisplay sidebar diamond_count"
     update_win_scoreboard()
     loop all players:
@@ -86,11 +97,11 @@ every 1 second:
                 delete {win.countdown::%uuid of loop-player%}
             else:
                 set {_left} to {win.countdown::%uuid of loop-player%}
-                send title "&6DIAMOND TARGET!" with subtitle "&eWIN in %{_left}% seconds" to loop-player
+                send title "&b&lDIAMOND &f&lTARGET!" with subtitle "&e&lWIN IN &c%{_left}% &6SECONDS" to loop-player
 
                 if {_left} <= 1:
                     delete {win.countdown::%uuid of loop-player%}
-                    send title "&aWIN PLAYER!" with subtitle "&e%loop-player%" to players
+                    send title "&6&lWIN &e&lPLAYER!" with subtitle "&b&l%loop-player%" to players
                     broadcast "&6WIN Player: &e%loop-player%"
                     add 1 to {win.total}
                     update_win_scoreboard()
@@ -138,6 +149,9 @@ command /dmset <number>:
 
         set {diamond.target} to arg-1
         delete {win.countdown::*}
+        delete {diamond.lastscore::*}
+        loop all players:
+            update_player_scoreboard(loop-player)
         broadcast "&eDiamond win target set to &a%arg-1%&e."
 
 command /winreset:
@@ -145,3 +159,33 @@ command /winreset:
         set {win.total} to 0
         update_win_scoreboard()
         broadcast "&eWIN score has been reset to &a0&e."
+
+command /winset <number>:
+    trigger:
+        if arg-1 < 0:
+            send "&cWIN score cannot be negative."
+            stop
+
+        set {win.total} to arg-1
+        update_win_scoreboard()
+        broadcast "&eWIN score has been set to &a%arg-1%&e."
+
+command /addwin <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cWIN addition must be greater than 0."
+            stop
+
+        add arg-1 to {win.total}
+        update_win_scoreboard()
+        broadcast "&eWIN score increased by &a%arg-1%&e. Total: &6%{win.total}%&e."
+
+command /minwin <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cWIN reduction must be greater than 0."
+            stop
+
+        remove arg-1 from {win.total}
+        update_win_scoreboard()
+        broadcast "&eWIN score reduced by &c%arg-1%&e. Total: &6%{win.total}%&e."

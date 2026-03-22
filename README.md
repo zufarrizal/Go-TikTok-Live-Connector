@@ -12,6 +12,8 @@ Bridge TikTok Live events to Minecraft actions using:
 - Web UI for event rules and testing
 - Skript game rules (tools, diamond economy, scoreboard, auto effects)
 - Auto diamond armor + starter tools on join/respawn
+- Auto full hunger for all players
+- Custom Diamond Compass on join/respawn
 - Configurable diamond win target and global win counter
 - Broadcast item/event commands such as diamonds and enchanted golden apples
 
@@ -48,12 +50,14 @@ http://localhost:8080
 
 - `Tools.sk` - auto gear loadout and protection
 - `Armor.sk` - auto diamond armor loadout on join/respawn
+- `Food.sk` - keeps food and saturation full
 - `Pickaxe.sk` - 3x3x3 mining behavior
 - `DiamondOnly.sk` - inventory filter and diamond-only pickup rules
-- `Scoreboard.sk` - diamond balance, configurable target, win countdown, global win counter
+- `Scoreboard.sk` - diamond balance, colored sidebar, configurable target, win countdown, global win counter
 - `Nightvision.sk` - permanent night vision
 - `Bedrock.sk` - bedrock automation logic with reduced fill spam
 - `Survival.sk` - gift/event command actions and broadcast reward commands
+- `DiamondCompass.sk` - custom Diamond Compass reward and slot protection
 
 ## Gameplay Commands
 
@@ -61,9 +65,13 @@ http://localhost:8080
 - `/gap <amount> <name> <repeat>` - give enchanted golden apples to all players
 - `/dmset <amount>` - change the diamond win target (default: `100`)
 - `/dmin <amount>` - reduce a player's diamond balance
+- `/winset <amount>` - set the global `WIN` counter
+- `/addwin <amount>` - add to the global `WIN` counter
+- `/minwin <amount>` - subtract from the global `WIN` counter
 - `/winreset` - reset the global `WIN` counter
 - `/tools` - reapply starter tools
 - `/armor` - reapply diamond armor
+- `/dcompass` - give the custom Diamond Compass
 
 ## Notes
 

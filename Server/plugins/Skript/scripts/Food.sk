@@ -1,0 +1,21 @@
+# Keep food bar full for all players
+
+function refill_food(p: player):
+    set food level of {_p} to 20
+    set saturation of {_p} to 20
+
+on join:
+    wait 5 ticks
+    refill_food(player)
+
+on respawn:
+    wait 5 ticks
+    refill_food(player)
+
+on food level change:
+    set food level of player to 20
+    set saturation of player to 20
+
+every 5 seconds:
+    loop all players:
+        refill_food(loop-player)

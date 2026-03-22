@@ -1,0 +1,67 @@
+*
+!*/
+!.gitignore
+!.vscode/settings.json
+!LICENSE
+!README.md
+!Server/eula.txt
+!Server/ops.json
+!Server/paper.jar
+!Server/plugins/.paper-remapped/Skript-2.14.3.jar
+!Server/plugins/.paper-remapped/extra-plugins/index.json
+!Server/plugins/.paper-remapped/index.json
+!Server/plugins/.paper-remapped/libraries/index.json
+!Server/plugins/.paper-remapped/mappings/reversed/5028247881868F33795961B8387BB1B13C018B83E4523A77C8A8D8EFCD8F6FEE.tiny
+!Server/plugins/.paper-remapped/remap-classpath/5028247881868F33795961B8387BB1B13C018B83E4523A77C8A8D8EFCD8F6FEE.jar
+!Server/plugins/.paper-remapped/unknown-origin/index.json
+!Server/plugins/Skript-2.14.3.jar
+!Server/plugins/Skript/backups/variables_2026-03-19_21-00-53.csv
+!Server/plugins/Skript/config.sk
+!Server/plugins/Skript/features.sk
+!Server/plugins/Skript/lang/catalan.lang
+!Server/plugins/Skript/lang/dutch.lang
+!Server/plugins/Skript/lang/english.lang
+!Server/plugins/Skript/lang/french.lang
+!Server/plugins/Skript/lang/german.lang
+!Server/plugins/Skript/lang/japanese.lang
+!Server/plugins/Skript/lang/korean.lang
+!Server/plugins/Skript/lang/polish.lang
+!Server/plugins/Skript/lang/readme.txt
+!Server/plugins/Skript/lang/russian.lang
+!Server/plugins/Skript/lang/simplifiedchinese.lang
+!Server/plugins/Skript/lang/spanish.lang
+!Server/plugins/Skript/lang/turkish.lang
+!Server/plugins/Skript/scripts/-- Files prefixed with a hyphen are disabled! --
+!Server/plugins/Skript/scripts/-examples/chest menus.sk
+!Server/plugins/Skript/scripts/-examples/commands.sk
+!Server/plugins/Skript/scripts/-examples/events.sk
+!Server/plugins/Skript/scripts/-examples/experimental features/for loops.sk
+!Server/plugins/Skript/scripts/-examples/experimental features/queues.sk
+!Server/plugins/Skript/scripts/-examples/experimental features/script reflection.sk
+!Server/plugins/Skript/scripts/-examples/functions.sk
+!Server/plugins/Skript/scripts/-examples/loops.sk
+!Server/plugins/Skript/scripts/-examples/options and meta.sk
+!Server/plugins/Skript/scripts/-examples/text formatting.sk
+!Server/plugins/Skript/scripts/-examples/timings.sk
+!Server/plugins/Skript/scripts/-examples/variables.sk
+!Server/plugins/Skript/scripts/Bedrock.sk
+!Server/plugins/Skript/scripts/DiamondOnly.sk
+!Server/plugins/Skript/scripts/Nightvision.sk
+!Server/plugins/Skript/scripts/Pickaxe.sk
+!Server/plugins/Skript/scripts/Scoreboard.sk
+!Server/plugins/Skript/scripts/Survival.sk
+!Server/plugins/Skript/scripts/Tools.sk
+!Server/plugins/Skript/variables.csv
+!Server/plugins/bStats/config.yml
+!Server/plugins/spark/config.json
+!Server/plugins/spark/tmp/about.txt
+!Server/server.properties
+!Server/start-server.bat
+!events.json
+!gift-list.json
+!go.mod
+!go.sum
+!main.go
+!web/index.html
+!web/static/app.js
+!web/static/styles.css

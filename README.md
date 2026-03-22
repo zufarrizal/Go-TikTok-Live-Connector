@@ -17,12 +17,30 @@ Bridge TikTok Live events to Minecraft actions using:
 - Configurable diamond win target and global win counter
 - Broadcast item/event commands such as diamonds and enchanted golden apples
 
-## Project Structure
+## Current Project Structure
 
-- `main.go` - backend server and TikTok event handling
-- `web/` - frontend dashboard
-- `Server/` - Minecraft server files
-- `Server/plugins/Skript/scripts/` - gameplay scripts
+- `main.go` - Go backend server and TikTok event bridge
+- `go.mod`, `go.sum` - Go module metadata
+- `events.json` - event rule configuration
+- `gift-list.json` - TikTok gift mapping data
+- `web/index.html` - dashboard page
+- `web/static/app.js` - dashboard logic
+- `web/static/styles.css` - dashboard styling
+- `Server/` - Paper server directory used by the project
+
+### Server Root
+
+- `Server/paper.jar` - Paper server jar
+- `Server/server.properties` - core server settings and RCON config
+- `Server/start-server.bat` - server startup script
+- `Server/ops.json` - operator list
+- `Server/bukkit.yml`, `Server/spigot.yml`, `Server/commands.yml`, `Server/help.yml`, `Server/permissions.yml` - Bukkit/Paper configuration
+- `Server/version_history.json`, `Server/usercache.json`, `Server/banned-players.json`, `Server/banned-ips.json`, `Server/whitelist.json` - runtime server data
+- `Server/config/` - Paper global/world default config
+- `Server/plugins/` - installed plugins and plugin data
+- `Server/logs/` - server logs
+- `Server/world/`, `Server/world_nether/`, `Server/world_the_end/` - world data
+- `Server/cache/`, `Server/libraries/`, `Server/versions/` - server runtime dependencies
 
 ## Requirements
 
@@ -46,23 +64,31 @@ go run .
 http://localhost:8080
 ```
 
-## Important Skript Files
+## Skript Files In Use
 
-- `Tools.sk` - auto gear loadout and protection
-- `Armor.sk` - auto diamond armor loadout on join/respawn
-- `Food.sk` - keeps food and saturation full
-- `Pickaxe.sk` - 3x3x3 mining behavior
-- `DiamondOnly.sk` - inventory filter and diamond-only pickup rules
-- `Scoreboard.sk` - diamond balance, colored sidebar, configurable target, win countdown, global win counter
-- `Nightvision.sk` - permanent night vision
-- `Bedrock.sk` - bedrock automation logic with reduced fill spam
-- `Survival.sk` - gift/event command actions and broadcast reward commands
-- `DiamondCompass.sk` - custom Diamond Compass reward and slot protection
+- `Server/plugins/Skript/scripts/Armor.sk` - auto diamond armor loadout on join/respawn
+- `Server/plugins/Skript/scripts/Bedrock.sk` - bedrock floor automation around moving players
+- `Server/plugins/Skript/scripts/DiamondOnly.sk` - inventory whitelist and diamond pickup rules
+- `Server/plugins/Skript/scripts/Food.sk` - keeps hunger and saturation full
+- `Server/plugins/Skript/scripts/Nightvision.sk` - permanent night vision
+- `Server/plugins/Skript/scripts/Pickaxe.sk` - 3x3x3 mining behavior
+- `Server/plugins/Skript/scripts/Scoreboard.sk` - diamond progress sidebar, win counter, target management
+- `Server/plugins/Skript/scripts/Survival.sk` - reward commands and mob spawn commands
+- `Server/plugins/Skript/scripts/Tools.sk` - starter tools and tool protection
+
+## Bundled Skript Plugin Files
+
+- `Server/plugins/Skript/config.sk` - Skript plugin config
+- `Server/plugins/Skript/features.sk` - Skript feature toggles
+- `Server/plugins/Skript/variables.csv` - persisted Skript variables
+- `Server/plugins/Skript/backups/` - variable backups
+- `Server/plugins/Skript/lang/` - Skript language files
+- `Server/plugins/Skript/scripts/-examples/` - bundled example scripts, kept for reference
 
 ## Gameplay Commands
 
 - `/dm <amount> <name> <repeat>` - give diamonds to all players
-- `/gap <amount> <name> <repeat>` - give enchanted golden apples to all players
+- `/ega <amount> <name> <repeat>` - give enchanted golden apples to all players
 - `/dmset <amount>` - change the diamond win target (default: `100`)
 - `/dmin <amount>` - reduce a player's diamond balance
 - `/winset <amount>` - set the global `WIN` counter
@@ -71,11 +97,13 @@ http://localhost:8080
 - `/winreset` - reset the global `WIN` counter
 - `/tools` - reapply starter tools
 - `/armor` - reapply diamond armor
-- `/dcompass` - give the custom Diamond Compass
+- mob/event commands in `Survival.sk` - e.g. `/chicken`, `/zombie`, `/warden`, `/wither`, `/nightmare`, `/tnt`
 
 ## Notes
 
-- Runtime-generated files are ignored by `.gitignore` (logs, worlds, binaries, etc.).
+- The repository currently contains both source files and a live Paper server directory.
+- Many files under `Server/` are runtime-generated server data, plugin data, logs, and world files.
+- The active gameplay logic is mainly in `Server/plugins/Skript/scripts/`.
 - If this folder is not yet a Git repository, initialize it with:
 
 ```bash

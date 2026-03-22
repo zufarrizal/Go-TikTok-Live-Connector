@@ -271,7 +271,6 @@ type eventRecord struct {
 	GiftName  string `json:"gift_name"`
 	Diamond   int    `json:"diamond"`
 	MCCommand string `json:"mc_command"`
-	CreatedAt string `json:"created_at"`
 }
 
 type eventStore struct {
@@ -498,7 +497,6 @@ func (s *eventStore) create(eventType, label string, giftID int, giftName string
 		GiftName:  strings.TrimSpace(giftName),
 		Diamond:   diamond,
 		MCCommand: strings.TrimSpace(mcCommand),
-		CreatedAt: time.Now().Format(time.RFC3339),
 	}
 	s.items = append(s.items, item)
 	if err := s.saveLocked(); err != nil {

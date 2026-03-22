@@ -1,3 +1,4 @@
+# Memberikan set tools utama ke pemain.
 function give_tools(p: player):
     # Slot 1-4 hotbar (index Skript: 0-3)
     set slot 0 of {_p}'s inventory to netherite pickaxe
@@ -27,8 +28,10 @@ function give_tools(p: player):
     enchant slot 2 of {_p}'s inventory with infinity 1
     enchant slot 2 of {_p}'s inventory with unbreaking 3
 
+# Memastikan semua tools wajib tetap tersedia di slot yang benar.
 function ensure_tools(p: player):
     if slot 0 of {_p}'s inventory is not netherite pickaxe:
+        # Jika pickaxe hilang atau tertukar, buat ulang lengkap dengan enchant.
         set slot 0 of {_p}'s inventory to netherite pickaxe
         enchant slot 0 of {_p}'s inventory with efficiency 5
         enchant slot 0 of {_p}'s inventory with fortune 3
@@ -58,18 +61,22 @@ function ensure_tools(p: player):
     if offhand tool of {_p} is not shield:
         set offhand tool of {_p} to shield
 
+# Berikan tools saat join.
 on join:
     wait 1 tick
     give_tools(player)
 
+# Berikan tools lagi saat respawn.
 on respawn:
     wait 1 tick
     give_tools(player)
 
+# Cek berkala agar pemain tidak kehilangan tools wajib.
 every 10 ticks:
     loop all players:
         ensure_tools(loop-player)
 
+# Cegah tools inti dibuang ke ground.
 on drop:
     if event-item is netherite pickaxe:
         cancel event
@@ -87,6 +94,7 @@ on drop:
         cancel event
         stop
 
+# Command manual untuk mengambil ulang tools.
 command /tools:
     trigger:
         give_tools(player)

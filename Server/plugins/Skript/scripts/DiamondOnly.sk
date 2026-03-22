@@ -1,4 +1,5 @@
 # Only allow picking up diamonds from ground drops
+# Pindahkan diamond dari hotbar awal ke inventory belakang agar slot utama tetap rapi.
 function move_diamonds_to_inventory(p: player):
     loop integers between 0 and 8:
         if slot loop-value-1 of {_p}'s inventory is diamond:
@@ -9,6 +10,7 @@ function move_diamonds_to_inventory(p: player):
                     clear slot loop-value-1 of {_p}'s inventory
                     stop
 
+# Menarik diamond drop di sekitar pemain agar otomatis masuk inventory.
 function vacuum_nearby_diamonds(p: player):
     loop all entities in radius 10 around {_p}:
         if loop-entity is a dropped item:
@@ -16,11 +18,13 @@ function vacuum_nearby_diamonds(p: player):
                 give item of loop-entity to {_p}
                 kill loop-entity
 
+# Cegah pemain mengambil item drop selain diamond.
 on pickup:
     if event-item is not diamond:
         cancel event
         stop
 
+    # Inisialisasi debt bila belum ada.
     if {diamond.debt::%uuid of player%} is not set:
         set {diamond.debt::%uuid of player%} to 0
 
@@ -38,15 +42,18 @@ on pickup:
             set {_use} to {_debt}
 
         if {_use} > 0:
+            # Diamond yang baru di-pickup dipakai dulu untuk membayar debt.
             remove {_use} of diamond from player's inventory
             remove {_use} from {diamond.debt::%uuid of player%}
 
 # Inventory filter: allow only tools set + diamonds
 every 10 ticks:
     loop all players:
+        # Auto pickup diamond terdekat dan rapikan letaknya di inventory.
         vacuum_nearby_diamonds(loop-player)
         move_diamonds_to_inventory(loop-player)
         loop items in loop-player's inventory:
+            # Semua item di luar whitelist akan dihapus.
             if loop-item is not diamond:
                 if loop-item is not netherite pickaxe:
                     if loop-item is not netherite sword:

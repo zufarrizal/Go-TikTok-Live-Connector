@@ -1,8 +1,10 @@
 # Otomatis saat player bergerak:
 # Ratakan Y=-60 jadi bedrock radius 15 di sekitar player.
 on player move:
+    # Ambil posisi pemain dalam koordinat blok.
     set {_x} to floor(x-coordinate of player)
     set {_z} to floor(z-coordinate of player)
+    # Ubah ke grid 16x16 supaya fill hanya jalan saat pindah area.
     set {_gridX} to floor({_x} / 16)
     set {_gridZ} to floor({_z} / 16)
     set {_pos} to "%world of player%::%{_gridX}%::%{_gridZ}%"
@@ -13,4 +15,5 @@ on player move:
     set {bedrock.lastpos::%uuid of player%} to {_pos}
 
     # Gunakan dimension player langsung via execute at
+    # Membuat lantai bedrock 31x31 di Y=-60 di sekitar pemain.
     execute console command "execute at %player% run fill ~-15 -60 ~-15 ~15 -60 ~15 minecraft:bedrock replace"

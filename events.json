@@ -1,5 +1,32 @@
 [
   {
+    "id": 3,
+    "type": "comment",
+    "label": "",
+    "gift_id": 0,
+    "gift_name": "",
+    "diamond": 0,
+    "mc_command": "ttchat {username} {comment}"
+  },
+  {
+    "id": 2,
+    "type": "join",
+    "label": "",
+    "gift_id": 0,
+    "gift_name": "",
+    "diamond": 0,
+    "mc_command": "join {username} {follow}"
+  },
+  {
+    "id": 4,
+    "type": "follow",
+    "label": "",
+    "gift_id": 0,
+    "gift_name": "",
+    "diamond": 0,
+    "mc_command": "follow {username}"
+  },
+  {
     "id": 1,
     "type": "gift",
     "label": "",

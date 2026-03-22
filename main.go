@@ -759,25 +759,30 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 	case gotiktoklive.ChatEvent:
 		username := historyUsernameFromEvent(e, e.User)
 		nickname := safeNicknameFromUser(e.User)
+		follow := strconv.FormatBool(isFollowerFromIdentity(e.UserIdentity, e.User))
 		return "comment", map[string]string{
 			"event_type": "comment",
 			"username":   username,
 			"nickname":   nickname,
+			"follow":     follow,
 			"comment":    e.Comment,
 		}, 0, 1
 	case gotiktoklive.LikeEvent:
 		username := historyUsernameFromEvent(e, e.User)
 		nickname := safeNicknameFromUser(e.User)
+		follow := strconv.FormatBool(isFollowerFromIdentity(nil, e.User))
 		return "like", map[string]string{
 			"event_type":  "like",
 			"username":    username,
 			"nickname":    nickname,
+			"follow":      follow,
 			"likes":       strconv.Itoa(e.Likes),
 			"total_likes": strconv.Itoa(e.TotalLikes),
 		}, 0, 1
 	case gotiktoklive.GiftEvent:
 		username := historyUsernameFromEvent(e, e.User)
 		nickname := safeNicknameFromUser(e.User)
+		follow := strconv.FormatBool(isFollowerFromIdentity(e.UserIdentity, e.User))
 		loopCount := e.RepeatCount
 		if loopCount <= 0 {
 			loopCount = 1
@@ -786,6 +791,7 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 			"event_type":   "gift",
 			"username":     username,
 			"nickname":     nickname,
+			"follow":       follow,
 			"gift_name":    e.Name,
 			"gift_id":      strconv.FormatInt(e.ID, 10),
 			"diamond":      strconv.Itoa(e.Diamonds),
@@ -794,12 +800,14 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 	case gotiktoklive.UserEvent:
 		username := historyUsernameFromEvent(e, e.User)
 		nickname := safeNicknameFromUser(e.User)
+		follow := strconv.FormatBool(isFollowerFromIdentity(nil, e.User))
 		tag := strings.ToUpper(fmt.Sprint(e.Event))
 		if strings.Contains(tag, "JOIN") {
 			return "join", map[string]string{
 				"event_type": "join",
 				"username":   username,
 				"nickname":   nickname,
+				"follow":     follow,
 			}, 0, 1
 		}
 		if strings.Contains(tag, "SHARE") {
@@ -807,10 +815,29 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 				"event_type": "share",
 				"username":   username,
 				"nickname":   nickname,
+				"follow":     follow,
+			}, 0, 1
+		}
+		if strings.Contains(tag, "FOLLOW") {
+			return "follow", map[string]string{
+				"event_type": "follow",
+				"username":   username,
+				"nickname":   nickname,
+				"follow":     follow,
 			}, 0, 1
 		}
 	}
 	return "", nil, 0, 0
+}
+
+func isFollowerFromIdentity(identity *gotiktoklive.UserIdentity, user *gotiktoklive.User) bool {
+	if identity != nil {
+		return identity.IsFollower
+	}
+	if user != nil && user.ExtraAttributes != nil {
+		return user.ExtraAttributes.FollowRole > 0
+	}
+	return false
 }
 
 func historyUsernameFromEvent(ev any, fallbackUser *gotiktoklive.User) string {
@@ -1328,6 +1355,13 @@ func main() {
 				User:      user,
 			}
 			resp["message"] = "SHARE"
+		case "user_follow":
+			ev = gotiktoklive.UserEvent{
+				Timestamp: now,
+				Event:     gotiktoklive.USER_FOLLOW,
+				User:      user,
+			}
+			resp["message"] = "FOLLOW"
 		case "like":
 			ev = gotiktoklive.LikeEvent{
 				Timestamp:  now,
@@ -1438,7 +1472,7 @@ func parseIDFromPath(path, prefix string) (int, error) {
 
 func isAllowedEventType(v string) bool {
 	switch v {
-	case "join", "comment", "like", "gift", "share":
+	case "join", "comment", "like", "gift", "share", "follow":
 		return true
 	default:
 		return false

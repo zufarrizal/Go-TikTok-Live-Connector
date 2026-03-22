@@ -146,6 +146,11 @@ const statusEl = document.getElementById("status");
               html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge join\">JOIN LIVE</span>" + followBadge
             };
           }
+          if (tag.includes("FOLLOW")) {
+            return {
+              html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge follow\">FOLLOW</span>" + followBadge
+            };
+          }
           if (tag.includes("SHARE")) {
             return {
               html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge share\">SHARE LIVE</span>" + followBadge

@@ -8,6 +8,38 @@ command /dm <number> <text> <number> :
             play sound "entity.experience_orb.pickup" to loop-player
             give {_total} of diamond to loop-player
 
+# join {username} {follow}
+# Broadcast user TikTok yang join live beserta status follow-nya.
+command /join <text> <text>:
+    trigger:
+        set {_username} to arg-1
+        set {_follow} to arg-2
+        if {_follow} is "true":
+            broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live &8| &2&lFOLLOWING"
+        else:
+            broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ejoined live &8| &7NOT FOLLOWING"
+        loop all players:
+            play sound "entity.experience_orb.pickup" to loop-player
+
+# follow {username}
+# Broadcast user TikTok yang mulai follow live.
+command /follow <text>:
+    trigger:
+        set {_username} to arg-1
+        broadcast "&8[&aFollow&8] &f@&e%{_username}% &ahas followed the live &8| &2+1 FOLLOWER"
+        loop all players:
+            play sound "entity.player.levelup" to loop-player
+
+# ttchat {username} : {comment}
+# Broadcast comment TikTok ke chat Minecraft.
+command /ttchat <text> : <text>:
+    trigger:
+        set {_username} to arg-1
+        set {_comment} to arg-2
+        broadcast "&8[&dComment&8] &f@&b%{_username}% &8> &f%{_comment}%"
+        loop all players:
+            play sound "entity.experience_orb.pickup" to loop-player
+
 # Memberikan enchanted golden apple ke semua pemain.
 command /ega <number> <text> <number> :
     trigger:

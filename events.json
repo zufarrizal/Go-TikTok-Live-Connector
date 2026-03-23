@@ -88,5 +88,25 @@
     "diamond": 1,
     "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "spider 5 {username} {repeat_count}"
+  },
+  {
+    "id": 10,
+    "type": "gift",
+    "label": "",
+    "gift_id": 6064,
+    "gift_name": "GG",
+    "diamond": 1,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "skeleton 5 {username} {repeat}"
+  },
+  {
+    "id": 11,
+    "type": "gift",
+    "label": "",
+    "gift_id": 10715,
+    "gift_name": "Headphone",
+    "diamond": 1,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "creeper 5 {username} {repeat}"
   }
 ]

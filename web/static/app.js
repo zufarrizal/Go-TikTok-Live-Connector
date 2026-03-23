@@ -19,8 +19,11 @@ const statusEl = document.getElementById("status");
     const testEventBtn = document.getElementById("testEventBtn");
     const mcOutputEl = document.getElementById("mcOutput");
     const eventModalEl = document.getElementById("eventModal");
+    const eventBoxModalEl = document.getElementById("eventBoxModal");
     const openEventModalBtn = document.getElementById("openEventModalBtn");
+    const openEventBoxPopupBtn = document.getElementById("openEventBoxPopupBtn");
     const closeEventModalBtn = document.getElementById("closeEventModalBtn");
+    const closeEventBoxPopupBtn = document.getElementById("closeEventBoxPopupBtn");
     const eventModalTitleEl = document.getElementById("eventModalTitle");
     const eventForm = document.getElementById("eventForm");
     const eventTypeEl = document.getElementById("eventType");
@@ -33,9 +36,18 @@ const statusEl = document.getElementById("status");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
     const resetEventBtn = document.getElementById("resetEventBtn");
     const eventRowsEl = document.getElementById("eventRows");
+    const eventBoxRowsEl = document.getElementById("eventBoxRows");
+    const eventPaginationEl = document.getElementById("eventPagination");
+    const eventBoxRowsPopupEl = document.getElementById("eventBoxRowsPopup");
+    const eventPaginationPopupEl = document.getElementById("eventPaginationPopup");
     let editingEventId = null;
     let giftOptions = [];
     const MAX_EVENT_HISTORY = 10;
+    const EVENT_SLIDE_SIZE = 12;
+    const EVENT_SLIDE_INTERVAL_MS = 4000;
+    let currentEventPage = 0;
+    let eventSliderTimer = null;
+    let currentEventItems = [];
 
     function setStatus(text, isOK) {
       statusEl.textContent = text;
@@ -140,6 +152,124 @@ const statusEl = document.getElementById("status");
         opt.textContent = g.nama_gift + " (" + g.diamond + ")";
         selectEl.appendChild(opt);
       }
+    }
+
+    function sortEventItems(items) {
+      return [...items].sort((a, b) => {
+        const aEmpty = a.diamond === null || a.diamond === undefined || String(a.diamond).trim() === "";
+        const bEmpty = b.diamond === null || b.diamond === undefined || String(b.diamond).trim() === "";
+        if (aEmpty !== bEmpty) return aEmpty ? -1 : 1;
+
+        const aDiamond = Number(a.diamond);
+        const bDiamond = Number(b.diamond);
+        const aValid = Number.isFinite(aDiamond);
+        const bValid = Number.isFinite(bDiamond);
+        if (aValid && bValid && aDiamond !== bDiamond) return aDiamond - bDiamond;
+        if (aValid !== bValid) return aValid ? 1 : -1;
+
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+    }
+
+    function findGiftByEventItem(item) {
+      const giftId = Number(item && item.gift_id ? item.gift_id : 0);
+      if (!giftId) return null;
+      return giftOptions.find((g) => Number(g.id) === giftId) || null;
+    }
+
+    function getUsedGiftIds(excludeEventId) {
+      const used = new Set();
+      for (const item of currentEventItems || []) {
+        if (String(item.type || "").toLowerCase() !== "gift") continue;
+        if (excludeEventId !== null && excludeEventId !== undefined && Number(item.id) === Number(excludeEventId)) continue;
+        const giftId = Number(item.gift_id || 0);
+        if (giftId > 0) used.add(giftId);
+      }
+      return used;
+    }
+
+    function refreshEventGiftOptions() {
+      const usedGiftIds = getUsedGiftIds(editingEventId);
+      const filtered = giftOptions.filter((g) => !usedGiftIds.has(Number(g.id)));
+      fillGiftSelect(eventGiftEl, filtered);
+      eventGiftPicker.setOptions(filtered);
+
+      if (editingEventId !== null) {
+        const currentItem = (currentEventItems || []).find((item) => Number(item.id) === Number(editingEventId));
+        if (currentItem && Number(currentItem.gift_id || 0) > 0) {
+          eventGiftEl.value = String(currentItem.gift_id);
+        }
+      }
+
+      if (eventTypeEl.value === "gift" && !eventGiftEl.value && filtered.length > 0) {
+        eventGiftEl.value = String(filtered[0].id);
+      }
+
+      eventGiftPicker.syncFromSelect();
+    }
+
+    function buildGiftImagePathFromEvent(item) {
+      const diamond = Number(item && item.diamond ? item.diamond : 0);
+      const giftName = String(item && item.gift_name ? item.gift_name : "").trim();
+      if (!giftName) return "";
+      const filename = String(diamond) + "_" + giftName + ".webp";
+      return "/giftimage/" + encodeURIComponent(filename);
+    }
+
+    function buildGiftBoxCaption(item) {
+      const command = String(item && item.mc_command ? item.mc_command : "").trim();
+      if (command) {
+        const parts = command.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+          return parts[0].toUpperCase() + " " + parts[1] + "x";
+        }
+      }
+      return String(item && item.gift_name ? item.gift_name : "Gift");
+    }
+
+    function chunkEventItems(items, size) {
+      const pages = [];
+      for (let i = 0; i < items.length; i += size) {
+        pages.push(items.slice(i, i + size));
+      }
+      return pages;
+    }
+
+    function stopEventSlider() {
+      if (!eventSliderTimer) return;
+      clearInterval(eventSliderTimer);
+      eventSliderTimer = null;
+    }
+
+    function updateEventSliderPosition(pageCount) {
+      const safePageCount = Math.max(1, Number(pageCount) || 1);
+      currentEventPage = ((currentEventPage % safePageCount) + safePageCount) % safePageCount;
+      if (eventBoxRowsEl) {
+        eventBoxRowsEl.style.transform = "translateX(-" + (currentEventPage * 100) + "%)";
+      }
+      if (!eventPaginationEl) return;
+      for (const dot of eventPaginationEl.querySelectorAll(".event-page-dot")) {
+        dot.classList.toggle("is-active", Number(dot.dataset.page) === currentEventPage);
+      }
+    }
+
+    function startEventSlider(pageCount) {
+      stopEventSlider();
+      if (pageCount <= 1) return;
+      eventSliderTimer = setInterval(() => {
+        currentEventPage = (currentEventPage + 1) % pageCount;
+        updateEventSliderPosition(pageCount);
+      }, EVENT_SLIDE_INTERVAL_MS);
+    }
+
+    if (eventBoxRowsEl) {
+      eventBoxRowsEl.addEventListener("mouseenter", () => {
+        stopEventSlider();
+      });
+      eventBoxRowsEl.addEventListener("mouseleave", () => {
+        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
+        startEventSlider(pageCount);
+      });
     }
 
     function createGiftPicker(selectEl, hostEl, placeholder) {
@@ -503,6 +633,7 @@ const statusEl = document.getElementById("status");
       eventTypeEl.value = "gift";
       eventSoundEl.value = "";
       eventModalTitleEl.textContent = "Add Event";
+      refreshEventGiftOptions();
       syncGiftFields();
       syncLabelHint();
       eventTypeEl.focus();
@@ -517,6 +648,25 @@ const statusEl = document.getElementById("status");
     function closeEventModal() {
       eventModalEl.classList.remove("show");
       eventModalEl.setAttribute("aria-hidden", "true");
+    }
+
+    function syncEventBoxPopup() {
+      if (!eventBoxRowsPopupEl || !eventPaginationPopupEl) return;
+      eventBoxRowsPopupEl.innerHTML = eventBoxRowsEl ? eventBoxRowsEl.innerHTML : "";
+      eventPaginationPopupEl.innerHTML = eventPaginationEl ? eventPaginationEl.innerHTML : "";
+    }
+
+    function openEventBoxModal() {
+      if (!eventBoxModalEl) return;
+      syncEventBoxPopup();
+      eventBoxModalEl.classList.add("show");
+      eventBoxModalEl.setAttribute("aria-hidden", "false");
+    }
+
+    function closeEventBoxModal() {
+      if (!eventBoxModalEl) return;
+      eventBoxModalEl.classList.remove("show");
+      eventBoxModalEl.setAttribute("aria-hidden", "true");
     }
 
     function syncGiftFields() {
@@ -564,13 +714,13 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to load gift-list.json");
         giftOptions = data.items || [];
-        fillGiftSelect(eventGiftEl, giftOptions);
+        refreshEventGiftOptions();
         fillGiftSelect(testEventGiftEl, giftOptions);
-        eventGiftPicker.setOptions(giftOptions);
         testEventGiftPicker.setOptions(giftOptions);
         syncGiftFields();
         syncLabelHint();
         syncTestEventFields();
+        renderEventBoxes(currentEventItems);
       } catch (err) {
         setStatus(err.message || "failed to load gift-list.json", false);
       }
@@ -585,21 +735,7 @@ const statusEl = document.getElementById("status");
         return;
       }
 
-      const sortedItems = [...items].sort((a, b) => {
-        const aEmpty = a.diamond === null || a.diamond === undefined || String(a.diamond).trim() === "";
-        const bEmpty = b.diamond === null || b.diamond === undefined || String(b.diamond).trim() === "";
-        if (aEmpty !== bEmpty) return aEmpty ? -1 : 1;
-
-        const aDiamond = Number(a.diamond);
-        const bDiamond = Number(b.diamond);
-        const aValid = Number.isFinite(aDiamond);
-        const bValid = Number.isFinite(bDiamond);
-        if (aValid && bValid && aDiamond !== bDiamond) return aDiamond - bDiamond;
-        if (aValid !== bValid) return aValid ? 1 : -1;
-
-        return Number(b.id || 0) - Number(a.id || 0);
-      });
-
+      const sortedItems = sortEventItems(items);
       for (const item of sortedItems) {
         const tr = document.createElement("tr");
         tr.innerHTML =
@@ -610,12 +746,110 @@ const statusEl = document.getElementById("status");
           "<td>" + esc(getSoundFileName(item.sound_url)) + "</td>" +
           "<td>" + (item.mc_command || "") + "</td>" +
           "<td>" +
-			"<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
-			"<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">Edit</button>" +
-          "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">Delete</button>" +
-			"</td>";
-		eventRowsEl.appendChild(tr);
-	}
+            "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
+            "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">Edit</button>" +
+            "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">Delete</button>" +
+          "</td>";
+        eventRowsEl.appendChild(tr);
+      }
+    }
+
+    function renderEventBoxes(items) {
+      if (!eventBoxRowsEl) return;
+      eventBoxRowsEl.innerHTML = "";
+      if (eventPaginationEl) eventPaginationEl.innerHTML = "";
+      stopEventSlider();
+
+      const giftItems = (items || []).filter((item) => String(item.type || "").toLowerCase() === "gift");
+
+      if (giftItems.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "event-empty-state";
+        empty.textContent = "No gift events yet.";
+        eventBoxRowsEl.appendChild(empty);
+        eventBoxRowsEl.style.transform = "translateX(0)";
+        return;
+      }
+
+      const sortedItems = sortEventItems(giftItems);
+      const pages = chunkEventItems(sortedItems, EVENT_SLIDE_SIZE);
+
+      pages.forEach((pageItems, pageIndex) => {
+        const slide = document.createElement("div");
+        slide.className = "event-box-slide";
+
+        for (const item of pageItems) {
+          const gift = findGiftByEventItem(item);
+          const title = String(item.label || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
+          const localGiftImage = buildGiftImagePathFromEvent(item);
+          const remoteGiftImage = resolveGiftImageSrc(gift);
+          const giftImage = localGiftImage || remoteGiftImage;
+          const subtitle = buildGiftBoxCaption(item);
+
+          const card = document.createElement("article");
+          card.className = "event-card event-card-gift";
+
+          const frame = document.createElement("div");
+          frame.className = "event-card-gift-frame";
+
+          if (giftImage) {
+            const img = document.createElement("img");
+            img.className = "event-card-gift-image";
+            img.src = giftImage;
+            img.alt = title;
+            img.loading = "lazy";
+            img.addEventListener("error", () => {
+              const fallback = document.createElement("div");
+              fallback.className = "event-card-gift-fallback";
+              fallback.innerHTML = "Gambar<br>Gift";
+              frame.replaceChildren(fallback);
+            }, { once: true });
+            frame.appendChild(img);
+          } else {
+            const fallback = document.createElement("div");
+            fallback.className = "event-card-gift-fallback";
+            fallback.innerHTML = "Gambar<br>Gift";
+            frame.appendChild(fallback);
+          }
+
+          card.appendChild(frame);
+
+          const subtitleEl = document.createElement("div");
+          subtitleEl.className = "event-card-gift-subtitle";
+          subtitleEl.textContent = subtitle;
+
+          card.appendChild(subtitleEl);
+          slide.appendChild(card);
+        }
+
+        while (slide.children.length < EVENT_SLIDE_SIZE) {
+          const filler = document.createElement("article");
+          filler.className = "event-card event-card-empty";
+          filler.setAttribute("aria-hidden", "true");
+          slide.appendChild(filler);
+        }
+
+        eventBoxRowsEl.appendChild(slide);
+
+        if (eventPaginationEl) {
+          const dot = document.createElement("button");
+          dot.type = "button";
+          dot.className = "event-page-dot" + (pageIndex === 0 ? " is-active" : "");
+          dot.dataset.page = String(pageIndex);
+          dot.setAttribute("aria-label", "Show event page " + (pageIndex + 1));
+          dot.addEventListener("click", () => {
+            currentEventPage = pageIndex;
+            updateEventSliderPosition(pages.length);
+            startEventSlider(pages.length);
+          });
+          eventPaginationEl.appendChild(dot);
+        }
+      });
+
+      currentEventPage = 0;
+      updateEventSliderPosition(pages.length);
+      startEventSlider(pages.length);
+      syncEventBoxPopup();
     }
 
     async function loadEventsTable() {
@@ -623,7 +857,10 @@ const statusEl = document.getElementById("status");
         const res = await fetch("/api/events");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to load events");
-        renderEventRows(data.items || []);
+        currentEventItems = data.items || [];
+        renderEventRows(currentEventItems);
+        refreshEventGiftOptions();
+        renderEventBoxes(currentEventItems);
       } catch (err) {
         setStatus(err.message || "failed to load events", false);
       }
@@ -850,9 +1087,21 @@ const statusEl = document.getElementById("status");
       openEventModal(false);
     });
 
+    if (openEventBoxPopupBtn) {
+      openEventBoxPopupBtn.addEventListener("click", () => {
+        openEventBoxModal();
+      });
+    }
+
     closeEventModalBtn.addEventListener("click", () => {
       closeEventModal();
     });
+
+    if (closeEventBoxPopupBtn) {
+      closeEventBoxPopupBtn.addEventListener("click", () => {
+        closeEventBoxModal();
+      });
+    }
 
     eventModalEl.addEventListener("click", (e) => {
       if (e.target === eventModalEl) {
@@ -860,14 +1109,22 @@ const statusEl = document.getElementById("status");
       }
     });
 
-    eventRowsEl.addEventListener("click", async (e) => {
+    if (eventBoxModalEl) {
+      eventBoxModalEl.addEventListener("click", (e) => {
+        if (e.target === eventBoxModalEl) {
+          closeEventBoxModal();
+        }
+      });
+    }
+
+    async function handleEventActionClick(e) {
       const btn = e.target.closest("button");
       if (!btn) return;
       const id = Number(btn.dataset.id);
       const action = btn.dataset.act;
       if (!id || !action) return;
 
-		if (action === "edit") {
+      if (action === "edit") {
         try {
           const res = await fetch("/api/events");
           const data = await res.json();
@@ -877,6 +1134,7 @@ const statusEl = document.getElementById("status");
           editingEventId = id;
           eventTypeEl.value = item.type || "join";
           eventLabelEl.value = item.label || "";
+          refreshEventGiftOptions();
           if (item.type === "gift" && item.gift_id) {
             eventGiftEl.value = String(item.gift_id);
           } else {
@@ -892,24 +1150,24 @@ const statusEl = document.getElementById("status");
         } catch (err) {
           setStatus(err.message || "failed to edit event", false);
         }
-			return;
-		}
+        return;
+      }
 
-		if (action === "test") {
-			try {
-				const res = await fetch("/api/events/test/" + id, { method: "POST" });
-				const data = await res.json();
-				if (!res.ok) throw new Error(data.error || "failed to test command");
-				setStatus("event test #" + id + " succeeded", true);
-				setMCOutput(data.output || "(no output)");
-			} catch (err) {
-				setStatus(err.message || "failed to test event", false);
-				setMCOutput(err.message || "failed to test event");
-			}
-			return;
-		}
+      if (action === "test") {
+        try {
+          const res = await fetch("/api/events/test/" + id, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "failed to test command");
+          setStatus("event test #" + id + " succeeded", true);
+          setMCOutput(data.output || "(no output)");
+        } catch (err) {
+          setStatus(err.message || "failed to test event", false);
+          setMCOutput(err.message || "failed to test event");
+        }
+        return;
+      }
 
-		if (action === "delete") {
+      if (action === "delete") {
         if (!confirm("Delete event #" + id + "?")) return;
         try {
           const res = await fetch("/api/events/" + id, { method: "DELETE" });
@@ -922,7 +1180,7 @@ const statusEl = document.getElementById("status");
           setStatus(err.message || "failed to delete event", false);
         }
       }
-    });
+    }
 
     eventTypeEl.addEventListener("change", () => {
       syncGiftFields();
@@ -948,6 +1206,11 @@ const statusEl = document.getElementById("status");
         eventSoundFileEl.value = "";
       }
     });
+
+    eventRowsEl.addEventListener("click", handleEventActionClick);
+    if (eventBoxRowsEl) {
+      eventBoxRowsEl.addEventListener("click", handleEventActionClick);
+    }
 
     const source = new EventSource("/events");
     source.onopen = () => {

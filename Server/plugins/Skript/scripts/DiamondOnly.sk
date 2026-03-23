@@ -1,59 +1,65 @@
-# Only allow picking up diamonds from ground drops
-# Pindahkan diamond dari hotbar awal ke inventory belakang agar slot utama tetap rapi.
-function move_diamonds_to_inventory(p: player):
-    loop integers between 0 and 8:
-        if slot loop-value-1 of {_p}'s inventory is diamond:
-            set {_diamond} to slot loop-value-1 of {_p}'s inventory
-            loop integers between 9 and 35:
-                if slot loop-value-2 of {_p}'s inventory is air:
-                    set slot loop-value-2 of {_p}'s inventory to {_diamond}
-                    clear slot loop-value-1 of {_p}'s inventory
-                    stop
+# Whitelist inventory:
+# - diamond
+# - enchanted golden apple
+# - armor
+# - tools
 
-# Menarik diamond drop di sekitar pemain agar otomatis masuk inventory.
-function vacuum_nearby_diamonds(p: player):
-    loop all entities in radius 10 around {_p}:
-        if loop-entity is a dropped item:
-            if item of loop-entity is diamond:
-                give item of loop-entity to {_p}
-                kill loop-entity
+function is_allowed_item(it: item) :: boolean:
+    if {_it} is diamond:
+        return true
+    if {_it} is enchanted golden apple:
+        return true
 
-# Cegah pemain mengambil item drop selain diamond.
+    if {_it} is leather helmet or leather chestplate or leather leggings or leather boots:
+        return true
+    if {_it} is chainmail helmet or chainmail chestplate or chainmail leggings or chainmail boots:
+        return true
+    if {_it} is iron helmet or iron chestplate or iron leggings or iron boots:
+        return true
+    if {_it} is golden helmet or golden chestplate or golden leggings or golden boots:
+        return true
+    if {_it} is diamond helmet or diamond chestplate or diamond leggings or diamond boots:
+        return true
+    if {_it} is netherite helmet or netherite chestplate or netherite leggings or netherite boots:
+        return true
+    if {_it} is turtle helmet:
+        return true
+
+    if {_it} is wooden sword or stone sword or iron sword or golden sword or diamond sword or netherite sword:
+        return true
+    if {_it} is wooden pickaxe or stone pickaxe or iron pickaxe or golden pickaxe or diamond pickaxe or netherite pickaxe:
+        return true
+    if {_it} is wooden axe or stone axe or iron axe or golden axe or diamond axe or netherite axe:
+        return true
+    if {_it} is wooden shovel or stone shovel or iron shovel or golden shovel or diamond shovel or netherite shovel:
+        return true
+    if {_it} is wooden hoe or stone hoe or iron hoe or golden hoe or diamond hoe or netherite hoe:
+        return true
+
+    if {_it} is bow or crossbow or trident or fishing rod or shears or shield or arrow:
+        return true
+
+    return false
+
+function clear_non_whitelist_items(p: player):
+    loop all items in {_p}'s inventory:
+        if loop-item is not air:
+            if is_allowed_item(loop-item) is false:
+                remove loop-item from {_p}'s inventory
+
+on join:
+    wait 5 ticks
+    clear_non_whitelist_items(player)
+
+on respawn:
+    wait 5 ticks
+    clear_non_whitelist_items(player)
+
 on pickup:
-    if event-item is not diamond:
-        cancel event
+    if is_allowed_item(event-item) is true:
         stop
+    cancel event
 
-    # Inisialisasi debt bila belum ada.
-    if {diamond.debt::%uuid of player%} is not set:
-        set {diamond.debt::%uuid of player%} to 0
-
-    # If balance is still negative, picked diamonds are used to pay debt first.
-    if {diamond.debt::%uuid of player%} > 0:
-        set {_amt} to amount of event-item
-        wait 1 tick
-
-        set {_debt} to {diamond.debt::%uuid of player%}
-        if {_debt} <= 0:
-            stop
-
-        set {_use} to {_amt}
-        if {_use} > {_debt}:
-            set {_use} to {_debt}
-
-        if {_use} > 0:
-            # Diamond yang baru di-pickup dipakai dulu untuk membayar debt.
-            remove {_use} of diamond from player's inventory
-            remove {_use} from {diamond.debt::%uuid of player%}
-
-# Inventory filter: allow only tools set + diamonds
 every 10 ticks:
     loop all players:
-        # Auto pickup diamond terdekat dan rapikan letaknya di inventory.
-        vacuum_nearby_diamonds(loop-player)
-        move_diamonds_to_inventory(loop-player)
-        loop items in loop-player's inventory:
-            # Semua item di luar whitelist akan dihapus.
-            if loop-item is not diamond:
-                if loop-item is not wooden pickaxe and loop-item is not stone pickaxe and loop-item is not iron pickaxe and loop-item is not golden pickaxe and loop-item is not diamond pickaxe and loop-item is not netherite pickaxe and loop-item is not wooden sword and loop-item is not stone sword and loop-item is not iron sword and loop-item is not golden sword and loop-item is not diamond sword and loop-item is not netherite sword and loop-item is not bow and loop-item is not arrow and loop-item is not shield and loop-item is not leather helmet and loop-item is not chainmail helmet and loop-item is not iron helmet and loop-item is not golden helmet and loop-item is not diamond helmet and loop-item is not netherite helmet and loop-item is not turtle helmet and loop-item is not leather chestplate and loop-item is not chainmail chestplate and loop-item is not iron chestplate and loop-item is not golden chestplate and loop-item is not diamond chestplate and loop-item is not netherite chestplate and loop-item is not leather leggings and loop-item is not chainmail leggings and loop-item is not iron leggings and loop-item is not golden leggings and loop-item is not diamond leggings and loop-item is not netherite leggings and loop-item is not leather boots and loop-item is not chainmail boots and loop-item is not iron boots and loop-item is not golden boots and loop-item is not diamond boots and loop-item is not netherite boots and loop-item is not enchanted golden apple:
-                    remove loop-item from loop-player's inventory
+        clear_non_whitelist_items(loop-player)

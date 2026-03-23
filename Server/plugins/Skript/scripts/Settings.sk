@@ -5,9 +5,9 @@ function apply_server_settings(p: player):
     set gamerule command_block_output of world of {_p} to false
 
 on join:
-    wait 1 tick
+    wait 4 tick
     apply_server_settings(player)
 
 on respawn:
-    wait 1 tick
+    wait 4 tick
     apply_server_settings(player)

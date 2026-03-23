@@ -18,7 +18,6 @@ on respawn:
 # Paksa hunger tetap penuh setiap kali nilainya berubah.
 on food level change:
     set food level of player to 20
-    set saturation of player to 20
 
 # Backup periodik agar tidak ada pemain yang kehilangan hunger penuh.
 every 5 seconds:

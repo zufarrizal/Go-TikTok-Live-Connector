@@ -8,16 +8,18 @@ function count_dropped_items() :: number:
     set {_count} to 0
     loop all entities:
         if loop-entity is a dropped item:
-            add 1 to {_count}
+            if is_allowed_item(item of loop-entity) is false:
+                add 1 to {_count}
     return {_count}
 
-# Menghapus semua item drop di tanah, lalu mengembalikan jumlah yang terhapus.
+# Menghapus item drop di tanah selain item whitelist, lalu mengembalikan jumlah yang terhapus.
 function clear_dropped_items() :: number:
     set {_removed} to 0
     loop all entities:
         if loop-entity is a dropped item:
-            kill loop-entity
-            add 1 to {_removed}
+            if is_allowed_item(item of loop-entity) is false:
+                kill loop-entity
+                add 1 to {_removed}
     return {_removed}
 
 # Hapus item drop di tanah secara otomatis sesuai interval yang ditentukan.
@@ -26,6 +28,5 @@ every {@clear-drops-interval}:
 
 # Command manual untuk clear drop kapan saja.
 command /cleardrops:
-    permission: op
     trigger:
         clear_dropped_items()

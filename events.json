@@ -86,7 +86,7 @@
     "gift_id": 9463,
     "gift_name": "Fairy wings",
     "diamond": 1,
-    "sound_url": "/static/{repeat_count}",
+    "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "spider 5 {username} {repeat_count}"
   }
 ]

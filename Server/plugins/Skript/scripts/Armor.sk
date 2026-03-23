@@ -1,6 +1,6 @@
-# Memberikan satu set armor diamond lengkap dengan enchant ke pemain.
+# Memberikan satu set armor iron lengkap dengan enchant ke pemain.
 function give_armor(p: player):
-    set {_helmet} to diamond helmet
+    set {_helmet} to iron helmet
     # Helm dipakai untuk proteksi umum dan bonus bawah air.
     enchant {_helmet} with protection 4
     enchant {_helmet} with unbreaking 3
@@ -8,19 +8,19 @@ function give_armor(p: player):
     enchant {_helmet} with respiration 3
     enchant {_helmet} with aqua affinity 1
 
-    set {_chestplate} to diamond chestplate
+    set {_chestplate} to iron chestplate
     # Chestplate fokus ke durability dan protection.
     enchant {_chestplate} with protection 4
     enchant {_chestplate} with unbreaking 3
     enchant {_chestplate} with mending 1
 
-    set {_leggings} to diamond leggings
+    set {_leggings} to iron leggings
     # Leggings juga diberi enchant standar armor utama.
     enchant {_leggings} with protection 4
     enchant {_leggings} with unbreaking 3
     enchant {_leggings} with mending 1
 
-    set {_boots} to diamond boots
+    set {_boots} to iron boots
     # Boots ditambah enchant mobilitas dan anti-fall.
     enchant {_boots} with protection 4
     enchant {_boots} with unbreaking 3
@@ -34,19 +34,19 @@ function give_armor(p: player):
     set the leggings of {_p} to {_leggings}
     set the boots of {_p} to {_boots}
 
-# Mengecek apakah pemain masih memakai satu set diamond armor.
+# Mengecek apakah pemain masih memakai satu set iron armor.
 function ensure_armor(p: player):
-    if the helmet of {_p} is not diamond helmet:
+    if the helmet of {_p} is not iron helmet:
         # Jika ada bagian yang hilang/terganti, berikan ulang seluruh set.
         give_armor({_p})
         stop
-    if the chestplate of {_p} is not diamond chestplate:
+    if the chestplate of {_p} is not iron chestplate:
         give_armor({_p})
         stop
-    if the leggings of {_p} is not diamond leggings:
+    if the leggings of {_p} is not iron leggings:
         give_armor({_p})
         stop
-    if the boots of {_p} is not diamond boots:
+    if the boots of {_p} is not iron boots:
         give_armor({_p})
         stop
 

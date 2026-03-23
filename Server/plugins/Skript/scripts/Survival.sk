@@ -128,6 +128,30 @@ command /cavespider <number> <text> <number>:
                 spawn 1 cave spider at {_loc}
                 wait 2 ticks
 
+# Membuat jebakan jaring laba-laba 15x15 setinggi 2 block di sekitar kaki pemain.
+command /spidertrap <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&8&l%arg-2%" with subtitle "&7&lSPIDER TRAP &fx%{_total}%" to {_p}
+            loop {_total} times:
+                play sound "entity.spider.ambient" to {_p}
+                execute console command "execute at %{_p}% run fill ~-7 ~ ~-7 ~7 ~1 ~7 minecraft:cobweb outline"
+                wait 2 ticks
+
+# Membuat jebakan lava 15x15 setinggi 2 block di sekitar kaki pemain.
+command /lavatrap <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&c&l%arg-2%" with subtitle "&6&lLAVA TRAP &fx%{_total}%" to {_p}
+            loop {_total} times:
+                play sound "block.lava.pop" to {_p}
+                execute console command "execute at %{_p}% run fill ~-7 ~ ~-7 ~7 ~1 ~7 minecraft:lava outline"
+                wait 2 ticks
+
 # Summon witch di dekat setiap pemain.
 command /witch <number> <text> <number>:
     trigger:

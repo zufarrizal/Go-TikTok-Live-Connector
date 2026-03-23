@@ -55,14 +55,5 @@ every 10 ticks:
         loop items in loop-player's inventory:
             # Semua item di luar whitelist akan dihapus.
             if loop-item is not diamond:
-                if loop-item is not netherite pickaxe:
-                    if loop-item is not netherite sword:
-                        if loop-item is not bow:
-                            if loop-item is not arrow:
-                                if loop-item is not shield:
-                                    if loop-item is not diamond helmet:
-                                        if loop-item is not diamond chestplate:
-                                            if loop-item is not diamond leggings:
-                                                if loop-item is not diamond boots:
-                                                    if loop-item is not enchanted golden apple:
-                                                        remove loop-item from loop-player's inventory
+                if loop-item is not wooden pickaxe and loop-item is not stone pickaxe and loop-item is not iron pickaxe and loop-item is not golden pickaxe and loop-item is not diamond pickaxe and loop-item is not netherite pickaxe and loop-item is not wooden sword and loop-item is not stone sword and loop-item is not iron sword and loop-item is not golden sword and loop-item is not diamond sword and loop-item is not netherite sword and loop-item is not bow and loop-item is not arrow and loop-item is not shield and loop-item is not leather helmet and loop-item is not chainmail helmet and loop-item is not iron helmet and loop-item is not golden helmet and loop-item is not diamond helmet and loop-item is not netherite helmet and loop-item is not turtle helmet and loop-item is not leather chestplate and loop-item is not chainmail chestplate and loop-item is not iron chestplate and loop-item is not golden chestplate and loop-item is not diamond chestplate and loop-item is not netherite chestplate and loop-item is not leather leggings and loop-item is not chainmail leggings and loop-item is not iron leggings and loop-item is not golden leggings and loop-item is not diamond leggings and loop-item is not netherite leggings and loop-item is not leather boots and loop-item is not chainmail boots and loop-item is not iron boots and loop-item is not golden boots and loop-item is not diamond boots and loop-item is not netherite boots and loop-item is not enchanted golden apple:
+                    remove loop-item from loop-player's inventory

@@ -36,7 +36,27 @@
     "gift_id": 10716,
     "gift_name": "Blow a kiss",
     "diamond": 1,
-    "sound_url": "/static/sounds/faaah-2.mp3",
-    "mc_command": "tnt 20 {username} {repeat_count}"
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "tnt 10 {username} {repeat_count}"
+  },
+  {
+    "id": 5,
+    "type": "gift",
+    "label": "",
+    "gift_id": 15049,
+    "gift_name": "Padang Rice",
+    "diamond": 5,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "tnt 50 {username} {repeat_count}"
+  },
+  {
+    "id": 6,
+    "type": "gift",
+    "label": "",
+    "gift_id": 8913,
+    "gift_name": "Rosa",
+    "diamond": 10,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "tnt 100 {username} {repeat_count}"
   }
 ]

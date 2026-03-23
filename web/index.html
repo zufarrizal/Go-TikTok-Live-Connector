@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GoTik Live Viewer</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=2">
 </head>
 <body>
   <main class="wrap">
@@ -80,6 +80,7 @@
                 <th>Label</th>
                 <th>Gift Name</th>
                 <th>Diamond</th>
+                <th>Sound</th>
                 <th>MC Command</th>
                 <th>Actions</th>
               </tr>
@@ -113,6 +114,11 @@
           <input id="eventLabel" type="text" placeholder="Event label (optional)" />
           <select id="eventGift"></select>
           <input id="eventDiamond" type="number" min="0" placeholder="Diamond" readonly />
+          <div class="sound-picker full">
+            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" />
+            <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
+            <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" />
+          </div>
           <input id="eventMCCommand" class="full" type="text" placeholder="Minecraft command (e.g. say Welcome {username})" required />
           <div class="placeholder-help full">
             <strong>Available placeholders:</strong>
@@ -128,6 +134,6 @@
 
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
 </body>
 </html>

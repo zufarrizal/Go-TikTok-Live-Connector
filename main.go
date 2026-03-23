@@ -279,6 +279,7 @@ type eventRecord struct {
 	GiftID    int    `json:"gift_id"`
 	GiftName  string `json:"gift_name"`
 	Diamond   int    `json:"diamond"`
+	SoundURL  string `json:"sound_url"`
 	MCCommand string `json:"mc_command"`
 }
 
@@ -494,7 +495,7 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, label string, giftID int, giftName string, diamond int, mcCommand string) (eventRecord, error) {
+func (s *eventStore) create(eventType, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -505,6 +506,7 @@ func (s *eventStore) create(eventType, label string, giftID int, giftName string
 		GiftID:    giftID,
 		GiftName:  strings.TrimSpace(giftName),
 		Diamond:   diamond,
+		SoundURL:  strings.TrimSpace(soundURL),
 		MCCommand: strings.TrimSpace(mcCommand),
 	}
 	s.items = append(s.items, item)
@@ -514,7 +516,7 @@ func (s *eventStore) create(eventType, label string, giftID int, giftName string
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, label string, giftID int, giftName string, diamond int, mcCommand string) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -525,6 +527,7 @@ func (s *eventStore) update(id int, eventType, label string, giftID int, giftNam
 			s.items[i].GiftID = giftID
 			s.items[i].GiftName = strings.TrimSpace(giftName)
 			s.items[i].Diamond = diamond
+			s.items[i].SoundURL = strings.TrimSpace(soundURL)
 			s.items[i].MCCommand = strings.TrimSpace(mcCommand)
 			if err := s.saveLocked(); err != nil {
 				return eventRecord{}, err
@@ -633,15 +636,7 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 		}
 		cmd := applyCommandTemplate(rule.MCCommand, vars)
 		out, err := a.rcon.Execute(cmd)
-		if err != nil {
-			a.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", rule.ID, err),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
-			continue
-		}
-		a.hub.broadcast(mustJSON(map[string]any{
+		triggerPayload := map[string]any{
 			"type":         "trigger",
 			"event_id":     rule.ID,
 			"event_type":   eventType,
@@ -650,10 +645,22 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 			"gift_name":    vars["gift_name"],
 			"username":     vars["username"],
 			"repeat_count": vars["repeat_count"],
+			"sound_url":    rule.SoundURL,
 			"command":      cmd,
 			"output":       out,
 			"time":         time.Now().Format(time.RFC3339),
-		}))
+		}
+		if err != nil {
+			triggerPayload["command_error"] = err.Error()
+			a.hub.broadcast(mustJSON(triggerPayload))
+			a.hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", rule.ID, err),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
+			continue
+		}
+		a.hub.broadcast(mustJSON(triggerPayload))
 	}
 }
 
@@ -1020,6 +1027,7 @@ func main() {
 				Type      string `json:"type"`
 				Label     string `json:"label"`
 				GiftID    int    `json:"gift_id"`
+				SoundURL  string `json:"sound_url"`
 				MCCommand string `json:"mc_command"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
@@ -1043,6 +1051,7 @@ func main() {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required"})
 				return
 			}
+			req.SoundURL = strings.TrimSpace(req.SoundURL)
 			giftID := 0
 			giftName := ""
 			diamond := 0
@@ -1061,7 +1070,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Label, giftID, giftName, diamond, req.MCCommand)
+			item, err := store.create(req.Type, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -1084,6 +1093,7 @@ func main() {
 				Type      string `json:"type"`
 				Label     string `json:"label"`
 				GiftID    int    `json:"gift_id"`
+				SoundURL  string `json:"sound_url"`
 				MCCommand string `json:"mc_command"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
@@ -1107,6 +1117,7 @@ func main() {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required"})
 				return
 			}
+			req.SoundURL = strings.TrimSpace(req.SoundURL)
 			giftID := 0
 			giftName := ""
 			diamond := 0
@@ -1125,7 +1136,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Label, giftID, giftName, diamond, req.MCCommand)
+			item, err := store.update(id, req.Type, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -1162,6 +1173,68 @@ func main() {
 			return items[i].Diamond < items[j].Diamond
 		})
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	})
+
+	http.HandleFunc("/api/upload/sound", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, 20<<20)
+		if err := r.ParseMultipartForm(20 << 20); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid upload payload"})
+			return
+		}
+
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "sound file is required"})
+			return
+		}
+		defer file.Close()
+
+		fileName := sanitizeUploadFilename(header.Filename)
+		ext := strings.ToLower(filepath.Ext(fileName))
+		if !isAllowedAudioExt(ext) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported sound format"})
+			return
+		}
+
+		soundsDir := filepath.Join("web", "static", "sounds")
+		if err := os.MkdirAll(soundsDir, 0755); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create sound directory"})
+			return
+		}
+
+		base := strings.TrimSuffix(fileName, ext)
+		targetName := fileName
+		targetPath := filepath.Join(soundsDir, targetName)
+		for i := 1; ; i++ {
+			if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+				break
+			}
+			targetName = fmt.Sprintf("%s-%d%s", base, i, ext)
+			targetPath = filepath.Join(soundsDir, targetName)
+		}
+
+		dst, err := os.Create(targetPath)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save sound file"})
+			return
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, file); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to write sound file"})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"sound_url": "/static/sounds/" + targetName,
+			"file_name": targetName,
+		})
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/status", func(w http.ResponseWriter, r *http.Request) {
@@ -1816,6 +1889,42 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func sanitizeUploadFilename(name string) string {
+	name = strings.TrimSpace(filepath.Base(name))
+	if name == "" {
+		name = "sound.mp3"
+	}
+	name = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '.', r == '-', r == '_':
+			return r
+		case r == ' ':
+			return '-'
+		default:
+			return -1
+		}
+	}, name)
+	if name == "" || strings.HasPrefix(name, ".") {
+		return "sound.mp3"
+	}
+	return name
+}
+
+func isAllowedAudioExt(ext string) bool {
+	switch strings.ToLower(strings.TrimSpace(ext)) {
+	case ".mp3", ".wav", ".ogg", ".m4a", ".aac":
+		return true
+	default:
+		return false
+	}
 }
 
 func mustJSON(v any) string {

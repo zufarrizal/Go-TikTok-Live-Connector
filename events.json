@@ -6,6 +6,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
+    "sound_url": "/static/sounds/faaah-1.mp3",
     "mc_command": "ttchat {username} {comment}"
   },
   {
@@ -15,6 +16,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
+    "sound_url": "/static/sounds/faaah-3.mp3",
     "mc_command": "join {username} {follow}"
   },
   {
@@ -24,6 +26,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
+    "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "follow {username}"
   },
   {
@@ -33,6 +36,7 @@
     "gift_id": 10716,
     "gift_name": "Blow a kiss",
     "diamond": 1,
+    "sound_url": "/static/sounds/faaah-2.mp3",
     "mc_command": "tnt 20 {username} {repeat_count}"
   }
 ]

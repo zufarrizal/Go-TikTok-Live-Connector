@@ -27,6 +27,9 @@ const statusEl = document.getElementById("status");
     const eventLabelEl = document.getElementById("eventLabel");
     const eventGiftEl = document.getElementById("eventGift");
     const eventDiamondEl = document.getElementById("eventDiamond");
+    const eventSoundEl = document.getElementById("eventSound");
+    const pickEventSoundBtn = document.getElementById("pickEventSoundBtn");
+    const eventSoundFileEl = document.getElementById("eventSoundFile");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
     const resetEventBtn = document.getElementById("resetEventBtn");
     const eventRowsEl = document.getElementById("eventRows");
@@ -65,6 +68,50 @@ const statusEl = document.getElementById("status");
         .replaceAll(">", "&gt;")
         .replaceAll("\"", "&quot;")
         .replaceAll("'", "&#39;");
+    }
+
+    function normalizeSoundURL(v) {
+      const raw = String(v || "").trim();
+      if (!raw) return "";
+      if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("/") || raw.startsWith("./") || raw.startsWith("../")) {
+        return raw;
+      }
+      return "/static/" + raw.replace(/^static\//i, "");
+    }
+
+    function buildStaticSoundPath(fileName) {
+      const name = String(fileName || "").split(/[\\/]/).pop().trim();
+      if (!name) return "";
+      return "/static/sounds/" + name.replace(/\s+/g, " ");
+    }
+
+    function getSoundFileName(soundURL) {
+      const raw = String(soundURL || "").trim();
+      if (!raw) return "";
+      const clean = raw.split("?")[0].split("#")[0];
+      const parts = clean.split("/");
+      return parts[parts.length - 1] || clean;
+    }
+
+    async function uploadSoundFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload/sound", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to upload sound");
+      return data;
+    }
+
+    function playTriggerSound(soundURL) {
+      const url = normalizeSoundURL(soundURL);
+      if (!url) return;
+      const audio = new Audio(url);
+      audio.preload = "auto";
+      audio.play().catch(() => {
+      });
     }
 
     function getUsername(payload) {
@@ -277,6 +324,7 @@ const statusEl = document.getElementById("status");
       editingEventId = null;
       eventForm.reset();
       eventTypeEl.value = "join";
+      eventSoundEl.value = "";
       eventModalTitleEl.textContent = "Add Event";
       syncGiftFields();
       syncLabelHint();
@@ -359,7 +407,7 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"6\">No events yet.</td>";
+        tr.innerHTML = "<td colspan=\"7\">No events yet.</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
@@ -386,6 +434,7 @@ const statusEl = document.getElementById("status");
           "<td>" + (item.label || "") + "</td>" +
           "<td>" + (item.gift_name || "") + "</td>" +
           "<td>" + (item.diamond ?? 0) + "</td>" +
+          "<td>" + esc(getSoundFileName(item.sound_url)) + "</td>" +
           "<td>" + (item.mc_command || "") + "</td>" +
           "<td>" +
 			"<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
@@ -570,6 +619,7 @@ const statusEl = document.getElementById("status");
         type: type,
         label: eventLabelEl.value.trim(),
         gift_id: type === "gift" ? giftId : 0,
+        sound_url: normalizeSoundURL(eventSoundEl.value.trim()),
         mc_command: eventMCCommandEl.value.trim()
       };
       if (!payload.type) {
@@ -649,6 +699,7 @@ const statusEl = document.getElementById("status");
           syncGiftFields();
           syncLabelHint();
           eventDiamondEl.value = String(item.diamond ?? 0);
+          eventSoundEl.value = item.sound_url || "";
           eventMCCommandEl.value = item.mc_command || "";
           eventTypeEl.focus();
           openEventModal(true);
@@ -694,6 +745,25 @@ const statusEl = document.getElementById("status");
       syncLabelHint();
     });
     eventGiftEl.addEventListener("change", syncGiftFields);
+    eventSoundFileEl.addEventListener("change", async () => {
+      const file = eventSoundFileEl.files && eventSoundFileEl.files[0];
+      if (!file) return;
+      const fallbackPath = buildStaticSoundPath(file.name);
+      const originalLabel = pickEventSoundBtn.textContent;
+      pickEventSoundBtn.setAttribute("aria-disabled", "true");
+      pickEventSoundBtn.textContent = "Uploading...";
+      try {
+        const data = await uploadSoundFile(file);
+        eventSoundEl.value = data.sound_url || fallbackPath;
+        setStatus("Sound uploaded successfully.", true);
+      } catch (err) {
+        setStatus(err.message || "failed to upload sound", false);
+      } finally {
+        pickEventSoundBtn.removeAttribute("aria-disabled");
+        pickEventSoundBtn.textContent = originalLabel;
+        eventSoundFileEl.value = "";
+      }
+    });
 
     const source = new EventSource("/events");
     source.onopen = () => {
@@ -706,6 +776,9 @@ const statusEl = document.getElementById("status");
       try {
         const payload = JSON.parse(event.data);
         addEvent(payload);
+        if (payload.type === "trigger") {
+          playTriggerSound(payload.sound_url);
+        }
         if (payload.type === "status") {
           const message = String(payload.message || "");
           const ok = !message.toLowerCase().includes("error") && !message.toLowerCase().includes("stopped");

@@ -1,4 +1,4 @@
-# GoTik
+# Go-TikTok-Live-Connector
 
 Bridge TikTok Live events to Minecraft actions using:
 - Go backend (`main.go`)

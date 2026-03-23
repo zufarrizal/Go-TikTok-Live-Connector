@@ -43,10 +43,11 @@ const statusEl = document.getElementById("status");
     let editingEventId = null;
     let giftOptions = [];
     const MAX_EVENT_HISTORY = 10;
-    const EVENT_SLIDE_SIZE = 12;
-    const EVENT_SLIDE_INTERVAL_MS = 4000;
-    let currentEventPage = 0;
+    const EVENT_LOOP_SPEED_PX_PER_SEC = 28;
     let eventSliderTimer = null;
+    let eventLoopOffset = 0;
+    let eventLoopCycleWidth = 0;
+    let eventLoopLastFrameAt = 0;
     let currentEventItems = [];
 
     function setStatus(text, isOK) {
@@ -227,39 +228,126 @@ const statusEl = document.getElementById("status");
       return String(item && item.gift_name ? item.gift_name : "Gift");
     }
 
-    function chunkEventItems(items, size) {
-      const pages = [];
-      for (let i = 0; i < items.length; i += size) {
-        pages.push(items.slice(i, i + size));
+    function fitGiftSubtitle(el) {
+      if (!el) return;
+      const maxSize = 18;
+      const minSize = 10;
+      let size = maxSize;
+      el.style.fontSize = size + "px";
+      el.style.letterSpacing = "0.01em";
+      el.title = "";
+
+      while (size > minSize && el.scrollWidth > el.clientWidth + 1) {
+        size -= 1;
+        el.style.fontSize = size + "px";
       }
-      return pages;
+
+      if (el.scrollWidth > el.clientWidth + 1) {
+        el.style.letterSpacing = "0";
+      }
+
+      while (size > minSize && el.scrollWidth > el.clientWidth + 1) {
+        size -= 0.5;
+        el.style.fontSize = size + "px";
+      }
+
+      if (el.scrollWidth > el.clientWidth + 1) {
+        el.style.fontSize = minSize + "px";
+        el.title = el.textContent || "";
+      }
+    }
+
+    function fitGiftSubtitles(rootEl) {
+      if (!rootEl) return;
+      requestAnimationFrame(() => {
+        for (const el of rootEl.querySelectorAll(".event-card-gift-subtitle")) {
+          fitGiftSubtitle(el);
+        }
+      });
+    }
+
+    function getEventBoxColumns() {
+      if (window.innerWidth <= 860) return 2;
+      if (window.innerWidth <= 1180) return 4;
+      return 6;
+    }
+
+    function getEventBoxVisibleSize() {
+      return getEventBoxColumns() * 2;
     }
 
     function stopEventSlider() {
       if (!eventSliderTimer) return;
-      clearInterval(eventSliderTimer);
+      cancelAnimationFrame(eventSliderTimer);
       eventSliderTimer = null;
+      eventLoopLastFrameAt = 0;
     }
 
-    function updateEventSliderPosition(pageCount) {
-      const safePageCount = Math.max(1, Number(pageCount) || 1);
-      currentEventPage = ((currentEventPage % safePageCount) + safePageCount) % safePageCount;
-      if (eventBoxRowsEl) {
-        eventBoxRowsEl.style.transform = "translateX(-" + (currentEventPage * 100) + "%)";
-      }
-      if (!eventPaginationEl) return;
-      for (const dot of eventPaginationEl.querySelectorAll(".event-page-dot")) {
-        dot.classList.toggle("is-active", Number(dot.dataset.page) === currentEventPage);
-      }
+    function resetEventLoopPosition(targetEl) {
+      if (!targetEl) return;
+      targetEl.style.transform = "translateX(0px)";
     }
 
-    function startEventSlider(pageCount) {
+    function startEventSlider() {
       stopEventSlider();
-      if (pageCount <= 1) return;
-      eventSliderTimer = setInterval(() => {
-        currentEventPage = (currentEventPage + 1) % pageCount;
-        updateEventSliderPosition(pageCount);
-      }, EVENT_SLIDE_INTERVAL_MS);
+      if (!eventBoxRowsEl || eventLoopCycleWidth <= 0) return;
+      const tick = (now) => {
+        if (!eventBoxRowsEl || eventLoopCycleWidth <= 0) {
+          eventSliderTimer = null;
+          eventLoopLastFrameAt = 0;
+          return;
+        }
+        if (!eventLoopLastFrameAt) {
+          eventLoopLastFrameAt = now;
+        }
+        const deltaMs = Math.min(64, Math.max(0, now - eventLoopLastFrameAt));
+        eventLoopLastFrameAt = now;
+        eventLoopOffset += (EVENT_LOOP_SPEED_PX_PER_SEC * deltaMs) / 1000;
+        if (eventLoopOffset >= eventLoopCycleWidth * 2) {
+          eventLoopOffset -= eventLoopCycleWidth;
+        }
+        eventBoxRowsEl.style.transform = "translateX(-" + eventLoopOffset + "px)";
+        eventSliderTimer = requestAnimationFrame(tick);
+      };
+      eventSliderTimer = requestAnimationFrame(tick);
+    }
+
+    function setupEventLoop() {
+      stopEventSlider();
+      eventLoopOffset = 0;
+      eventLoopCycleWidth = 0;
+      resetEventLoopPosition(eventBoxRowsEl);
+
+      if (!eventBoxRowsEl || eventBoxRowsEl.children.length === 0) {
+        syncEventBoxPopup();
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        const repeatCount = Number(eventBoxRowsEl.dataset.repeatCount || 1);
+        const setSize = Number(eventBoxRowsEl.dataset.setSize || 0);
+        fitGiftSubtitles(eventBoxRowsEl);
+        if (repeatCount <= 1 || setSize <= 0) {
+          syncEventBoxPopup();
+          return;
+        }
+        const cards = eventBoxRowsEl.children;
+        if (cards.length <= setSize) {
+          syncEventBoxPopup();
+          return;
+        }
+        const firstCard = cards[0];
+        const secondSetFirstCard = cards[setSize];
+        eventLoopCycleWidth = secondSetFirstCard.offsetLeft - firstCard.offsetLeft;
+        if (eventLoopCycleWidth <= 0) {
+          syncEventBoxPopup();
+          return;
+        }
+        eventLoopOffset = eventLoopCycleWidth;
+        eventBoxRowsEl.style.transform = "translateX(-" + eventLoopOffset + "px)";
+        startEventSlider();
+        syncEventBoxPopup();
+      });
     }
 
     if (eventBoxRowsEl) {
@@ -267,10 +355,13 @@ const statusEl = document.getElementById("status");
         stopEventSlider();
       });
       eventBoxRowsEl.addEventListener("mouseleave", () => {
-        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
-        startEventSlider(pageCount);
+        startEventSlider();
       });
     }
+
+    window.addEventListener("resize", () => {
+      renderEventBoxes(currentEventItems);
+    });
 
     function createGiftPicker(selectEl, hostEl, placeholder) {
       const root = document.createElement("div");
@@ -654,6 +745,9 @@ const statusEl = document.getElementById("status");
       if (!eventBoxRowsPopupEl || !eventPaginationPopupEl) return;
       eventBoxRowsPopupEl.innerHTML = eventBoxRowsEl ? eventBoxRowsEl.innerHTML : "";
       eventPaginationPopupEl.innerHTML = eventPaginationEl ? eventPaginationEl.innerHTML : "";
+      eventBoxRowsPopupEl.dataset.repeatCount = eventBoxRowsEl ? eventBoxRowsEl.dataset.repeatCount || "1" : "1";
+      eventBoxRowsPopupEl.style.transform = eventBoxRowsEl ? eventBoxRowsEl.style.transform || "translateX(0px)" : "translateX(0px)";
+      fitGiftSubtitles(eventBoxRowsPopupEl);
     }
 
     function openEventBoxModal() {
@@ -757,7 +851,12 @@ const statusEl = document.getElementById("status");
     function renderEventBoxes(items) {
       if (!eventBoxRowsEl) return;
       eventBoxRowsEl.innerHTML = "";
-      if (eventPaginationEl) eventPaginationEl.innerHTML = "";
+      eventBoxRowsEl.dataset.repeatCount = "1";
+      eventBoxRowsEl.dataset.setSize = "0";
+      if (eventPaginationEl) {
+        eventPaginationEl.innerHTML = "";
+        eventPaginationEl.style.display = "none";
+      }
       stopEventSlider();
 
       const giftItems = (items || []).filter((item) => String(item.type || "").toLowerCase() === "gift");
@@ -767,18 +866,20 @@ const statusEl = document.getElementById("status");
         empty.className = "event-empty-state";
         empty.textContent = "No gift events yet.";
         eventBoxRowsEl.appendChild(empty);
-        eventBoxRowsEl.style.transform = "translateX(0)";
+        resetEventLoopPosition(eventBoxRowsEl);
+        syncEventBoxPopup();
         return;
       }
 
       const sortedItems = sortEventItems(giftItems);
-      const pages = chunkEventItems(sortedItems, EVENT_SLIDE_SIZE);
+      const visibleSize = getEventBoxVisibleSize();
+      let repeatCount = 3;
+      if (sortedItems.length < visibleSize) {
+        repeatCount = Math.max(3, Math.ceil((visibleSize * 3) / sortedItems.length));
+      }
 
-      pages.forEach((pageItems, pageIndex) => {
-        const slide = document.createElement("div");
-        slide.className = "event-box-slide";
-
-        for (const item of pageItems) {
+      for (let copyIndex = 0; copyIndex < repeatCount; copyIndex++) {
+        for (const item of sortedItems) {
           const gift = findGiftByEventItem(item);
           const title = String(item.label || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
           const localGiftImage = buildGiftImagePathFromEvent(item);
@@ -819,37 +920,13 @@ const statusEl = document.getElementById("status");
           subtitleEl.textContent = subtitle;
 
           card.appendChild(subtitleEl);
-          slide.appendChild(card);
+          eventBoxRowsEl.appendChild(card);
         }
+      }
 
-        while (slide.children.length < EVENT_SLIDE_SIZE) {
-          const filler = document.createElement("article");
-          filler.className = "event-card event-card-empty";
-          filler.setAttribute("aria-hidden", "true");
-          slide.appendChild(filler);
-        }
-
-        eventBoxRowsEl.appendChild(slide);
-
-        if (eventPaginationEl) {
-          const dot = document.createElement("button");
-          dot.type = "button";
-          dot.className = "event-page-dot" + (pageIndex === 0 ? " is-active" : "");
-          dot.dataset.page = String(pageIndex);
-          dot.setAttribute("aria-label", "Show event page " + (pageIndex + 1));
-          dot.addEventListener("click", () => {
-            currentEventPage = pageIndex;
-            updateEventSliderPosition(pages.length);
-            startEventSlider(pages.length);
-          });
-          eventPaginationEl.appendChild(dot);
-        }
-      });
-
-      currentEventPage = 0;
-      updateEventSliderPosition(pages.length);
-      startEventSlider(pages.length);
-      syncEventBoxPopup();
+      eventBoxRowsEl.dataset.repeatCount = String(repeatCount);
+      eventBoxRowsEl.dataset.setSize = String(sortedItems.length);
+      setupEventLoop();
     }
 
     async function loadEventsTable() {

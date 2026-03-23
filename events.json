@@ -108,5 +108,15 @@
     "diamond": 1,
     "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "creeper 5 {username} {repeat}"
+  },
+  {
+    "id": 12,
+    "type": "gift",
+    "label": "",
+    "gift_id": 5487,
+    "gift_name": "Finger Heart",
+    "diamond": 5,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "spidertrap 1 {username} {repeat_count}"
   }
 ]

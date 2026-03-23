@@ -1,0 +1,12 @@
+# Respawn pemain kembali ke lokasi kematian terakhir.
+
+# Simpan lokasi kematian pemain untuk dipakai saat respawn.
+on death of player:
+    set {death.loc::%uuid of victim%} to victim's location
+
+# Setelah respawn, kembalikan pemain ke lokasi mati terakhir.
+on respawn:
+    wait 1 tick
+    set {_target} to {death.loc::%uuid of player%}
+    if {_target} is set:
+        teleport player to {_target}

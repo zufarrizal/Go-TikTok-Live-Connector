@@ -924,6 +924,8 @@ func main() {
 
 	staticFS := http.FileServer(http.Dir(filepath.Join("web", "static")))
 	http.Handle("/static/", http.StripPrefix("/static/", staticFS))
+	giftImageFS := http.FileServer(http.Dir("giftimage"))
+	http.Handle("/giftimage/", http.StripPrefix("/giftimage/", giftImageFS))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

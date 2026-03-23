@@ -6,6 +6,7 @@
       --accent: #22c55e;
       --danger: #ef4444;
       --border: #1f2937;
+      --control-height: 42px;
     }
     * { box-sizing: border-box; }
     body {
@@ -130,6 +131,18 @@
       background: #111827;
       cursor: pointer;
     }
+    #testEventGiftPicker {
+      flex: 2 1 300px;
+    }
+    #eventGiftPicker {
+      grid-column: span 2;
+      align-self: stretch;
+    }
+    #testEventCount {
+      flex: 0 0 90px;
+      min-width: 90px;
+      max-width: 90px;
+    }
     .mc-status {
       color: var(--muted);
       font-size: 13px;
@@ -236,7 +249,7 @@
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 14px;
-      min-height: 42px;
+      min-height: var(--control-height);
       line-height: 1.2;
       width: 100%;
       min-width: 0;
@@ -390,12 +403,165 @@
       font-size: 14px;
       width: 100%;
       min-width: 0;
-      min-height: 42px;
+      min-height: var(--control-height);
       line-height: 1.2;
       appearance: none;
     }
     .modal-form .full {
       grid-column: 1 / -1;
+    }
+    .gift-picker-host {
+      position: relative;
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      align-items: stretch;
+    }
+    .native-gift-select {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 1px;
+      height: 1px;
+    }
+    .gift-picker {
+      position: relative;
+      min-width: 0;
+      width: 100%;
+    }
+    .gift-picker-toggle {
+      width: 100%;
+      min-height: var(--control-height);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    .gift-picker.disabled .gift-picker-toggle {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .gift-picker-toggle:disabled {
+      cursor: not-allowed;
+    }
+    .gift-picker-selected {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
+    }
+    .gift-picker-thumb,
+    .gift-picker-thumb-placeholder {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      flex: 0 0 18px;
+      object-fit: cover;
+      background: rgba(148, 163, 184, 0.14);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+    .gift-picker-thumb-placeholder {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .gift-picker-copy {
+      min-width: 0;
+      display: block;
+      flex: 1 1 auto;
+    }
+    .gift-picker-name {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .gift-picker-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .gift-picker-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0b1220;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+    }
+    .gift-picker-menu[hidden] {
+      display: none;
+    }
+    .gift-picker-search {
+      width: 100%;
+      min-height: var(--control-height);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #111827;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    .gift-picker-list {
+      max-height: 280px;
+      overflow: auto;
+      display: grid;
+      gap: 6px;
+    }
+    .gift-picker-option {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: #111827;
+      color: var(--text);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .gift-picker-option:hover,
+    .gift-picker-option.is-selected {
+      border-color: rgba(59, 130, 246, 0.45);
+      background: rgba(29, 78, 216, 0.18);
+    }
+    .gift-picker-option-copy {
+      min-width: 0;
+      flex: 1 1 auto;
+      display: grid;
+      gap: 1px;
+    }
+    .gift-picker-empty {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      padding: 12px;
+      text-align: center;
+      font-size: 13px;
     }
     .sound-picker {
       display: grid;
@@ -413,7 +579,7 @@
       color: var(--text);
       background: #111827;
       cursor: pointer;
-      min-height: 42px;
+      min-height: var(--control-height);
       white-space: nowrap;
       width: 100%;
     }
@@ -427,7 +593,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      min-height: 42px;
+      min-height: var(--control-height);
       white-space: nowrap;
       width: 100%;
     }

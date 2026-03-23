@@ -6,7 +6,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
-    "sound_url": "/static/sounds/faaah-1.mp3",
+    "sound_url": "/static/sounds/apapplepay.mp3",
     "mc_command": "ttchat {username} {comment}"
   },
   {
@@ -16,7 +16,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
-    "sound_url": "/static/sounds/faaah-3.mp3",
+    "sound_url": "/static/sounds/apapplepay.mp3",
     "mc_command": "join {username} {follow}"
   },
   {
@@ -26,7 +26,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
-    "sound_url": "/static/sounds/faaah.mp3",
+    "sound_url": "/static/sounds/follow.mp3",
     "mc_command": "follow {username}"
   },
   {

@@ -14,6 +14,7 @@ const statusEl = document.getElementById("status");
     const testEventTypeEl = document.getElementById("testEventType");
     const testEventUsernameEl = document.getElementById("testEventUsername");
     const testEventGiftEl = document.getElementById("testEventGift");
+    const testEventGiftPickerHostEl = document.getElementById("testEventGiftPicker");
     const testEventCountEl = document.getElementById("testEventCount");
     const testEventTextEl = document.getElementById("testEventText");
     const testEventBtn = document.getElementById("testEventBtn");
@@ -26,7 +27,7 @@ const statusEl = document.getElementById("status");
     const eventTypeEl = document.getElementById("eventType");
     const eventLabelEl = document.getElementById("eventLabel");
     const eventGiftEl = document.getElementById("eventGift");
-    const eventDiamondEl = document.getElementById("eventDiamond");
+    const eventGiftPickerHostEl = document.getElementById("eventGiftPicker");
     const eventSoundEl = document.getElementById("eventSound");
     const pickEventSoundBtn = document.getElementById("pickEventSoundBtn");
     const eventSoundFileEl = document.getElementById("eventSoundFile");
@@ -104,6 +105,204 @@ const statusEl = document.getElementById("status");
       if (!res.ok) throw new Error(data.error || "failed to upload sound");
       return data;
     }
+
+    function resolveGiftImageSrc(gift) {
+      if (!gift) return "";
+      const imagePath = String(gift.image_path || "").trim();
+      if (imagePath) {
+        return "/" + imagePath.replace(/^[/\\]+/, "").replaceAll("\\", "/");
+      }
+      return String(gift.image_url || "").trim();
+    }
+
+    function createGiftThumb(src, alt) {
+      if (!src) {
+        const fallback = document.createElement("span");
+        fallback.className = "gift-picker-thumb-placeholder";
+        fallback.textContent = "IMG";
+        return fallback;
+      }
+      const img = document.createElement("img");
+      img.className = "gift-picker-thumb";
+      img.src = src;
+      img.alt = alt;
+      img.loading = "lazy";
+      img.addEventListener("error", () => {
+        img.replaceWith(createGiftThumb("", alt));
+      }, { once: true });
+      return img;
+    }
+
+    function fillGiftSelect(selectEl, items) {
+      selectEl.innerHTML = "<option value=\"\">Select Gift</option>";
+      for (const g of items) {
+        const opt = document.createElement("option");
+        opt.value = String(g.id);
+        opt.textContent = g.nama_gift + " (" + g.diamond + ")";
+        selectEl.appendChild(opt);
+      }
+    }
+
+    function createGiftPicker(selectEl, hostEl, placeholder) {
+      const root = document.createElement("div");
+      root.className = "gift-picker";
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "gift-picker-toggle";
+      toggle.setAttribute("aria-haspopup", "listbox");
+      toggle.setAttribute("aria-expanded", "false");
+
+      const selectedWrap = document.createElement("span");
+      selectedWrap.className = "gift-picker-selected";
+
+      const menu = document.createElement("div");
+      menu.className = "gift-picker-menu";
+      menu.hidden = true;
+
+      const search = document.createElement("input");
+      search.type = "search";
+      search.className = "gift-picker-search";
+      search.placeholder = "Cari gift...";
+
+      const list = document.createElement("div");
+      list.className = "gift-picker-list";
+      list.setAttribute("role", "listbox");
+
+      menu.appendChild(search);
+      menu.appendChild(list);
+      toggle.appendChild(selectedWrap);
+      root.appendChild(toggle);
+      root.appendChild(menu);
+      hostEl.appendChild(root);
+
+      let options = [];
+
+      function renderSelected() {
+        selectedWrap.innerHTML = "";
+        const selected = options.find((g) => String(g.id) === String(selectEl.value || ""));
+        if (!selected) {
+          const copy = document.createElement("span");
+          copy.className = "gift-picker-copy";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(placeholder) + "</span>";
+          selectedWrap.appendChild(createGiftThumb("", ""));
+          selectedWrap.appendChild(copy);
+          return;
+        }
+
+        const copy = document.createElement("span");
+        copy.className = "gift-picker-copy";
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected.nama_gift) + "</span>";
+        selectedWrap.appendChild(createGiftThumb(resolveGiftImageSrc(selected), selected.nama_gift || "Gift"));
+        selectedWrap.appendChild(copy);
+      }
+
+      function renderList() {
+        const query = String(search.value || "").trim().toLowerCase();
+        list.innerHTML = "";
+        const filtered = options.filter((g) => {
+          if (!query) return true;
+          return String(g.nama_gift || "").toLowerCase().includes(query) ||
+            String(g.diamond || "").includes(query) ||
+            String(g.id || "").includes(query);
+        });
+
+        if (filtered.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "gift-picker-empty";
+          empty.textContent = "Gift tidak ditemukan.";
+          list.appendChild(empty);
+          return;
+        }
+
+        for (const g of filtered) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "gift-picker-option";
+          if (String(g.id) === String(selectEl.value || "")) {
+            option.classList.add("is-selected");
+          }
+
+          const copy = document.createElement("span");
+          copy.className = "gift-picker-option-copy";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(g.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(g.diamond) + " diamonds - ID " + esc(g.id) + "</span>";
+          option.appendChild(createGiftThumb(resolveGiftImageSrc(g), g.nama_gift || "Gift"));
+          option.appendChild(copy);
+          option.addEventListener("click", () => {
+            selectEl.value = String(g.id);
+            renderSelected();
+            renderList();
+            closeMenu();
+            selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+          list.appendChild(option);
+        }
+      }
+
+      function openMenu() {
+        if (toggle.disabled) return;
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        renderList();
+        search.focus();
+      }
+
+      function closeMenu() {
+        menu.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+      }
+
+      toggle.addEventListener("click", () => {
+        if (menu.hidden) {
+          openMenu();
+          return;
+        }
+        closeMenu();
+      });
+
+      search.addEventListener("input", renderList);
+      selectEl.addEventListener("change", () => {
+        renderSelected();
+        renderList();
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!root.contains(event.target)) {
+          closeMenu();
+        }
+      });
+
+      root.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeMenu();
+          toggle.focus();
+        }
+      });
+
+      renderSelected();
+
+      return {
+        setOptions(items) {
+          options = Array.isArray(items) ? items : [];
+          search.value = "";
+          renderSelected();
+          renderList();
+        },
+        setDisabled(disabled) {
+          toggle.disabled = !!disabled;
+          search.disabled = !!disabled;
+          root.classList.toggle("disabled", !!disabled);
+          if (disabled) closeMenu();
+        },
+        syncFromSelect() {
+          renderSelected();
+          renderList();
+        }
+      };
+    }
+
+    const eventGiftPicker = createGiftPicker(eventGiftEl, eventGiftPickerHostEl, "Select Gift");
+    const testEventGiftPicker = createGiftPicker(testEventGiftEl, testEventGiftPickerHostEl, "Select Gift");
 
     function playTriggerSound(soundURL) {
       const url = normalizeSoundURL(soundURL);
@@ -345,16 +544,16 @@ const statusEl = document.getElementById("status");
     function syncGiftFields() {
       const isGift = eventTypeEl.value === "gift";
       eventGiftEl.disabled = !isGift;
+      eventGiftPicker.setDisabled(!isGift);
       if (!isGift) {
         eventGiftEl.value = "";
-        eventDiamondEl.value = "0";
+        eventGiftPicker.syncFromSelect();
         return;
       }
       if (!eventGiftEl.value && giftOptions.length > 0) {
         eventGiftEl.value = String(giftOptions[0].id);
       }
-      const selected = giftOptions.find((g) => String(g.id) === String(eventGiftEl.value));
-      eventDiamondEl.value = String(selected ? selected.diamond : 0);
+      eventGiftPicker.syncFromSelect();
     }
 
     function syncLabelHint() {
@@ -380,21 +579,10 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to load gift-list.json");
         giftOptions = data.items || [];
-        eventGiftEl.innerHTML = "<option value=\"\">Select Gift</option>";
-        testEventGiftEl.innerHTML = "<option value=\"\">Select Gift</option>";
-        for (const g of giftOptions) {
-          const text = g.nama_gift + " (" + g.diamond + ")";
-
-          const optEvent = document.createElement("option");
-          optEvent.value = String(g.id);
-          optEvent.textContent = text;
-          eventGiftEl.appendChild(optEvent);
-
-          const optTest = document.createElement("option");
-          optTest.value = String(g.id);
-          optTest.textContent = text;
-          testEventGiftEl.appendChild(optTest);
-        }
+        fillGiftSelect(eventGiftEl, giftOptions);
+        fillGiftSelect(testEventGiftEl, giftOptions);
+        eventGiftPicker.setOptions(giftOptions);
+        testEventGiftPicker.setOptions(giftOptions);
         syncGiftFields();
         syncLabelHint();
         syncTestEventFields();
@@ -568,11 +756,14 @@ const statusEl = document.getElementById("status");
     function syncTestEventFields() {
       const isGift = testEventTypeEl.value === "gift";
       testEventGiftEl.disabled = !isGift;
+      testEventGiftPicker.setDisabled(!isGift);
       if (!isGift) {
         testEventGiftEl.value = "";
+        testEventGiftPicker.syncFromSelect();
       } else if (!testEventGiftEl.value && giftOptions.length > 0) {
         testEventGiftEl.value = String(giftOptions[0].id);
       }
+      testEventGiftPicker.syncFromSelect();
     }
 
     testEventTypeEl.addEventListener("change", syncTestEventFields);
@@ -698,7 +889,6 @@ const statusEl = document.getElementById("status");
           }
           syncGiftFields();
           syncLabelHint();
-          eventDiamondEl.value = String(item.diamond ?? 0);
           eventSoundEl.value = item.sound_url || "";
           eventMCCommandEl.value = item.mc_command || "";
           eventTypeEl.focus();

@@ -3,7 +3,6 @@ const statusEl = document.getElementById("status");
     const usernameEl = document.getElementById("username");
     const connectBtn = document.getElementById("connectBtn");
     const stopBtn = document.getElementById("stopBtn");
-    const mcStatusEl = document.getElementById("mcStatus");
     const mcHostEl = document.getElementById("mcHost");
     const mcPortEl = document.getElementById("mcPort");
     const mcPasswordEl = document.getElementById("mcPassword");
@@ -498,27 +497,6 @@ const statusEl = document.getElementById("status");
       mcOutputEl.textContent = text || "";
     }
 
-    function setMCStatus(s) {
-      const status = s && s.connected ? "connected" : "disconnected";
-      const enabled = s && s.enabled ? "enabled" : "disabled";
-      const host = (s && s.host ? s.host : "127.0.0.1") + ":" + (s && s.port ? s.port : 25575);
-      const msg = "rcon=" + status + " | server.properties enable-rcon=" + enabled + " | target=" + host + (s && s.last_error ? " | error=" + s.last_error : "");
-      mcStatusEl.textContent = msg;
-    }
-
-    async function refreshMCStatus() {
-      try {
-        const res = await fetch("/api/minecraft/rcon/status");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to check RCON status");
-        setMCStatus(data);
-        if (data.host) mcHostEl.value = data.host;
-        if (data.port) mcPortEl.value = String(data.port);
-      } catch (err) {
-        mcStatusEl.textContent = err.message || "failed to check RCON status";
-      }
-    }
-
     function resetEventForm() {
       editingEventId = null;
       eventForm.reset();
@@ -709,10 +687,8 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to connect RCON");
         setMCOutput("RCON connected.");
-        await refreshMCStatus();
       } catch (err) {
         setMCOutput(err.message || "failed to connect RCON");
-        await refreshMCStatus();
       }
     });
 
@@ -722,7 +698,6 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to disconnect RCON");
         setMCOutput("RCON disconnected.");
-        await refreshMCStatus();
       } catch (err) {
         setMCOutput(err.message || "failed to disconnect RCON");
       }
@@ -743,7 +718,6 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to send command");
         setMCOutput(data.output || "(no output)");
-        await refreshMCStatus();
       } catch (err) {
         setMCOutput(err.message || "failed to send command");
       }
@@ -907,7 +881,6 @@ const statusEl = document.getElementById("status");
 				if (!res.ok) throw new Error(data.error || "failed to test command");
 				setStatus("event test #" + id + " succeeded", true);
 				setMCOutput(data.output || "(no output)");
-				await refreshMCStatus();
 			} catch (err) {
 				setStatus(err.message || "failed to test event", false);
 				setMCOutput(err.message || "failed to test event");
@@ -982,7 +955,6 @@ const statusEl = document.getElementById("status");
     };
 
     refreshState();
-    refreshMCStatus();
     syncLabelHint();
     loadGiftOptions();
     loadEventsTable();

@@ -360,23 +360,38 @@ func (m *mcRCONManager) Connect(host string, port int, password string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	_ = m.refreshFromPropertiesLocked()
+	host = strings.TrimSpace(host)
+	password = strings.TrimSpace(password)
+	useManual := host != "" || (port > 0 && port <= 65535) || password != ""
 
-	if strings.TrimSpace(host) != "" {
-		m.cfg.Host = strings.TrimSpace(host)
-	}
-	if port > 0 && port <= 65535 {
-		m.cfg.Port = port
-	}
-	if password != "" {
-		m.cfg.Password = password
-	}
-	if !m.cfg.Enabled {
-		m.lastError = "enable-rcon=false in Server/server.properties"
-		return errors.New(m.lastError)
+	if useManual {
+		if host != "" {
+			m.cfg.Host = host
+		} else if strings.TrimSpace(m.cfg.Host) == "" {
+			m.cfg.Host = "127.0.0.1"
+		}
+		if port > 0 && port <= 65535 {
+			m.cfg.Port = port
+		} else if m.cfg.Port <= 0 || m.cfg.Port > 65535 {
+			m.cfg.Port = 25575
+		}
+		if password != "" {
+			m.cfg.Password = password
+		}
+		m.cfg.Enabled = true
+	} else {
+		_ = m.refreshFromPropertiesLocked()
+		if !m.cfg.Enabled {
+			m.lastError = "enable-rcon=false in Server/server.properties"
+			return errors.New(m.lastError)
+		}
 	}
 	if strings.TrimSpace(m.cfg.Password) == "" {
-		m.lastError = "rcon.password is empty"
+		if useManual {
+			m.lastError = "rcon password is required for manual connect"
+		} else {
+			m.lastError = "rcon.password is empty"
+		}
 		return errors.New(m.lastError)
 	}
 	if m.conn != nil {
@@ -923,7 +938,14 @@ func main() {
 	ctrl := newStreamController(hub, autoMC.HandleLiveEvent)
 
 	staticFS := http.FileServer(http.Dir(filepath.Join("web", "static")))
-	http.Handle("/static/", http.StripPrefix("/static/", staticFS))
+	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(strings.ToLower(r.URL.Path), ".css") {
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+		staticFS.ServeHTTP(w, r)
+	})))
 	giftImageFS := http.FileServer(http.Dir("giftimage"))
 	http.Handle("/giftimage/", http.StripPrefix("/giftimage/", giftImageFS))
 

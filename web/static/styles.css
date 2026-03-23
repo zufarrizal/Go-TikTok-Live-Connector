@@ -1,12 +1,31 @@
-:root {
+    :root {
       --bg: #0f172a;
       --panel: #111827;
+      --panel-2: #0f1724;
+      --panel-3: #0b1220;
+      --panel-elevated: rgba(17, 24, 39, 0.92);
+      --panel-soft: rgba(15, 23, 36, 0.78);
       --text: #e5e7eb;
       --muted: #9ca3af;
       --accent: #22c55e;
       --danger: #ef4444;
       --border: #1f2937;
       --control-height: 36px;
+      --btn-default: #1f2937;
+      --btn-default-border: #334155;
+      --btn-default-hover: #273445;
+      --btn-neutral: #3f3f46;
+      --btn-neutral-border: #5b5b66;
+      --btn-neutral-hover: #4b4b57;
+      --btn-primary: #0f766e;
+      --btn-primary-border: #14b8a6;
+      --btn-primary-hover: #11867d;
+      --btn-danger: #9f1239;
+      --btn-danger-border: #e11d48;
+      --btn-danger-hover: #b31342;
+      --btn-edit: #7c3aed;
+      --btn-edit-border: #a855f7;
+      --btn-edit-hover: #8b45f0;
     }
     * { box-sizing: border-box; }
     body {
@@ -20,7 +39,7 @@
     .wrap {
       max-width: 980px;
       margin: 0 auto;
-      background: rgba(17, 24, 39, 0.92);
+      background: var(--panel-elevated);
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
@@ -55,7 +74,7 @@
     .toolbar input, .toolbar select {
       flex: 1 1 280px;
       min-width: 220px;
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -79,16 +98,17 @@
       justify-content: center;
       appearance: none;
       color: var(--text);
-      background: #111827;
+      background: var(--btn-default);
+      border-color: var(--btn-default-border);
       cursor: pointer;
     }
     .toolbar button.primary {
-      background: #14532d;
-      border-color: #166534;
+      background: var(--btn-primary);
+      border-color: var(--btn-primary-border);
     }
     .toolbar button.stop {
-      background: #7f1d1d;
-      border-color: #991b1b;
+      background: var(--btn-danger);
+      border-color: var(--btn-danger-border);
     }
     .tools-grid {
       padding: 14px 20px;
@@ -101,7 +121,7 @@
     .mc {
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: rgba(11, 18, 32, 0.75);
+      background: var(--panel-soft);
       padding: 12px;
       display: grid;
       gap: 10px;
@@ -120,7 +140,7 @@
     .mc-row input, .mc-row select {
       flex: 1 1 220px;
       min-width: 180px;
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -138,7 +158,8 @@
       font-size: 14px;
       min-height: var(--control-height);
       color: var(--text);
-      background: #111827;
+      background: var(--btn-default);
+      border-color: var(--btn-default-border);
       cursor: pointer;
     }
     #testEventGiftPicker {
@@ -162,15 +183,16 @@
       margin: 0;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #0b1220;
-      padding: 10px 12px;
-      min-height: 42px;
-      max-height: 180px;
+      background: var(--panel-3);
+      padding: 8px 10px;
+      min-height: 36px;
+      max-height: 96px;
       overflow: auto;
       white-space: pre-wrap;
       word-break: break-word;
       font-family: Consolas, "Courier New", monospace;
-      font-size: 13px;
+      font-size: 12px;
+      line-height: 1.35;
     }
     .events {
       margin: 0;
@@ -184,7 +206,7 @@
     .events li {
       border: 1px solid var(--border);
       border-radius: 10px;
-      background: #0b1220;
+      background: var(--panel-3);
       padding: 10px 12px;
       font-family: Consolas, "Courier New", monospace;
       font-size: 13px;
@@ -253,7 +275,7 @@
       gap: 8px;
     }
     .crud-form input, .crud-form select {
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -272,15 +294,17 @@
       font-size: 14px;
       min-height: var(--control-height);
       color: var(--text);
-      background: #111827;
+      background: var(--btn-neutral);
+      border-color: var(--btn-neutral-border);
       cursor: pointer;
     }
     .crud-form button.save {
-      background: #1d4ed8;
-      border-color: #1e40af;
+      background: var(--btn-edit);
+      border-color: var(--btn-edit-border);
     }
     .crud-form button.reset {
-      background: #374151;
+      background: var(--btn-neutral);
+      border-color: var(--btn-neutral-border);
     }
     .crud-table-wrap {
       overflow-x: auto;
@@ -300,7 +324,7 @@
       overflow-wrap: anywhere;
     }
     .crud-table th {
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--muted);
       font-weight: 600;
     }
@@ -309,21 +333,22 @@
       border-radius: 6px;
       padding: 6px 9px;
       color: var(--text);
-      background: #111827;
+      background: var(--btn-neutral);
+      border-color: var(--btn-neutral-border);
       cursor: pointer;
       margin-right: 6px;
     }
     .crud-table td button.run {
-      background: #14532d;
-      border-color: #166534;
+      background: var(--btn-primary);
+      border-color: var(--btn-primary-border);
     }
     .crud-table td button.edit {
-      background: #1d4ed8;
-      border-color: #1e40af;
+      background: var(--btn-edit);
+      border-color: var(--btn-edit-border);
     }
     .crud-table td button.delete {
-      background: #7f1d1d;
-      border-color: #991b1b;
+      background: var(--btn-danger);
+      border-color: var(--btn-danger-border);
     }
     .event-layout {
       padding: 14px 20px 20px;
@@ -335,7 +360,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
-      background: rgba(17, 24, 39, 0.88);
+      background: var(--panel-elevated);
     }
     .history-head {
       margin: 0;
@@ -361,8 +386,8 @@
       align-items: center;
       justify-content: center;
       color: var(--text);
-      background: #1d4ed8;
-      border-color: #1e40af;
+      background: var(--btn-edit);
+      border-color: var(--btn-edit-border);
       cursor: pointer;
     }
     .modal {
@@ -383,7 +408,7 @@
       max-width: 760px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: #111827;
+      background: var(--panel);
       padding: 14px;
       display: grid;
       gap: 10px;
@@ -406,7 +431,8 @@
       font-size: 14px;
       min-height: var(--control-height);
       color: var(--text);
-      background: #374151;
+      background: var(--btn-neutral);
+      border-color: var(--btn-neutral-border);
       cursor: pointer;
     }
     .modal-form {
@@ -416,7 +442,7 @@
       align-items: stretch;
     }
     .modal-form input, .modal-form select {
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -455,7 +481,7 @@
       min-height: var(--control-height);
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--text);
       padding: 8px 10px;
       display: flex;
@@ -526,7 +552,7 @@
       z-index: 20;
       border: 1px solid var(--border);
       border-radius: 10px;
-      background: #0b1220;
+      background: var(--panel-3);
       box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
       padding: 8px;
       display: grid;
@@ -540,7 +566,7 @@
       min-height: var(--control-height);
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #111827;
+      background: var(--panel-2);
       color: var(--text);
       padding: 8px 10px;
       font-size: 14px;
@@ -556,7 +582,7 @@
       width: 100%;
       border: 1px solid transparent;
       border-radius: 8px;
-      background: #111827;
+      background: var(--panel-2);
       color: var(--text);
       padding: 8px 10px;
       display: flex;
@@ -599,7 +625,8 @@
       padding: 8px 12px;
       font-size: 14px;
       color: var(--text);
-      background: #111827;
+      background: var(--btn-default);
+      border-color: var(--btn-default-border);
       cursor: pointer;
       min-height: var(--control-height);
       white-space: nowrap;
@@ -611,7 +638,8 @@
       padding: 8px 12px;
       font-size: 14px;
       color: var(--text);
-      background: #111827;
+      background: var(--btn-default);
+      border-color: var(--btn-default-border);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -650,7 +678,7 @@
     .placeholder-help {
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #0b1220;
+      background: var(--panel-3);
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
@@ -680,12 +708,37 @@
       font-size: 14px;
       min-height: var(--control-height);
       color: var(--text);
-      background: #111827;
+      background: var(--btn-neutral);
+      border-color: var(--btn-neutral-border);
       cursor: pointer;
     }
     .modal-actions button.save {
-      background: #1d4ed8;
-      border-color: #1e40af;
+      background: var(--btn-edit);
+      border-color: var(--btn-edit-border);
+    }
+    .toolbar button:hover,
+    .mc-row button:hover,
+    .crud-form button:hover,
+    .crud-top button:hover,
+    .modal-head button:hover,
+    .sound-picker button:hover,
+    .sound-picker-btn:hover,
+    .modal-actions button:hover {
+      filter: brightness(1.06);
+    }
+    .toolbar button.stop:hover,
+    .crud-table td button.delete:hover {
+      background: var(--btn-danger-hover);
+    }
+    .toolbar button.primary:hover,
+    .crud-table td button.run:hover {
+      background: var(--btn-primary-hover);
+    }
+    .crud-top button:hover,
+    .crud-form button.save:hover,
+    .crud-table td button.edit:hover,
+    .modal-actions button.save:hover {
+      background: var(--btn-edit-hover);
     }
     @media (max-width: 860px) {
       .crud-form {

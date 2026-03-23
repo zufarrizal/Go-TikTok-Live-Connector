@@ -1,0 +1,33 @@
+# Membuat pickaxe menambang area 3x3x3 sekaligus.
+on block damage:
+    # Only active when the item in hand is a pickaxe
+    set {_toolName} to "%type of player's tool%"
+    if {_toolName} does not contain "pickaxe":
+        stop
+
+    # Bedrock cannot be broken
+    if event-block is bedrock:
+        stop
+
+    cancel event
+    set {_center} to location of event-block
+
+    # Break a 3x3x3 area (radius 1) around the hit block
+    # Tiga loop ini mengecek semua blok di sekitar blok pusat.
+    loop integers between -1 and 1:
+        loop integers between -1 and 1:
+            loop integers between -1 and 1:
+                set {_loc} to {_center}
+                add loop-value-1 to x-coordinate of {_loc}
+                add loop-value-2 to y-coordinate of {_loc}
+                add loop-value-3 to z-coordinate of {_loc}
+
+                set {_block} to block at {_loc}
+                if {_block} is not bedrock:
+                    if {_block} is not air:
+                        # Ambil drop asli blok, lalu hancurkan blok tersebut.
+                        set {_drops::*} to drops of {_block}
+                        set block at {_loc} to air
+                        play sound "block.stone.break" with volume 1 and pitch 1 to player
+                        loop {_drops::*}:
+                            drop loop-value-4 at {_loc}

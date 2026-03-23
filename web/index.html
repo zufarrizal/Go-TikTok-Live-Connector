@@ -23,9 +23,9 @@
       <section class="mc">
         <h2>Minecraft Connector</h2>
         <div class="mc-row">
-          <input id="mcHost" type="text" placeholder="Host (e.g. 127.0.0.1)" />
-          <input id="mcPort" type="number" min="1" max="65535" placeholder="Port (e.g. 25575)" />
-          <input id="mcPassword" type="password" placeholder="RCON password" />
+          <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" />
+          <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" />
+          <input id="mcPassword" type="text" value="123" placeholder="RCON password" />
           <button id="mcConnectBtn" type="button">Connect RCON</button>
           <button id="mcDisconnectBtn" type="button">Disconnect</button>
         </div>
@@ -39,7 +39,7 @@
       <section class="mc">
         <h2>Event Simulator</h2>
         <div class="mc-status">simulate events for local testing</div>
-        <div class="mc-row">
+        <div id="testEventRow" class="mc-row">
           <select id="testEventType">
             <option value="gift">GiftEvent</option>
             <option value="chat">ChatEvent</option>
@@ -47,14 +47,6 @@
             <option value="user_follow">UserEvent (Follow)</option>
             <option value="user_share">UserEvent (Share)</option>
             <option value="like">LikeEvent</option>
-            <option value="room">RoomEvent</option>
-            <option value="viewers">ViewersEvent</option>
-            <option value="question">QuestionEvent</option>
-            <option value="control">ControlEvent</option>
-            <option value="mic_battle">MicBattleEvent</option>
-            <option value="battles">BattlesEvent</option>
-            <option value="room_banner">RoomBannerEvent</option>
-            <option value="intro">IntroEvent</option>
           </select>
           <input id="testEventUsername" type="text" value="TestPlayer" placeholder="Tester TikTok username" />
           <div id="testEventGiftPicker" class="gift-picker-host">
@@ -103,25 +95,25 @@
           <h3 id="eventModalTitle">Add Event</h3>
           <button id="closeEventModalBtn" type="button">Close</button>
         </div>
-        <form id="eventForm" class="modal-form">
-          <select id="eventType" required>
+        <form id="eventForm" class="modal-form" autocomplete="off">
+          <select id="eventType" required autocomplete="off">
+            <option value="gift" selected>gift</option>
             <option value="join">join</option>
             <option value="follow">follow</option>
             <option value="comment">comment</option>
             <option value="like">like</option>
-            <option value="gift">gift</option>
             <option value="share">share</option>
           </select>
-          <input id="eventLabel" type="text" placeholder="Event label (optional)" />
+          <input id="eventLabel" type="text" placeholder="Event label (optional)" autocomplete="off" />
           <div id="eventGiftPicker" class="gift-picker-host">
             <select id="eventGift" class="native-gift-select"></select>
           </div>
           <div class="sound-picker full">
-            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" />
+            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" autocomplete="off" />
             <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
             <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" />
           </div>
-          <input id="eventMCCommand" class="full" type="text" placeholder="Minecraft command (e.g. say Welcome {username})" required />
+          <input id="eventMCCommand" class="full" type="text" placeholder="Minecraft command (e.g. say Welcome {username})" required autocomplete="off" />
           <div class="placeholder-help full">
             <strong>Available placeholders:</strong>
             <span><code>{event_type}</code> <code>{username}</code> <code>{nickname}</code> <code>{comment}</code> <code>{likes}</code> <code>{total_likes}</code> <code>{gift_name}</code> <code>{gift_id}</code> <code>{diamond}</code> <code>{repeat_count}</code></span>
@@ -136,6 +128,6 @@
 
   </main>
 
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

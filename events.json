@@ -58,5 +58,35 @@
     "diamond": 10,
     "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "tnt 100 {username} {repeat_count}"
+  },
+  {
+    "id": 7,
+    "type": "gift",
+    "label": "",
+    "gift_id": 10994,
+    "gift_name": "Bouquet",
+    "diamond": 100,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "tnt 1000 {username} {repeat_count}"
+  },
+  {
+    "id": 8,
+    "type": "gift",
+    "label": "",
+    "gift_id": 5333,
+    "gift_name": "Coffee",
+    "diamond": 1,
+    "sound_url": "/static/sounds/faaah.mp3",
+    "mc_command": "zombie 5 {username} {repeat_count}"
+  },
+  {
+    "id": 9,
+    "type": "gift",
+    "label": "",
+    "gift_id": 9463,
+    "gift_name": "Fairy wings",
+    "diamond": 1,
+    "sound_url": "/static/{repeat_count}",
+    "mc_command": "spider 5 {username} {repeat_count}"
   }
 ]

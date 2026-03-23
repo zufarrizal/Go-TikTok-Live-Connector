@@ -500,7 +500,7 @@ const statusEl = document.getElementById("status");
     function resetEventForm() {
       editingEventId = null;
       eventForm.reset();
-      eventTypeEl.value = "join";
+      eventTypeEl.value = "gift";
       eventSoundEl.value = "";
       eventModalTitleEl.textContent = "Add Event";
       syncGiftFields();
@@ -522,6 +522,8 @@ const statusEl = document.getElementById("status");
     function syncGiftFields() {
       const isGift = eventTypeEl.value === "gift";
       eventGiftEl.disabled = !isGift;
+      eventGiftPickerHostEl.hidden = !isGift;
+      eventGiftPickerHostEl.style.display = isGift ? "" : "none";
       eventGiftPicker.setDisabled(!isGift);
       if (!isGift) {
         eventGiftEl.value = "";
@@ -536,6 +538,11 @@ const statusEl = document.getElementById("status");
 
     function syncLabelHint() {
       const t = eventTypeEl.value;
+      const allowLabel = t === "comment" || t === "like";
+      eventLabelEl.hidden = !allowLabel;
+      if (!allowLabel) {
+        eventLabelEl.value = "";
+      }
       if (t === "like") {
         eventLabelEl.placeholder = "Like count (number, e.g. 10)";
         return;
@@ -729,13 +736,27 @@ const statusEl = document.getElementById("status");
 
     function syncTestEventFields() {
       const isGift = testEventTypeEl.value === "gift";
+      const isChat = testEventTypeEl.value === "chat";
+      const needsCount = isGift || testEventTypeEl.value === "like";
       testEventGiftEl.disabled = !isGift;
+      testEventGiftPickerHostEl.hidden = !isGift;
+      testEventGiftPickerHostEl.style.display = isGift ? "" : "none";
       testEventGiftPicker.setDisabled(!isGift);
+      testEventCountEl.hidden = !needsCount;
+      testEventCountEl.style.display = needsCount ? "" : "none";
+      testEventTextEl.hidden = !isChat;
+      testEventTextEl.style.display = isChat ? "" : "none";
       if (!isGift) {
         testEventGiftEl.value = "";
         testEventGiftPicker.syncFromSelect();
       } else if (!testEventGiftEl.value && giftOptions.length > 0) {
         testEventGiftEl.value = String(giftOptions[0].id);
+      }
+      if (!isChat) {
+        testEventTextEl.value = "";
+      }
+      if (!needsCount) {
+        testEventCountEl.value = "1";
       }
       testEventGiftPicker.syncFromSelect();
     }

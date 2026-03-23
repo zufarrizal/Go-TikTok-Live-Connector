@@ -165,6 +165,22 @@
     #testEventGiftPicker {
       flex: 2 1 300px;
     }
+    #testEventRow {
+      flex-wrap: nowrap;
+      align-items: stretch;
+    }
+    #testEventType {
+      flex: 0 1 150px;
+      min-width: 140px;
+    }
+    #testEventUsername {
+      flex: 1 1 150px;
+      min-width: 140px;
+    }
+    #testEventGiftPicker {
+      flex: 1.4 1 220px;
+      min-width: 200px;
+    }
     #eventGiftPicker {
       grid-column: span 2;
       align-self: stretch;
@@ -173,6 +189,15 @@
       flex: 0 0 90px;
       min-width: 90px;
       max-width: 90px;
+    }
+    #testEventText {
+      flex: 1 1 180px;
+      min-width: 160px;
+    }
+    #testEventBtn {
+      flex: 0 0 132px;
+      min-width: 132px;
+      white-space: nowrap;
     }
     .mc-status {
       color: var(--muted);
@@ -665,6 +690,9 @@
       border: 0;
     }
     @media (max-width: 860px) {
+      #testEventRow {
+        flex-wrap: wrap;
+      }
       .sound-picker {
         grid-template-columns: 1fr;
       }

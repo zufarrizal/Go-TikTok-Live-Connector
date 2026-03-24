@@ -7,7 +7,8 @@ function refill_food(p: player):
 
 # Menjaga Strength level 3 tetap aktif dengan refresh durasi singkat.
 function apply_unlimited_strength(p: player):
-    execute console command "effect give %{_p}% minecraft:strength 99999 2 true"
+    set {_effect} to potion effect of strength of tier 3 for 99999 seconds
+    add {_effect} to potion effects of {_p}
 
 # Terapkan saat pemain join.
 on join:
@@ -30,3 +31,4 @@ on food level change:
 every 5 seconds:
     loop all players:
         refill_food(loop-player)
+        apply_unlimited_strength(loop-player)

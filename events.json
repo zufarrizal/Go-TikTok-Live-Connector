@@ -235,8 +235,8 @@
     "type": "gift",
     "title": "TNT 5K - 10 WIN",
     "label": "",
-    "gift_id": 16637,
-    "gift_name": "Bunny Crown",
+    "gift_id": 7168,
+    "gift_name": "Money Gun",
     "diamond": 500,
     "sound_url": "/static/sounds/faaah.mp3",
     "mc_command": "tnt 5000 {username} 1\nminwin 10"

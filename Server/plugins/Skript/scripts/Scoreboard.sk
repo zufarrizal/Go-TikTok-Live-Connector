@@ -128,25 +128,41 @@ every 1 second:
             set {_target} to {diamond.target}
             if {_bal} < {_target}:
                 delete {win.countdown::%uuid of loop-player%}
+                delete {win.countdown.slow::%uuid of loop-player%}
+                delete {win.countdown.zero::%uuid of loop-player%}
             else:
                 set {_left} to {win.countdown::%uuid of loop-player%}
                 send title "&b&lDIAMOND &f&lTARGET!" with subtitle "&e&lWIN IN &c%{_left}% &6SECONDS" to loop-player
                 play sound "block.note_block.hat" to loop-player
 
-                if {_left} <= 1:
-                    # Saat countdown selesai, catat kemenangan lalu reset balance pemain.
-                    delete {win.countdown::%uuid of loop-player%}
-                    send title "&6&lWIN &e&lPLAYER!" with subtitle "&b&l%loop-player%" to players
-                    broadcast "&6WIN Player: &e%loop-player%"
-                    add 1 to {win.total}
-                    update_win_scoreboard()
-                    remove all diamond from loop-player's inventory
-                    set {diamond.debt::%uuid of loop-player%} to 0
-                    set {diamond.balance::%uuid of loop-player%} to 0
-                    execute console command "scoreboard players reset %loop-player% diamond_count"
-                    update_player_scoreboard(loop-player)
+                if {_left} <= 0:
+                    if {win.countdown.zero::%uuid of loop-player%} is not set:
+                        set {win.countdown.zero::%uuid of loop-player%} to true
+                    else:
+                        # Saat countdown selesai, catat kemenangan lalu reset balance pemain.
+                        delete {win.countdown::%uuid of loop-player%}
+                        delete {win.countdown.slow::%uuid of loop-player%}
+                        delete {win.countdown.zero::%uuid of loop-player%}
+                        send title "&6&lWIN &e&lPLAYER!" with subtitle "&b&l%loop-player%" to players
+                        broadcast "&6WIN Player: &e%loop-player%"
+                        add 1 to {win.total}
+                        update_win_scoreboard()
+                        remove all diamond from loop-player's inventory
+                        set {diamond.debt::%uuid of loop-player%} to 0
+                        set {diamond.balance::%uuid of loop-player%} to 0
+                        execute console command "scoreboard players reset %loop-player% diamond_count"
+                        update_player_scoreboard(loop-player)
                 else:
-                    remove 1 from {win.countdown::%uuid of loop-player%}
+                    delete {win.countdown.zero::%uuid of loop-player%}
+                    if {_left} <= 3:
+                        if {win.countdown.slow::%uuid of loop-player%} is not set:
+                            set {win.countdown.slow::%uuid of loop-player%} to true
+                        else:
+                            delete {win.countdown.slow::%uuid of loop-player%}
+                            remove 1 from {win.countdown::%uuid of loop-player%}
+                    else:
+                        delete {win.countdown.slow::%uuid of loop-player%}
+                        remove 1 from {win.countdown::%uuid of loop-player%}
 
 # Reduce diamond balance (can go negative)
 # Format disamakan dengan /diamondplus: value, username/label, repeat.

@@ -35,8 +35,7 @@ function is_allowed_item(it: item) :: boolean:
         return true
     if {_it} is wooden hoe or stone hoe or iron hoe or golden hoe or diamond hoe or netherite hoe:
         return true
-
-    if {_it} is bow or crossbow or trident or fishing rod or shears or shield or arrow:
+    if "%type of {_it}%" contains "arrow":
         return true
 
     return false

@@ -37,7 +37,8 @@
       padding: 24px;
     }
     .wrap {
-      max-width: 980px;
+      width: min(1680px, calc(100vw - 32px));
+      max-width: 1680px;
       margin: 0 auto;
       background: var(--panel-elevated);
       border: 1px solid var(--border);
@@ -114,7 +115,7 @@
       padding: 14px 20px;
       border-bottom: 1px solid var(--border);
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
       align-items: start;
     }
@@ -137,7 +138,7 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .mc-row input, .mc-row select {
+    .mc-row input, .mc-row select, .mc-row textarea {
       flex: 1 1 220px;
       min-width: 180px;
       background: var(--panel-3);
@@ -150,6 +151,13 @@
       line-height: 1.2;
       width: 100%;
       appearance: none;
+    }
+    .mc-row textarea {
+      min-height: 108px;
+      resize: vertical;
+      line-height: 1.45;
+      font-family: Consolas, "Courier New", monospace;
+      appearance: auto;
     }
     .mc-row button {
       border: 1px solid var(--border);
@@ -394,6 +402,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .event-box-head h2 {
   margin: 0;
@@ -418,36 +427,29 @@
   background: rgba(15, 23, 42, 0.76);
   cursor: pointer;
 }
-.event-box-modal-card {
-  max-width: 1200px;
-}
-.event-box-popup-content,
-.event-showcase-popup .event-slider-window {
-  min-height: 420px;
-}
 .event-slider-window {
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 24px;
-  background:
-    radial-gradient(circle at top right, rgba(96, 165, 250, 0.2), transparent 28%),
-    radial-gradient(circle at bottom left, rgba(20, 184, 166, 0.14), transparent 30%),
-    linear-gradient(180deg, rgba(8, 15, 28, 0.96), rgba(15, 23, 42, 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 20px 60px rgba(2, 6, 23, 0.32);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: none;
   padding-inline: 36px;
 }
 .event-card-track {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, minmax(132px, 1fr));
-  grid-auto-columns: 120px;
-  gap: 12px;
-  width: max-content;
+  display: flex;
+  width: 100%;
   padding: 16px 0;
-  transition: none;
+  transition: transform 420ms ease;
   will-change: transform;
+}
+.event-box-slide {
+  min-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(164px, 164px));
+  gap: 12px;
+  padding: 0;
+  box-sizing: border-box;
 }
 .event-card {
   position: relative;
@@ -466,18 +468,13 @@
   grid-template-rows: 1fr auto;
   gap: 7px;
   min-height: 164px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
-    linear-gradient(145deg, #1d4ed8 0%, #0f172a 52%, #0b1120 100%);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: #1e293b;
   padding: 10px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 18px 36px rgba(15, 23, 42, 0.34);
+  box-shadow: none;
   transform: none;
   transition: none;
-  background-size: 140% 140%;
 }
 .event-card-gift::before {
   display: none;
@@ -486,11 +483,10 @@
   display: grid;
   place-items: center;
   min-height: 92px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: none;
 }
 .event-card-gift-image {
   width: 100%;
@@ -498,7 +494,7 @@
   max-height: 56px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.28));
+  filter: none;
 }
 .event-card-gift-fallback {
   text-align: center;
@@ -509,7 +505,7 @@
 }
 .event-card-gift-subtitle {
   text-align: center;
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1.02;
   font-weight: 900;
   color: #eff6ff;
@@ -520,11 +516,7 @@
   text-overflow: ellipsis;
 }
 .event-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), transparent 45%);
-  pointer-events: none;
+  display: none;
 }
 .event-card > * {
   position: relative;
@@ -634,10 +626,83 @@
   width: 26px;
   background: linear-gradient(90deg, #60a5fa, #2dd4bf);
 }
+.event-export-stage {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  z-index: -1;
+}
+.event-export-canvas {
+  width: 1920px;
+  height: 1080px;
+  padding: 36px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
+  background: #0f172a;
+}
+.event-export-canvas.event-box-section {
+  border-radius: 28px;
+}
+.event-export-canvas .event-box-head {
+  align-items: center;
+}
+.event-export-canvas .event-box-head h2 {
+  font-size: 34px;
+}
+.event-export-canvas .event-box-head span {
+  font-size: 16px;
+}
+.event-export-canvas .event-showcase {
+  min-height: 0;
+  display: grid;
+}
+.event-export-canvas .event-slider-window {
+  height: 100%;
+  padding: 24px;
+  border-radius: 28px;
+}
+.event-export-grid {
+  min-height: 0;
+  height: 100%;
+}
+.event-export-grid .event-box-slide {
+  min-width: auto;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+.event-export-grid .event-card-gift {
+  min-height: 0;
+  height: 100%;
+  border-radius: 14px;
+  padding: 14px;
+}
+.event-export-grid .event-card-gift-frame {
+  min-height: 0;
+  border-radius: 10px;
+}
+.event-export-grid .event-card-gift-image {
+  max-width: 96px;
+  max-height: 96px;
+}
+.event-export-grid .event-card-gift-subtitle {
+  font-size: 42px;
+  line-height: 1.05;
+}
 }
     .event-layout {
       padding: 14px 20px 20px;
       display: grid;
+      grid-template-columns: minmax(0, 1.75fr) minmax(320px, 0.85fr);
       gap: 12px;
       align-items: start;
     }
@@ -726,7 +791,7 @@
       gap: 8px;
       align-items: stretch;
     }
-    .modal-form input, .modal-form select {
+    .modal-form input, .modal-form select, .modal-form textarea {
       background: var(--panel-3);
       color: var(--text);
       border: 1px solid var(--border);
@@ -738,6 +803,13 @@
       min-height: var(--control-height);
       line-height: 1.2;
       appearance: none;
+    }
+    .modal-form textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.45;
+      font-family: Consolas, "Courier New", monospace;
+      appearance: auto;
     }
     .modal-form .full {
       grid-column: 1 / -1;
@@ -950,6 +1022,19 @@
       border: 0;
     }
     @media (max-width: 860px) {
+      body {
+        padding: 16px;
+      }
+      .wrap {
+        width: 100%;
+        max-width: none;
+      }
+      .tools-grid {
+        grid-template-columns: 1fr;
+      }
+      .event-layout {
+        grid-template-columns: 1fr;
+      }
       #testEventRow {
         flex-wrap: wrap;
       }
@@ -1047,14 +1132,15 @@
   .event-slider-window {
     padding-inline: 16px;
   }
-  .event-card-track {
-    grid-auto-columns: 132px;
+  .event-box-slide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(152px, 152px));
   }
   .event-card-gift {
-    min-height: 156px;
+    min-height: 152px;
   }
   .event-card-gift-subtitle {
-    font-size: 16px;
+    font-size: 18px;
   }
   .event-card-gift-image {
     max-width: 52px;
@@ -1062,16 +1148,23 @@
   }
 }
 @media (max-width: 1180px) and (min-width: 861px) {
+  .tools-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-layout {
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+  }
   .event-slider-window {
     padding-inline: 24px;
   }
-  .event-card-track {
-    grid-auto-columns: 124px;
+  .event-box-slide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(158px, 158px));
   }
   .event-card-gift-subtitle {
-    font-size: 17px;
+    font-size: 20px;
   }
   .event-card-gift {
-    min-height: 160px;
+    min-height: 158px;
   }
 }

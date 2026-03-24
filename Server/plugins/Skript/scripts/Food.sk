@@ -5,19 +5,26 @@ function refill_food(p: player):
     set food level of {_p} to 20
     set saturation of {_p} to 20
 
+# Menjaga Strength level 3 tetap aktif dengan refresh durasi singkat.
+function apply_unlimited_strength(p: player):
+    execute console command "effect give %{_p}% minecraft:strength 99999 2 true"
+
 # Terapkan saat pemain join.
 on join:
     wait 5 ticks
     refill_food(player)
+    apply_unlimited_strength(player)
 
 # Terapkan lagi saat pemain respawn.
 on respawn:
     wait 5 ticks
     refill_food(player)
+    apply_unlimited_strength(player)
 
 # Paksa hunger tetap penuh setiap kali nilainya berubah.
 on food level change:
     set food level of player to 20
+    set saturation of player to 20
 
 # Backup periodik agar tidak ada pemain yang kehilangan hunger penuh.
 every 5 seconds:

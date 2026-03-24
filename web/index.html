@@ -30,7 +30,7 @@
           <button id="mcDisconnectBtn" type="button">Disconnect</button>
         </div>
         <div class="mc-row">
-          <input id="mcCommand" type="text" placeholder="Minecraft command (e.g. list)" />
+          <textarea id="mcCommand" rows="4" placeholder="Minecraft command, satu baris satu command&#10;Contoh:&#10;list&#10;say Hello world"></textarea>
           <button id="mcSendBtn" type="button">Send Command</button>
         </div>
         <pre id="mcOutput" class="mc-output"></pre>
@@ -70,6 +70,7 @@
             <thead>
               <tr>
                 <th>Type</th>
+                <th>Title</th>
                 <th>Label</th>
                 <th>Gift Name</th>
                 <th>Diamond</th>
@@ -86,8 +87,8 @@
           <div class="event-box-head">
             <h2>Event List Box</h2>
             <div class="event-box-tools">
-              <span>Auto loop 6 x 2</span>
-              <button id="openEventBoxPopupBtn" type="button">Popup</button>
+              <span>Auto slide 5 x 4</span>
+              <button id="exportEventBoxBtn" type="button">Save PNG Slides</button>
             </div>
           </div>
           <div class="event-showcase">
@@ -120,7 +121,8 @@
             <option value="like">like</option>
             <option value="share">share</option>
           </select>
-          <input id="eventLabel" type="text" placeholder="Event label (optional)" autocomplete="off" />
+          <input id="eventTitle" type="text" placeholder="Title for Event List Box" autocomplete="off" />
+          <input id="eventLabel" type="text" placeholder="Rule label/filter (optional)" autocomplete="off" />
           <div id="eventGiftPicker" class="gift-picker-host">
             <select id="eventGift" class="native-gift-select"></select>
           </div>
@@ -129,7 +131,7 @@
             <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
             <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" />
           </div>
-          <input id="eventMCCommand" class="full" type="text" placeholder="Minecraft command (e.g. say Welcome {username})" required autocomplete="off" />
+          <textarea id="eventMCCommand" class="full" rows="5" placeholder="Minecraft command, satu baris satu command&#10;Contoh:&#10;say Welcome {username}&#10;give {username} diamond 1" required></textarea>
           <div class="placeholder-help full">
             <strong>Available placeholders:</strong>
             <span><code>{event_type}</code> <code>{username}</code> <code>{nickname}</code> <code>{comment}</code> <code>{likes}</code> <code>{total_likes}</code> <code>{gift_name}</code> <code>{gift_id}</code> <code>{diamond}</code> <code>{repeat_count}</code></span>
@@ -142,23 +144,11 @@
       </div>
     </div>
 
-    <div id="eventBoxModal" class="modal" aria-hidden="true">
-      <div class="modal-card event-box-modal-card">
-        <div class="modal-head">
-          <h3>Event List Box</h3>
-          <button id="closeEventBoxPopupBtn" type="button">Close</button>
-        </div>
-        <div class="event-showcase event-showcase-popup">
-          <div class="event-slider-window">
-            <div id="eventBoxRowsPopup" class="event-card-track"></div>
-          </div>
-          <div id="eventPaginationPopup" class="event-pagination" aria-label="Event popup pages"></div>
-        </div>
-      </div>
-    </div>
+    <div id="eventExportStage" class="event-export-stage" aria-hidden="true"></div>
 
   </main>
 
+  <script src="/static/vendor/html2canvas.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

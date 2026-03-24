@@ -1,6 +1,6 @@
 # dm {value} {username} {repeat}
 # Memberikan diamond ke semua pemain berdasarkan hasil perkalian nilai dan repeat.
-command /dm <number> <text> <number> :
+command /DMplus <number> <text> <number> :
     trigger:
         set {_total} to arg-1 * arg-3
         send title "&6&l%arg-2%" with subtitle "&b&lGIVE &e%{_total}% &fDiamonds" to players
@@ -10,16 +10,11 @@ command /dm <number> <text> <number> :
 
 # join {username} {follow}
 # Broadcast user TikTok yang join live beserta status follow-nya.
-command /join <text> <text>:
+command /join <text>:
     trigger:
         set {_username} to arg-1
-        set {_follow} to arg-2
-        if {_follow} is "true":
-            broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live &8| &2&lFOLLOWING"
-        else:
-            broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ejoined live &8| &7NOT FOLLOWING"
-        loop all players:
-            play sound "entity.experience_orb.pickup" to loop-player
+        broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live"
+        play sound "entity.experience_orb.pickup" to players
 
 # follow {username}
 # Broadcast user TikTok yang mulai follow live.

@@ -27,6 +27,7 @@ const statusEl = document.getElementById("status");
     const eventModalTitleEl = document.getElementById("eventModalTitle");
     const eventForm = document.getElementById("eventForm");
     const eventTypeEl = document.getElementById("eventType");
+    const eventTitleEl = document.getElementById("eventTitle");
     const eventLabelEl = document.getElementById("eventLabel");
     const eventGiftEl = document.getElementById("eventGift");
     const eventGiftPickerHostEl = document.getElementById("eventGiftPicker");
@@ -38,16 +39,16 @@ const statusEl = document.getElementById("status");
     const eventRowsEl = document.getElementById("eventRows");
     const eventBoxRowsEl = document.getElementById("eventBoxRows");
     const eventPaginationEl = document.getElementById("eventPagination");
+    const exportEventBoxBtn = document.getElementById("exportEventBoxBtn");
+    const eventExportStageEl = document.getElementById("eventExportStage");
     const eventBoxRowsPopupEl = document.getElementById("eventBoxRowsPopup");
     const eventPaginationPopupEl = document.getElementById("eventPaginationPopup");
     let editingEventId = null;
     let giftOptions = [];
     const MAX_EVENT_HISTORY = 10;
-    const EVENT_LOOP_SPEED_PX_PER_SEC = 28;
+    const EVENT_SLIDE_INTERVAL_MS = 3500;
     let eventSliderTimer = null;
-    let eventLoopOffset = 0;
-    let eventLoopCycleWidth = 0;
-    let eventLoopLastFrameAt = 0;
+    let currentEventPage = 0;
     let currentEventItems = [];
 
     function setStatus(text, isOK) {
@@ -157,16 +158,16 @@ const statusEl = document.getElementById("status");
 
     function sortEventItems(items) {
       return [...items].sort((a, b) => {
-        const aEmpty = a.diamond === null || a.diamond === undefined || String(a.diamond).trim() === "";
-        const bEmpty = b.diamond === null || b.diamond === undefined || String(b.diamond).trim() === "";
-        if (aEmpty !== bEmpty) return aEmpty ? -1 : 1;
-
         const aDiamond = Number(a.diamond);
         const bDiamond = Number(b.diamond);
         const aValid = Number.isFinite(aDiamond);
         const bValid = Number.isFinite(bDiamond);
+        if (aValid !== bValid) return aValid ? -1 : 1;
         if (aValid && bValid && aDiamond !== bDiamond) return aDiamond - bDiamond;
-        if (aValid !== bValid) return aValid ? 1 : -1;
+
+        const aTitle = String(a.title || "").trim().toLowerCase();
+        const bTitle = String(b.title || "").trim().toLowerCase();
+        if (aTitle !== bTitle) return aTitle.localeCompare(bTitle);
 
         return Number(b.id || 0) - Number(a.id || 0);
       });
@@ -218,21 +219,19 @@ const statusEl = document.getElementById("status");
     }
 
     function buildGiftBoxCaption(item) {
-      const command = String(item && item.mc_command ? item.mc_command : "").trim();
-      if (command) {
-        const parts = command.split(/\s+/).filter(Boolean);
-        if (parts.length >= 2) {
-          return parts[0].toUpperCase() + " " + parts[1] + "x";
-        }
-      }
+      const title = String(item && item.title ? item.title : "").trim();
+      if (title) return title;
       return String(item && item.gift_name ? item.gift_name : "Gift");
     }
 
     function fitGiftSubtitle(el) {
       if (!el) return;
-      const maxSize = 18;
-      const minSize = 10;
+      const isExport = !!el.closest(".event-export-canvas");
+      const maxSize = isExport ? 56 : 22;
+      const minSize = isExport ? 20 : 10;
       let size = maxSize;
+      el.style.display = "block";
+      el.style.width = "100%";
       el.style.fontSize = size + "px";
       el.style.letterSpacing = "0.01em";
       el.title = "";
@@ -266,21 +265,134 @@ const statusEl = document.getElementById("status");
       });
     }
 
+    function waitForImageLoad(img) {
+      return new Promise((resolve) => {
+        if (!img) {
+          resolve();
+          return;
+        }
+        if (img.complete) {
+          resolve();
+          return;
+        }
+        const done = () => resolve();
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+      });
+    }
+
+    async function waitForImagesIn(rootEl) {
+      if (!rootEl) return;
+      const images = Array.from(rootEl.querySelectorAll("img"));
+      await Promise.all(images.map(waitForImageLoad));
+    }
+
+    function buildEventExportFileName(index) {
+      const safeIndex = Math.max(1, Number(index) || 1);
+      return "event-list-box-slide-" + String(safeIndex).padStart(2, "0") + ".png";
+    }
+
+    async function exportEventBoxSlidesAsPNG() {
+      if (!window.html2canvas) {
+        setStatus("html2canvas failed to load", false);
+        return;
+      }
+      if (!eventBoxRowsEl || !eventExportStageEl) {
+        setStatus("event export is not available", false);
+        return;
+      }
+      const slides = Array.from(eventBoxRowsEl.querySelectorAll(".event-box-slide"));
+      if (slides.length === 0) {
+        setStatus("no event slides to export", false);
+        return;
+      }
+
+      stopEventSlider();
+      if (exportEventBoxBtn) {
+        exportEventBoxBtn.disabled = true;
+        exportEventBoxBtn.textContent = "Saving...";
+      }
+
+      try {
+        for (let i = 0; i < slides.length; i++) {
+          const slide = slides[i];
+          const clone = slide.cloneNode(true);
+          const canvasHost = document.createElement("div");
+          canvasHost.className = "event-box-section event-export-canvas";
+          canvasHost.innerHTML =
+            "<div class=\"event-box-head\">" +
+              "<h2>Event List Box</h2>" +
+              "<div class=\"event-box-tools\"><span>Slide " + esc(String(i + 1)) + " / " + esc(String(slides.length)) + "</span></div>" +
+            "</div>";
+
+          const grid = document.createElement("div");
+          grid.className = "event-export-grid";
+          grid.appendChild(clone);
+
+          const showcase = document.createElement("div");
+          showcase.className = "event-showcase";
+
+          const sliderWindow = document.createElement("div");
+          sliderWindow.className = "event-slider-window";
+          sliderWindow.appendChild(grid);
+          showcase.appendChild(sliderWindow);
+          canvasHost.appendChild(showcase);
+
+          eventExportStageEl.replaceChildren(canvasHost);
+          fitGiftSubtitles(canvasHost);
+          await waitForImagesIn(canvasHost);
+          await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+          const canvas = await window.html2canvas(canvasHost, {
+            backgroundColor: null,
+            width: 1920,
+            height: 1080,
+            scale: 1,
+            useCORS: true,
+            logging: false
+          });
+
+          const link = document.createElement("a");
+          link.href = canvas.toDataURL("image/png");
+          link.download = buildEventExportFileName(i + 1);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+
+        eventExportStageEl.replaceChildren();
+        setStatus("event slides saved as PNG successfully", true);
+      } catch (err) {
+        setStatus((err && err.message) || "failed to save event slides", false);
+      } finally {
+        eventExportStageEl.replaceChildren();
+        if (exportEventBoxBtn) {
+          exportEventBoxBtn.disabled = false;
+          exportEventBoxBtn.textContent = "Save PNG Slides";
+        }
+        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
+        startEventSlider(pageCount);
+      }
+    }
+
     function getEventBoxColumns() {
       if (window.innerWidth <= 860) return 2;
-      if (window.innerWidth <= 1180) return 4;
-      return 6;
+      if (window.innerWidth <= 1180) return 3;
+      return 5;
+    }
+
+    function getEventBoxRows() {
+      return 4;
     }
 
     function getEventBoxVisibleSize() {
-      return getEventBoxColumns() * 2;
+      return getEventBoxColumns() * getEventBoxRows();
     }
 
     function stopEventSlider() {
       if (!eventSliderTimer) return;
-      cancelAnimationFrame(eventSliderTimer);
+      clearInterval(eventSliderTimer);
       eventSliderTimer = null;
-      eventLoopLastFrameAt = 0;
     }
 
     function resetEventLoopPosition(targetEl) {
@@ -288,66 +400,30 @@ const statusEl = document.getElementById("status");
       targetEl.style.transform = "translateX(0px)";
     }
 
-    function startEventSlider() {
-      stopEventSlider();
-      if (!eventBoxRowsEl || eventLoopCycleWidth <= 0) return;
-      const tick = (now) => {
-        if (!eventBoxRowsEl || eventLoopCycleWidth <= 0) {
-          eventSliderTimer = null;
-          eventLoopLastFrameAt = 0;
-          return;
-        }
-        if (!eventLoopLastFrameAt) {
-          eventLoopLastFrameAt = now;
-        }
-        const deltaMs = Math.min(64, Math.max(0, now - eventLoopLastFrameAt));
-        eventLoopLastFrameAt = now;
-        eventLoopOffset += (EVENT_LOOP_SPEED_PX_PER_SEC * deltaMs) / 1000;
-        if (eventLoopOffset >= eventLoopCycleWidth * 2) {
-          eventLoopOffset -= eventLoopCycleWidth;
-        }
-        eventBoxRowsEl.style.transform = "translateX(-" + eventLoopOffset + "px)";
-        eventSliderTimer = requestAnimationFrame(tick);
-      };
-      eventSliderTimer = requestAnimationFrame(tick);
+    function updateEventSliderPosition(pageCount) {
+      if (!eventBoxRowsEl) return;
+      const safePageCount = Math.max(1, Number(pageCount) || 1);
+      currentEventPage = ((currentEventPage % safePageCount) + safePageCount) % safePageCount;
+      eventBoxRowsEl.style.transform = "translateX(-" + (currentEventPage * 100) + "%)";
     }
 
-    function setupEventLoop() {
+    function startEventSlider(pageCount) {
       stopEventSlider();
-      eventLoopOffset = 0;
-      eventLoopCycleWidth = 0;
+      if (!eventBoxRowsEl || pageCount <= 1) return;
+      eventSliderTimer = setInterval(() => {
+        currentEventPage = (currentEventPage + 1) % pageCount;
+        updateEventSliderPosition(pageCount);
+      }, EVENT_SLIDE_INTERVAL_MS);
+    }
+
+    function setupEventLoop(pageCount) {
+      stopEventSlider();
+      currentEventPage = 0;
       resetEventLoopPosition(eventBoxRowsEl);
-
-      if (!eventBoxRowsEl || eventBoxRowsEl.children.length === 0) {
-        syncEventBoxPopup();
-        return;
-      }
-
-      requestAnimationFrame(() => {
-        const repeatCount = Number(eventBoxRowsEl.dataset.repeatCount || 1);
-        const setSize = Number(eventBoxRowsEl.dataset.setSize || 0);
-        fitGiftSubtitles(eventBoxRowsEl);
-        if (repeatCount <= 1 || setSize <= 0) {
-          syncEventBoxPopup();
-          return;
-        }
-        const cards = eventBoxRowsEl.children;
-        if (cards.length <= setSize) {
-          syncEventBoxPopup();
-          return;
-        }
-        const firstCard = cards[0];
-        const secondSetFirstCard = cards[setSize];
-        eventLoopCycleWidth = secondSetFirstCard.offsetLeft - firstCard.offsetLeft;
-        if (eventLoopCycleWidth <= 0) {
-          syncEventBoxPopup();
-          return;
-        }
-        eventLoopOffset = eventLoopCycleWidth;
-        eventBoxRowsEl.style.transform = "translateX(-" + eventLoopOffset + "px)";
-        startEventSlider();
-        syncEventBoxPopup();
-      });
+      fitGiftSubtitles(eventBoxRowsEl);
+      updateEventSliderPosition(pageCount);
+      startEventSlider(pageCount);
+      syncEventBoxPopup();
     }
 
     if (eventBoxRowsEl) {
@@ -355,7 +431,8 @@ const statusEl = document.getElementById("status");
         stopEventSlider();
       });
       eventBoxRowsEl.addEventListener("mouseleave", () => {
-        startEventSlider();
+        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
+        startEventSlider(pageCount);
       });
     }
 
@@ -722,6 +799,7 @@ const statusEl = document.getElementById("status");
       editingEventId = null;
       eventForm.reset();
       eventTypeEl.value = "gift";
+      eventTitleEl.value = "";
       eventSoundEl.value = "";
       eventModalTitleEl.textContent = "Add Event";
       refreshEventGiftOptions();
@@ -824,7 +902,7 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"7\">No events yet.</td>";
+        tr.innerHTML = "<td colspan=\"8\">No events yet.</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
@@ -834,6 +912,7 @@ const statusEl = document.getElementById("status");
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + (item.type || "") + "</td>" +
+          "<td>" + esc(item.title || "") + "</td>" +
           "<td>" + (item.label || "") + "</td>" +
           "<td>" + (item.gift_name || "") + "</td>" +
           "<td>" + (item.diamond ?? 0) + "</td>" +
@@ -842,6 +921,7 @@ const statusEl = document.getElementById("status");
           "<td>" +
             "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
             "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">Edit</button>" +
+            "<button type=\"button\" class=\"edit\" data-act=\"duplicate\" data-id=\"" + item.id + "\">Duplicate</button>" +
             "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">Delete</button>" +
           "</td>";
         eventRowsEl.appendChild(tr);
@@ -851,8 +931,6 @@ const statusEl = document.getElementById("status");
     function renderEventBoxes(items) {
       if (!eventBoxRowsEl) return;
       eventBoxRowsEl.innerHTML = "";
-      eventBoxRowsEl.dataset.repeatCount = "1";
-      eventBoxRowsEl.dataset.setSize = "0";
       if (eventPaginationEl) {
         eventPaginationEl.innerHTML = "";
         eventPaginationEl.style.display = "none";
@@ -873,15 +951,18 @@ const statusEl = document.getElementById("status");
 
       const sortedItems = sortEventItems(giftItems);
       const visibleSize = getEventBoxVisibleSize();
-      let repeatCount = 3;
-      if (sortedItems.length < visibleSize) {
-        repeatCount = Math.max(3, Math.ceil((visibleSize * 3) / sortedItems.length));
+      const pages = [];
+      for (let i = 0; i < sortedItems.length; i += visibleSize) {
+        pages.push(sortedItems.slice(i, i + visibleSize));
       }
 
-      for (let copyIndex = 0; copyIndex < repeatCount; copyIndex++) {
-        for (const item of sortedItems) {
+      for (const pageItems of pages) {
+        const slide = document.createElement("div");
+        slide.className = "event-box-slide";
+
+        for (const item of pageItems) {
           const gift = findGiftByEventItem(item);
-          const title = String(item.label || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
+          const title = String(item.title || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
           const localGiftImage = buildGiftImagePathFromEvent(item);
           const remoteGiftImage = resolveGiftImageSrc(gift);
           const giftImage = localGiftImage || remoteGiftImage;
@@ -920,13 +1001,20 @@ const statusEl = document.getElementById("status");
           subtitleEl.textContent = subtitle;
 
           card.appendChild(subtitleEl);
-          eventBoxRowsEl.appendChild(card);
+          slide.appendChild(card);
         }
+
+        while (slide.children.length < visibleSize) {
+          const filler = document.createElement("article");
+          filler.className = "event-card event-card-empty";
+          filler.setAttribute("aria-hidden", "true");
+          slide.appendChild(filler);
+        }
+
+        eventBoxRowsEl.appendChild(slide);
       }
 
-      eventBoxRowsEl.dataset.repeatCount = String(repeatCount);
-      eventBoxRowsEl.dataset.setSize = String(sortedItems.length);
-      setupEventLoop();
+      setupEventLoop(pages.length);
     }
 
     async function loadEventsTable() {
@@ -1045,7 +1133,10 @@ const statusEl = document.getElementById("status");
     });
 
     mcCommandEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") mcSendBtn.click();
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        mcSendBtn.click();
+      }
     });
 
     function syncTestEventFields() {
@@ -1117,6 +1208,7 @@ const statusEl = document.getElementById("status");
       const gift = giftOptions.find((g) => g.id === giftId);
       const payload = {
         type: type,
+        title: eventTitleEl.value.trim(),
         label: eventLabelEl.value.trim(),
         gift_id: type === "gift" ? giftId : 0,
         sound_url: normalizeSoundURL(eventSoundEl.value.trim()),
@@ -1210,6 +1302,7 @@ const statusEl = document.getElementById("status");
           if (!item) throw new Error("event not found");
           editingEventId = id;
           eventTypeEl.value = item.type || "join";
+          eventTitleEl.value = item.title || "";
           eventLabelEl.value = item.label || "";
           refreshEventGiftOptions();
           if (item.type === "gift" && item.gift_id) {
@@ -1240,6 +1333,39 @@ const statusEl = document.getElementById("status");
         } catch (err) {
           setStatus(err.message || "failed to test event", false);
           setMCOutput(err.message || "failed to test event");
+        }
+        return;
+      }
+
+      if (action === "duplicate") {
+        try {
+          const res = await fetch("/api/events");
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "failed to load");
+          const item = (data.items || []).find((x) => Number(x.id) === id);
+          if (!item) throw new Error("event not found");
+
+          const duplicatePayload = {
+            type: item.type || "join",
+            title: item.title || "",
+            label: item.label || "",
+            gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
+            sound_url: normalizeSoundURL(item.sound_url || ""),
+            mc_command: item.mc_command || ""
+          };
+
+          const createRes = await fetch("/api/events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(duplicatePayload)
+          });
+          const createData = await createRes.json();
+          if (!createRes.ok) throw new Error(createData.error || "failed to duplicate");
+
+          setStatus("event duplicated successfully", true);
+          await loadEventsTable();
+        } catch (err) {
+          setStatus(err.message || "failed to duplicate event", false);
         }
         return;
       }
@@ -1287,6 +1413,11 @@ const statusEl = document.getElementById("status");
     eventRowsEl.addEventListener("click", handleEventActionClick);
     if (eventBoxRowsEl) {
       eventBoxRowsEl.addEventListener("click", handleEventActionClick);
+    }
+    if (exportEventBoxBtn) {
+      exportEventBoxBtn.addEventListener("click", () => {
+        exportEventBoxSlidesAsPNG();
+      });
     }
 
     const source = new EventSource("/events");

@@ -70,6 +70,8 @@ type streamController struct {
 	live     *gotiktoklive.Live
 }
 
+const streamReconnectDelay = 5 * time.Second
+
 func newStreamController(hub *eventHub, onEvent func(any)) *streamController {
 	return &streamController{hub: hub, onEvent: onEvent}
 }
@@ -147,7 +149,30 @@ func (c *streamController) setLive(session uint64, live *gotiktoklive.Live) {
 	}
 }
 
+func (c *streamController) broadcastReconnect(username string) {
+	c.hub.broadcast(mustJSON(map[string]any{
+		"type":    "status",
+		"message": fmt.Sprintf("Disconnected from @%s. Reconnecting in %ds...", username, int(streamReconnectDelay/time.Second)),
+		"time":    time.Now().Format(time.RFC3339),
+	}))
+}
+
 func (c *streamController) run(ctx context.Context, session uint64, username string) {
+	defer func() {
+		if r := recover(); r != nil && c.isCurrentSession(session) {
+			c.setLive(session, nil)
+			c.hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": fmt.Sprintf("tracker panic for @%s: %v", username, r),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
+			c.broadcastReconnect(username)
+			if sleepOrCancel(ctx, streamReconnectDelay) {
+				go c.run(ctx, session, username)
+			}
+		}
+	}()
+
 	for {
 		if !c.isCurrentSession(session) {
 			return
@@ -160,7 +185,8 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"error": err.Error(),
 				"time":  time.Now().Format(time.RFC3339),
 			}))
-			if !sleepOrCancel(ctx, 5*time.Second) {
+			c.broadcastReconnect(username)
+			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
 			}
 			continue
@@ -173,7 +199,8 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"error": err.Error(),
 				"time":  time.Now().Format(time.RFC3339),
 			}))
-			if !sleepOrCancel(ctx, 5*time.Second) {
+			c.broadcastReconnect(username)
+			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
 			}
 			continue
@@ -241,7 +268,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 					"time":      time.Now().Format(time.RFC3339),
 				}))
 				if c.onEvent != nil {
-					go c.onEvent(event)
+					c.onEvent(event)
 				}
 			}
 		}
@@ -249,13 +276,9 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 		live.Close()
 		c.setLive(session, nil)
 
-		c.hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": "Disconnected. Reconnecting in 5s...",
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		c.broadcastReconnect(username)
 
-		if !sleepOrCancel(ctx, 5*time.Second) {
+		if !sleepOrCancel(ctx, streamReconnectDelay) {
 			return
 		}
 	}
@@ -275,6 +298,7 @@ func sleepOrCancel(ctx context.Context, d time.Duration) bool {
 type eventRecord struct {
 	ID        int    `json:"id"`
 	Type      string `json:"type"`
+	Title     string `json:"title"`
 	Label     string `json:"label"`
 	GiftID    int    `json:"gift_id"`
 	GiftName  string `json:"gift_name"`
@@ -510,13 +534,14 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
+func (s *eventStore) create(eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item := eventRecord{
 		ID:        s.nextIDLocked(),
 		Type:      strings.TrimSpace(eventType),
+		Title:     strings.TrimSpace(title),
 		Label:     strings.TrimSpace(label),
 		GiftID:    giftID,
 		GiftName:  strings.TrimSpace(giftName),
@@ -531,13 +556,14 @@ func (s *eventStore) create(eventType, label string, giftID int, giftName string
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for i := range s.items {
 		if s.items[i].ID == id {
 			s.items[i].Type = strings.TrimSpace(eventType)
+			s.items[i].Title = strings.TrimSpace(title)
 			s.items[i].Label = strings.TrimSpace(label)
 			s.items[i].GiftID = giftID
 			s.items[i].GiftName = strings.TrimSpace(giftName)
@@ -600,6 +626,7 @@ type mcEventAutomation struct {
 	mu    sync.Mutex
 	// Tracks grouped gift combo progression by TikTok GroupID.
 	giftCombo map[int64]giftComboProgress
+	queue     chan queuedMCTrigger
 }
 
 type giftComboProgress struct {
@@ -609,13 +636,77 @@ type giftComboProgress struct {
 	SawIncrease bool
 }
 
+type queuedMCTrigger struct {
+	rule      eventRecord
+	eventType string
+	giftID    int
+	vars      map[string]string
+	command   string
+	queuedAt  time.Time
+}
+
 func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub) *mcEventAutomation {
-	return &mcEventAutomation{
+	a := &mcEventAutomation{
 		store:     store,
 		rcon:      rcon,
 		hub:       hub,
 		giftCombo: make(map[int64]giftComboProgress),
+		queue:     make(chan queuedMCTrigger, 512),
 	}
+	go a.processQueue()
+	return a
+}
+
+func (a *mcEventAutomation) processQueue() {
+	for job := range a.queue {
+		out, err := executeCommands(a.rcon, job.command)
+		triggerPayload := map[string]any{
+			"type":          "trigger",
+			"event_id":      job.rule.ID,
+			"event_type":    job.eventType,
+			"event_label":   job.rule.Label,
+			"gift_id":       job.giftID,
+			"gift_name":     job.vars["gift_name"],
+			"username":      job.vars["username"],
+			"repeat_count":  job.vars["repeat_count"],
+			"sound_url":     job.rule.SoundURL,
+			"command":       job.command,
+			"output":        out,
+			"queued_at":     job.queuedAt.Format(time.RFC3339),
+			"processed_at":  time.Now().Format(time.RFC3339),
+			"queue_pending": len(a.queue),
+		}
+		if err != nil {
+			triggerPayload["command_error"] = err.Error()
+			a.hub.broadcast(mustJSON(triggerPayload))
+			a.hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", job.rule.ID, err),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
+			continue
+		}
+		a.hub.broadcast(mustJSON(triggerPayload))
+	}
+}
+
+func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
+	a.queue <- job
+	a.hub.broadcast(mustJSON(map[string]any{
+		"type":          "trigger_queued",
+		"event_id":      job.rule.ID,
+		"event_type":    job.eventType,
+		"event_label":   job.rule.Label,
+		"gift_id":       job.giftID,
+		"gift_name":     job.vars["gift_name"],
+		"username":      job.vars["username"],
+		"repeat_count":  job.vars["repeat_count"],
+		"sound_url":     job.rule.SoundURL,
+		"command":       job.command,
+		"queued_at":     job.queuedAt.Format(time.RFC3339),
+		"queue_pending": len(a.queue),
+		"time":          time.Now().Format(time.RFC3339),
+	}))
 }
 
 func (a *mcEventAutomation) HandleLiveEvent(ev any) {
@@ -649,33 +740,18 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 		if !ruleLabelMatches(rule, vars) {
 			continue
 		}
-		cmd := applyCommandTemplate(rule.MCCommand, vars)
-		out, err := a.rcon.Execute(cmd)
-		triggerPayload := map[string]any{
-			"type":         "trigger",
-			"event_id":     rule.ID,
-			"event_type":   eventType,
-			"event_label":  rule.Label,
-			"gift_id":      giftID,
-			"gift_name":    vars["gift_name"],
-			"username":     vars["username"],
-			"repeat_count": vars["repeat_count"],
-			"sound_url":    rule.SoundURL,
-			"command":      cmd,
-			"output":       out,
-			"time":         time.Now().Format(time.RFC3339),
+		jobVars := make(map[string]string, len(vars))
+		for k, v := range vars {
+			jobVars[k] = v
 		}
-		if err != nil {
-			triggerPayload["command_error"] = err.Error()
-			a.hub.broadcast(mustJSON(triggerPayload))
-			a.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", rule.ID, err),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
-			continue
-		}
-		a.hub.broadcast(mustJSON(triggerPayload))
+		a.enqueueTrigger(queuedMCTrigger{
+			rule:      rule,
+			eventType: eventType,
+			giftID:    giftID,
+			vars:      jobVars,
+			command:   applyCommandTemplate(rule.MCCommand, jobVars),
+			queuedAt:  time.Now(),
+		})
 	}
 }
 
@@ -927,6 +1003,54 @@ func applyCommandTemplate(command string, vars map[string]string) string {
 	return out
 }
 
+func splitCommands(raw string) []string {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	lines := strings.Split(raw, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "/") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "/"))
+		}
+		if line == "" {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+func executeCommands(rcon *mcRCONManager, raw string) (string, error) {
+	commands := splitCommands(raw)
+	if len(commands) == 0 {
+		return "", fmt.Errorf("command is empty")
+	}
+
+	outputs := make([]string, 0, len(commands))
+	for i, command := range commands {
+		out, err := rcon.Execute(command)
+		if err != nil {
+			if len(outputs) > 0 {
+				return strings.Join(outputs, "\n\n"), err
+			}
+			return "", err
+		}
+		out = strings.TrimSpace(out)
+		if out == "" {
+			out = "(ok)"
+		}
+		outputs = append(outputs, fmt.Sprintf("[%d/%d] %s\n%s", i+1, len(commands), command, out))
+		if i < len(commands)-1 {
+			time.Sleep(75 * time.Millisecond)
+		}
+	}
+	return strings.Join(outputs, "\n\n"), nil
+}
+
 func main() {
 	hub := newEventHub()
 	store, err := newEventStore("events.json")
@@ -1049,6 +1173,7 @@ func main() {
 		case http.MethodPost:
 			var req struct {
 				Type      string `json:"type"`
+				Title     string `json:"title"`
 				Label     string `json:"label"`
 				GiftID    int    `json:"gift_id"`
 				SoundURL  string `json:"sound_url"`
@@ -1063,6 +1188,7 @@ func main() {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share"})
 				return
 			}
+			req.Title = strings.TrimSpace(req.Title)
 			req.Label = strings.TrimSpace(req.Label)
 			if req.Type == "like" && req.Label != "" {
 				n, err := strconv.Atoi(req.Label)
@@ -1094,7 +1220,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
+			item, err := store.create(req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -1115,6 +1241,7 @@ func main() {
 		case http.MethodPut:
 			var req struct {
 				Type      string `json:"type"`
+				Title     string `json:"title"`
 				Label     string `json:"label"`
 				GiftID    int    `json:"gift_id"`
 				SoundURL  string `json:"sound_url"`
@@ -1129,6 +1256,7 @@ func main() {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share"})
 				return
 			}
+			req.Title = strings.TrimSpace(req.Title)
 			req.Label = strings.TrimSpace(req.Label)
 			if req.Type == "like" && req.Label != "" {
 				n, err := strconv.Atoi(req.Label)
@@ -1160,7 +1288,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
+			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -1311,7 +1439,7 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
 			return
 		}
-		out, err := mcRCON.Execute(req.Command)
+		out, err := executeCommands(mcRCON, req.Command)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
 			return
@@ -1344,7 +1472,7 @@ func main() {
 			"diamond":      strconv.Itoa(item.Diamond),
 			"repeat_count": "1",
 		})
-		out, err := mcRCON.Execute(cmd)
+		out, err := executeCommands(mcRCON, cmd)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
 			return

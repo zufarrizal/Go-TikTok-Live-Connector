@@ -7,7 +7,7 @@ function refill_food(p: player):
 
 # Menjaga Strength level 3 tetap aktif dengan refresh durasi singkat.
 function apply_unlimited_strength(p: player):
-    set {_effect} to potion effect of strength of tier 3 for 99999 seconds
+    set {_effect} to potion effect of strength of tier 5 for 99999 seconds
     add {_effect} to potion effects of {_p}
 
 # Terapkan saat pemain join.

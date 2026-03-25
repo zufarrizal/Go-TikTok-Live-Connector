@@ -1,7 +1,7 @@
 # Auto clear item drop di tanah secara berkala.
 
 options:
-    clear-drops-interval: 10 seconds
+    clear-drops-interval: 1 seconds
 
 # Menghitung jumlah item drop yang sedang ada di semua world.
 function count_dropped_items() :: number:

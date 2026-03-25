@@ -212,7 +212,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			"message": "Connected to @" + username,
 			"time":    time.Now().Format(time.RFC3339),
 		}))
-		if gifts, err := fetchGiftCatalog(live.ID); err != nil {
+		if gifts, err := fetchGiftCatalog(tiktok, live.ID, username); err != nil {
 			c.hub.broadcast(mustJSON(map[string]any{
 				"type":  "error",
 				"error": "failed to fetch gift catalog: " + err.Error(),
@@ -1757,6 +1757,7 @@ type giftCatalogItem struct {
 	Describe  string `json:"describe"`
 	Diamonds  int    `json:"diamonds"`
 	Type      int    `json:"type"`
+	Region    string `json:"region,omitempty"`
 	ImageURL  string `json:"image_url,omitempty"`
 	ImagePath string `json:"image_path,omitempty"`
 }
@@ -1765,14 +1766,40 @@ type giftListJSONItem struct {
 	ID        int    `json:"id"`
 	NamaGift  string `json:"nama_gift"`
 	Diamond   int    `json:"diamond"`
+	Region    string `json:"region,omitempty"`
 	ImageURL  string `json:"image_url,omitempty"`
 	ImagePath string `json:"image_path,omitempty"`
 }
 
-func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
+func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username string) ([]giftCatalogItem, error) {
+	if tiktok != nil {
+		if info, err := tiktok.GetGiftInfo(roomID); err == nil && info != nil && len(info.Gifts) > 0 {
+			seen := make(map[int]giftCatalogItem, len(info.Gifts))
+			for _, g := range info.Gifts {
+				if g.ID == 0 {
+					continue
+				}
+				seen[g.ID] = giftCatalogItem{
+					ID:       g.ID,
+					Name:     g.Name,
+					Describe: g.Describe,
+					Diamonds: g.DiamondCount,
+					Type:     g.Type,
+					Region:   strings.TrimSpace(g.Region),
+					ImageURL: firstNonEmptyString(g.Image.URLList),
+				}
+			}
+			out := sortGiftCatalogItems(seen)
+			if len(out) > 0 {
+				return out, nil
+			}
+		}
+	}
+
 	if strings.TrimSpace(roomID) == "" {
 		return nil, fmt.Errorf("room_id is empty")
 	}
+	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
 
 	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 	baseURL := "https://webcast.tiktok.com/webcast/gift/list/"
@@ -1789,7 +1816,7 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 	query.Set("cookie_enabled", "true")
 	query.Set("device_platform", "web")
 	query.Set("focus_state", "true")
-	query.Set("from_page", "user")
+	query.Set("from_page", "live")
 	query.Set("is_fullscreen", "false")
 	query.Set("is_page_visible", "true")
 	query.Set("live_id", "12")
@@ -1797,7 +1824,11 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 	query.Set("screen_height", "1152")
 	query.Set("screen_width", "2048")
 	query.Set("tz_name", "Asia/Jakarta")
-	query.Set("referer", "https://www.tiktok.com/")
+	referer := "https://www.tiktok.com/"
+	if username != "" {
+		referer = "https://www.tiktok.com/@" + username + "/live"
+	}
+	query.Set("referer", referer)
 	query.Set("root_referer", "https://www.tiktok.com")
 	query.Set("version_code", "180800")
 	query.Set("webcast_sdk_version", "1.3.0")
@@ -1810,7 +1841,7 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 	}
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", "application/json,text/html")
-	req.Header.Set("Referer", "https://www.tiktok.com/")
+	req.Header.Set("Referer", referer)
 	req.Header.Set("Origin", "https://www.tiktok.com")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
@@ -1866,21 +1897,7 @@ func fetchGiftCatalog(roomID string) ([]giftCatalogItem, error) {
 			ImageURL: firstNonEmptyGiftImageURL(g.Image.URLList, g.Images),
 		}
 	}
-
-	out := make([]giftCatalogItem, 0, len(seen))
-	for _, item := range seen {
-		out = append(out, item)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Diamonds == out[j].Diamonds {
-			if out[i].Name == out[j].Name {
-				return out[i].ID < out[j].ID
-			}
-			return out[i].Name < out[j].Name
-		}
-		return out[i].Diamonds < out[j].Diamonds
-	})
-	return out, nil
+	return sortGiftCatalogItems(seen), nil
 }
 
 func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) {
@@ -1892,6 +1909,7 @@ func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) 
 			ID:        g.ID,
 			NamaGift:  g.Name,
 			Diamond:   g.Diamonds,
+			Region:    g.Region,
 			ImageURL:  g.ImageURL,
 			ImagePath: g.ImagePath,
 		})
@@ -1911,21 +1929,42 @@ func firstNonEmptyGiftImageURL(primary []string, extras []struct {
 	URLList []string `json:"url_list"`
 	URI     string   `json:"uri"`
 }) string {
-	for _, u := range primary {
+	if u := firstNonEmptyString(primary); u != "" {
+		return u
+	}
+	for _, item := range extras {
+		if u := firstNonEmptyString(item.URLList); u != "" {
+			return u
+		}
+	}
+	return ""
+}
+
+func firstNonEmptyString(values []string) string {
+	for _, u := range values {
 		u = strings.TrimSpace(u)
 		if u != "" {
 			return u
 		}
 	}
-	for _, item := range extras {
-		for _, u := range item.URLList {
-			u = strings.TrimSpace(u)
-			if u != "" {
-				return u
-			}
-		}
-	}
 	return ""
+}
+
+func sortGiftCatalogItems(seen map[int]giftCatalogItem) []giftCatalogItem {
+	out := make([]giftCatalogItem, 0, len(seen))
+	for _, item := range seen {
+		out = append(out, item)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Diamonds == out[j].Diamonds {
+			if out[i].Name == out[j].Name {
+				return out[i].ID < out[j].ID
+			}
+			return out[i].Name < out[j].Name
+		}
+		return out[i].Diamonds < out[j].Diamonds
+	})
+	return out
 }
 
 func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {

@@ -4,7 +4,8 @@ function give_tools(p: player):
     set slot 0 of {_p}'s inventory to netherite pickaxe
     set slot 1 of {_p}'s inventory to netherite sword
     set slot 2 of {_p}'s inventory to bow
-    set slot 3 of {_p}'s inventory to make_deadly_arrows()
+    # Infinity tetap butuh minimal 1 arrow di inventory.
+    set slot 3 of {_p}'s inventory to 1 arrow
     set offhand tool of {_p} to shield
 
     # Pickaxe full upgrade
@@ -56,7 +57,7 @@ function ensure_tools(p: player):
         enchant slot 2 of {_p}'s inventory with unbreaking 3
 
     if "%type of slot 3 of {_p}'s inventory%" does not contain "arrow":
-        set slot 3 of {_p}'s inventory to make_deadly_arrows()
+        set slot 3 of {_p}'s inventory to 1 arrow
 
     if offhand tool of {_p} is not shield:
         set offhand tool of {_p} to shield

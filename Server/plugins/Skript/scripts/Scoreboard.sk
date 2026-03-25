@@ -129,11 +129,15 @@ every 1 second:
             if {_bal} < {_target}:
                 delete {win.countdown::%uuid of loop-player%}
                 delete {win.countdown.slow::%uuid of loop-player%}
+                delete {win.countdown.slowticks::%uuid of loop-player%}
                 delete {win.countdown.zero::%uuid of loop-player%}
+                delete {win.countdown.lastshown::%uuid of loop-player%}
             else:
                 set {_left} to {win.countdown::%uuid of loop-player%}
-                send title "&b&lDIAMOND &f&lTARGET!" with subtitle "&e&lWIN IN &c%{_left}% &6SECONDS" to loop-player
-                play sound "block.note_block.hat" to loop-player
+                if {win.countdown.lastshown::%uuid of loop-player%} is not {_left}:
+                    set {win.countdown.lastshown::%uuid of loop-player%} to {_left}
+                    send title "&b&lDIAMOND &f&lTARGET!" with subtitle "&e&lWIN IN &c%{_left}% &6SECONDS" to loop-player
+                    play sound "block.note_block.hat" to loop-player
 
                 if {_left} <= 0:
                     if {win.countdown.zero::%uuid of loop-player%} is not set:
@@ -142,7 +146,9 @@ every 1 second:
                         # Saat countdown selesai, catat kemenangan lalu reset balance pemain.
                         delete {win.countdown::%uuid of loop-player%}
                         delete {win.countdown.slow::%uuid of loop-player%}
+                        delete {win.countdown.slowticks::%uuid of loop-player%}
                         delete {win.countdown.zero::%uuid of loop-player%}
+                        delete {win.countdown.lastshown::%uuid of loop-player%}
                         send title "&6&lWIN &e&lPLAYER!" with subtitle "&b&l%loop-player%" to players
                         broadcast "&6WIN Player: &e%loop-player%"
                         add 1 to {win.total}
@@ -155,13 +161,16 @@ every 1 second:
                 else:
                     delete {win.countdown.zero::%uuid of loop-player%}
                     if {_left} <= 3:
-                        if {win.countdown.slow::%uuid of loop-player%} is not set:
+                        add 1 to {win.countdown.slowticks::%uuid of loop-player%}
+                        if {win.countdown.slowticks::%uuid of loop-player%} < 3:
                             set {win.countdown.slow::%uuid of loop-player%} to true
                         else:
                             delete {win.countdown.slow::%uuid of loop-player%}
+                            delete {win.countdown.slowticks::%uuid of loop-player%}
                             remove 1 from {win.countdown::%uuid of loop-player%}
                     else:
                         delete {win.countdown.slow::%uuid of loop-player%}
+                        delete {win.countdown.slowticks::%uuid of loop-player%}
                         remove 1 from {win.countdown::%uuid of loop-player%}
 
 # Reduce diamond balance (can go negative)

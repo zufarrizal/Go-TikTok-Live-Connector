@@ -1148,6 +1148,13 @@
     "image_path": "giftimage/299_United Heart.webp"
   },
   {
+    "id": 57009,
+    "nama_gift": "Wakey Mallow",
+    "diamond": 299,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dc170f6fcc00a7253cd0744d7b01809d.png~tplv-obj.webp",
+    "image_path": "giftimage/299_Wakey Mallow.webp"
+  },
+  {
     "id": 17463,
     "nama_gift": "Air Dancer",
     "diamond": 300,
@@ -1293,6 +1300,13 @@
     "diamond": 399,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/6e2944bf91135c52cc8004d9b7ef36ab.png~tplv-obj.webp",
     "image_path": "giftimage/399_Confetti Bear.webp"
+  },
+  {
+    "id": 57010,
+    "nama_gift": "Dreamy Hat",
+    "diamond": 399,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/5074a9b0dd0de8ba6fc8573913ed9cde.png~tplv-obj.webp",
+    "image_path": "giftimage/399_Dreamy Hat.webp"
   },
   {
     "id": 19312,
@@ -1533,6 +1547,13 @@
     "image_path": "giftimage/450_City Pop.webp"
   },
   {
+    "id": 57008,
+    "nama_gift": "Clover Hat",
+    "diamond": 450,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/c53bd514827a6c5db739540ea4b8d126.png~tplv-obj.webp",
+    "image_path": "giftimage/450_Clover Hat.webp"
+  },
+  {
     "id": 19306,
     "nama_gift": "Cupid Koala",
     "diamond": 450,
@@ -1727,6 +1748,13 @@
     "diamond": 500,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/5bbfdb351eb6d69cfe9576b4f3683709.png~tplv-obj.webp",
     "image_path": "giftimage/500_Roses.webp"
+  },
+  {
+    "id": 57011,
+    "nama_gift": "Starry Fluff",
+    "diamond": 500,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f5e709a56ba9e238f0a87dfd4510b44f.png~tplv-obj.webp",
+    "image_path": "giftimage/500_Starry Fluff.webp"
   },
   {
     "id": 10667,
@@ -2119,13 +2147,6 @@
     "diamond": 1800,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/1ea684b3104abb725491a509022f7c02~tplv-obj.webp",
     "image_path": "giftimage/1800_Love Drop.webp"
-  },
-  {
-    "id": 14128,
-    "nama_gift": "Blessing Box",
-    "diamond": 1999,
-    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f98b91f82c3a224cf621ba496f2f91a6.png~tplv-obj.webp",
-    "image_path": "giftimage/1999_Blessing Box.webp"
   },
   {
     "id": 6862,

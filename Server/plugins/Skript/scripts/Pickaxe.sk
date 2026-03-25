@@ -14,9 +14,9 @@ on block damage:
 
     # Break a 3x3x3 area (radius 1) around the hit block
     # Tiga loop ini mengecek semua blok di sekitar blok pusat.
-    loop integers between -1 and 1:
-        loop integers between -1 and 1:
-            loop integers between -1 and 1:
+    loop integers between -2 and 2:
+        loop integers between -2 and 2:
+            loop integers between -2 and 2:
                 set {_loc} to {_center}
                 add loop-value-1 to x-coordinate of {_loc}
                 add loop-value-2 to y-coordinate of {_loc}

@@ -1603,13 +1603,6 @@
     "image_path": "giftimage/450_Superwoman.webp"
   },
   {
-    "id": 51220,
-    "nama_gift": "Basket of Spring",
-    "diamond": 499,
-    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/8a4457914a240328749e9aed13961c5f.png~tplv-obj.webp",
-    "image_path": "giftimage/499_Basket of Spring.webp"
-  },
-  {
     "id": 5731,
     "nama_gift": "Coral",
     "diamond": 499,
@@ -2812,13 +2805,6 @@
     "diamond": 29999,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4fb89af2082a290b37d704e20f4fe729~tplv-obj.webp",
     "image_path": "giftimage/29999_Lion.webp"
-  },
-  {
-    "id": 24418,
-    "nama_gift": "Ramadan Lion",
-    "diamond": 30999,
-    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/74878cb5c22cc35bbf3afccb2931c27b.png~tplv-obj.webp",
-    "image_path": "giftimage/30999_Ramadan Lion.webp"
   },
   {
     "id": 7823,

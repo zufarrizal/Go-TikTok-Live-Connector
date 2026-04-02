@@ -548,6 +548,20 @@ button:hover {
   gap: 8px;
 }
 
+.event-slide-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-slide-nav button {
+  min-width: 74px;
+}
+
+.event-slide-nav-bottom {
+  justify-content: center;
+}
+
 .event-box-tools span {
   color: var(--muted);
   font-size: 12px;
@@ -573,6 +587,7 @@ button:hover {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   grid-template-rows: repeat(4, minmax(150px, 150px));
   gap: 10px;
+  padding: 20px 20px;
 }
 
 .event-card {

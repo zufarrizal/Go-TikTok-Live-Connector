@@ -50,6 +50,8 @@ const statusEl = document.getElementById("status");
     const eventRowsEl = document.getElementById("eventRows");
     const eventBoxRowsEl = document.getElementById("eventBoxRows");
     const eventPaginationEl = document.getElementById("eventPagination");
+    let eventPrevSlideBtn = document.getElementById("eventPrevSlideBtn");
+    let eventNextSlideBtn = document.getElementById("eventNextSlideBtn");
     const exportEventBoxBtn = document.getElementById("exportEventBoxBtn");
     const eventExportStageEl = document.getElementById("eventExportStage");
     const eventBoxRowsPopupEl = document.getElementById("eventBoxRowsPopup");
@@ -62,12 +64,53 @@ const statusEl = document.getElementById("status");
     let currentEventPage = 0;
     let currentEventItems = [];
     let simulateCountdownBusy = false;
+    let hasConnectedTikTok = false;
     let giftImageVersion = Date.now();
     let triggerAudioCtx = null;
     let triggerAudioGain = null;
     let triggerAudioUnlocked = false;
     const triggerAudioBufferCache = new Map();
     const activeTriggerAudios = new Set();
+
+    function ensureEventSlideNavButtons() {
+      const showcaseEl = document.querySelector(".event-showcase");
+      if (!showcaseEl) return;
+
+      let prevBtn = document.getElementById("eventPrevSlideBtn");
+      let nextBtn = document.getElementById("eventNextSlideBtn");
+      if (prevBtn && nextBtn) {
+        eventPrevSlideBtn = prevBtn;
+        eventNextSlideBtn = nextBtn;
+        return;
+      }
+
+      const navWrap = document.createElement("div");
+      navWrap.className = "event-slide-nav event-slide-nav-bottom";
+      navWrap.setAttribute("aria-label", "Slide navigation");
+
+      if (!prevBtn) {
+        prevBtn = document.createElement("button");
+        prevBtn.id = "eventPrevSlideBtn";
+        prevBtn.type = "button";
+        prevBtn.textContent = "Prev";
+      }
+      if (!nextBtn) {
+        nextBtn = document.createElement("button");
+        nextBtn.id = "eventNextSlideBtn";
+        nextBtn.type = "button";
+        nextBtn.textContent = "Next";
+      }
+
+      navWrap.appendChild(prevBtn);
+      navWrap.appendChild(nextBtn);
+
+      showcaseEl.appendChild(navWrap);
+
+      eventPrevSlideBtn = prevBtn;
+      eventNextSlideBtn = nextBtn;
+    }
+
+    ensureEventSlideNavButtons();
 
     function normalizeShortcutSymbols(shortcut) {
       const raw = String(shortcut || "").trim();
@@ -543,11 +586,23 @@ const statusEl = document.getElementById("status");
       targetEl.style.transform = "translateX(0px)";
     }
 
+    function getEventPageCount() {
+      if (!eventBoxRowsEl) return 0;
+      return eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
+    }
+
+    function syncEventSlideButtons(pageCount) {
+      const disabled = (Number(pageCount) || 0) <= 1;
+      if (eventPrevSlideBtn) eventPrevSlideBtn.disabled = disabled;
+      if (eventNextSlideBtn) eventNextSlideBtn.disabled = disabled;
+    }
+
     function updateEventSliderPosition(pageCount) {
       if (!eventBoxRowsEl) return;
       const safePageCount = Math.max(1, Number(pageCount) || 1);
       currentEventPage = ((currentEventPage % safePageCount) + safePageCount) % safePageCount;
       eventBoxRowsEl.style.transform = "translateX(-" + (currentEventPage * 100) + "%)";
+      syncEventSlideButtons(safePageCount);
     }
 
     function startEventSlider(pageCount) {
@@ -569,13 +624,37 @@ const statusEl = document.getElementById("status");
       syncEventBoxPopup();
     }
 
+    function moveEventSlide(delta) {
+      const pageCount = getEventPageCount();
+      if (pageCount <= 1) {
+        syncEventSlideButtons(pageCount);
+        return;
+      }
+      const step = Number(delta) || 0;
+      currentEventPage = (currentEventPage + step + pageCount) % pageCount;
+      updateEventSliderPosition(pageCount);
+      startEventSlider(pageCount);
+    }
+
     if (eventBoxRowsEl) {
       eventBoxRowsEl.addEventListener("mouseenter", () => {
         stopEventSlider();
       });
       eventBoxRowsEl.addEventListener("mouseleave", () => {
-        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
+        const pageCount = getEventPageCount();
         startEventSlider(pageCount);
+      });
+    }
+
+    if (eventPrevSlideBtn) {
+      eventPrevSlideBtn.addEventListener("click", () => {
+        moveEventSlide(-1);
+      });
+    }
+
+    if (eventNextSlideBtn) {
+      eventNextSlideBtn.addEventListener("click", () => {
+        moveEventSlide(1);
       });
     }
 
@@ -1328,6 +1407,7 @@ const statusEl = document.getElementById("status");
         empty.textContent = "No gift events yet.";
         eventBoxRowsEl.appendChild(empty);
         resetEventLoopPosition(eventBoxRowsEl);
+        syncEventSlideButtons(0);
         syncEventBoxPopup();
         return;
       }
@@ -1420,6 +1500,7 @@ const statusEl = document.getElementById("status");
         const res = await fetch("/state");
         const state = await res.json();
         if (state.running) {
+          hasConnectedTikTok = true;
           usernameEl.value = state.username || "";
           setStatus("tracking @" + (state.username || "-"), true);
         } else {
@@ -1482,6 +1563,7 @@ const statusEl = document.getElementById("status");
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "start failed");
+        hasConnectedTikTok = true;
         setStatus("starting @" + username + "...", true);
       } catch (err) {
         setStatus(err.message || "start failed", false);
@@ -1951,7 +2033,11 @@ const statusEl = document.getElementById("status");
       refreshState();
     };
     source.onerror = () => {
-      setStatus("server disconnected (retrying...)", false);
+      if (hasConnectedTikTok) {
+        setStatus("server disconnected (retrying...)", false);
+        return;
+      }
+      setStatus("idle (not connected)", false);
     };
     source.onmessage = (event) => {
       try {

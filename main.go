@@ -1613,7 +1613,8 @@ func main() {
 	soundsFS := http.FileServer(http.Dir(appSoundsDir))
 	http.Handle("/static/sounds/", http.StripPrefix("/static/sounds/", soundsFS))
 	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(strings.ToLower(r.URL.Path), ".css") {
+		lowerPath := strings.ToLower(r.URL.Path)
+		if strings.HasSuffix(lowerPath, ".css") || strings.HasSuffix(lowerPath, ".js") {
 			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")
@@ -1633,6 +1634,9 @@ func main() {
 			http.Error(w, "failed to load page", http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(b)
 	})

@@ -120,11 +120,15 @@ func (a *githubUsernameAllowlist) refresh() error {
 	lines := strings.Split(string(body), "\n")
 	next := make(map[string]struct{}, len(lines))
 	for _, line := range lines {
-		s := strings.TrimSpace(line)
+		s := strings.TrimSpace(strings.TrimPrefix(line, "\uFEFF"))
 		if s == "" || strings.HasPrefix(s, "#") {
 			continue
 		}
-		next[normalizeUsername(s)] = struct{}{}
+		username := normalizeUsername(s)
+		if username == "" {
+			continue
+		}
+		next[username] = struct{}{}
 	}
 	if len(next) == 0 {
 		return fmt.Errorf("username allowlist is empty")
@@ -1593,8 +1597,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init event store: %v", err)
 	}
-	allowlistURL := strings.TrimSpace(os.Getenv("USERNAME_ALLOWLIST_URL"))
-	usernameAllowlist := newGithubUsernameAllowlist(allowlistURL, 30*time.Second)
+	usernameAllowlist := newGithubUsernameAllowlist(defaultUsernameAllowlistURL, 30*time.Second)
 	mcRCON := newMCRCONManagerFromProperties(filepath.Join("Server", "server.properties"))
 	autoMC := newMCEventAutomation(store, mcRCON, hub)
 	ctrl := newStreamController(hub, autoMC.HandleLiveEvent)

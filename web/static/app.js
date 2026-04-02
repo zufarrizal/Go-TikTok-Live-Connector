@@ -71,6 +71,77 @@ const statusEl = document.getElementById("status");
     let triggerAudioUnlocked = false;
     const triggerAudioBufferCache = new Map();
     const activeTriggerAudios = new Set();
+    const TOAST_DURATION_MS = 3000;
+    const TOAST_EXIT_MS = 260;
+    let toastHostEl = null;
+    let lastToastSignature = "";
+    let lastToastAt = 0;
+
+    function ensureToastHost() {
+      if (toastHostEl && document.body.contains(toastHostEl)) return toastHostEl;
+      toastHostEl = document.createElement("div");
+      toastHostEl.className = "toast-host";
+      toastHostEl.setAttribute("aria-live", "polite");
+      toastHostEl.setAttribute("aria-atomic", "false");
+      document.body.appendChild(toastHostEl);
+      return toastHostEl;
+    }
+
+    function detectToastType(message, explicitType) {
+      if (explicitType === "success" || explicitType === "error" || explicitType === "info") {
+        return explicitType;
+      }
+      const msg = String(message || "").toLowerCase();
+      if (!msg) return "info";
+      if (msg.includes("error") || msg.includes("failed") || msg.includes("required") || msg.includes("disconnect") || msg.includes("empty")) {
+        return "error";
+      }
+      if (msg.includes("success") || msg.includes("connected") || msg.includes("created") || msg.includes("updated") || msg.includes("loaded") || msg.includes("starting")) {
+        return "success";
+      }
+      return "info";
+    }
+
+    function showFloatingToast(message, type, durationMs = TOAST_DURATION_MS) {
+      const text = String(message || "").trim();
+      if (!text) return;
+
+      const now = Date.now();
+      const toastType = detectToastType(text, type);
+      const signature = toastType + "::" + text;
+      if (signature === lastToastSignature && now - lastToastAt < 800) return;
+      lastToastSignature = signature;
+      lastToastAt = now;
+
+      const host = ensureToastHost();
+      const toast = document.createElement("div");
+      toast.className = "toast toast-" + toastType;
+      toast.setAttribute("role", "status");
+      toast.textContent = text;
+      host.appendChild(toast);
+
+      const visibleDuration = Math.max(TOAST_EXIT_MS, Number(durationMs) || TOAST_DURATION_MS);
+      const hideAfter = Math.max(0, visibleDuration - TOAST_EXIT_MS);
+
+      window.setTimeout(() => {
+        toast.classList.add("toast-hide");
+      }, hideAfter);
+
+      window.setTimeout(() => {
+        toast.remove();
+      }, visibleDuration + 20);
+    }
+
+    function setupGlobalButtonToasts() {
+      document.addEventListener("click", (event) => {
+        const btn = event.target.closest("button");
+        if (!btn) return;
+        if (btn.closest(".gift-picker")) return;
+        if (btn.dataset.toastIgnore === "1") return;
+        const buttonText = String(btn.textContent || "").trim() || "Button";
+        showFloatingToast("Tombol \"" + buttonText + "\" ditekan", "info", TOAST_DURATION_MS);
+      });
+    }
 
     function ensureEventSlideNavButtons() {
       const showcaseEl = document.querySelector(".event-showcase");
@@ -176,10 +247,16 @@ const statusEl = document.getElementById("status");
 
     const shortcutOptions = buildShortcutOptions();
 
-    function setStatus(text, isOK) {
-      statusEl.textContent = text;
-      if (isOK) statusEl.classList.add("ok");
-      else statusEl.classList.remove("ok");
+    function setStatus(text, isOK, options = {}) {
+      if (statusEl) {
+        statusEl.textContent = text;
+        if (isOK) statusEl.classList.add("ok");
+        else statusEl.classList.remove("ok");
+      }
+
+      if (options.toast === false) return;
+      const toastType = isOK ? "success" : detectToastType(text);
+      showFloatingToast(text, toastType, TOAST_DURATION_MS);
     }
 
     function addEvent(payload) {
@@ -1222,7 +1299,9 @@ const statusEl = document.getElementById("status");
     }
 
     function setMCOutput(text) {
-      mcOutputEl.textContent = text || "";
+      const message = text || "";
+      mcOutputEl.textContent = message;
+      showFloatingToast(message, detectToastType(message), TOAST_DURATION_MS);
     }
 
     function resetEventForm() {
@@ -2017,6 +2096,8 @@ const statusEl = document.getElementById("status");
         exportEventBoxSlidesAsPNG();
       });
     }
+
+    setupGlobalButtonToasts();
 
     document.addEventListener("pointerdown", () => {
       unlockTriggerAudio();

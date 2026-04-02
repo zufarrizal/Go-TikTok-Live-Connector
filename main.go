@@ -2146,16 +2146,8 @@ func main() {
 			return
 		}
 
-		base := strings.TrimSuffix(fileName, ext)
 		targetName := fileName
 		targetPath := filepath.Join(soundsDir, targetName)
-		for i := 1; ; i++ {
-			if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-				break
-			}
-			targetName = fmt.Sprintf("%s-%d%s", base, i, ext)
-			targetPath = filepath.Join(soundsDir, targetName)
-		}
 
 		dst, err := os.Create(targetPath)
 		if err != nil {

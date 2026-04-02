@@ -56,8 +56,6 @@
 !Server/plugins/spark/tmp/about.txt
 !Server/server.properties
 !Server/start-server.bat
-!events.json
-!gift-list.json
 !go.mod
 !go.sum
 !main.go

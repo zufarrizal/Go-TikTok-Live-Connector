@@ -41,7 +41,7 @@ var (
 	appSoundsDir  string
 )
 
-const defaultUsernameAllowlistURL = "https://raw.githubusercontent.com/zufarrizal/Go-TikTok-Live-Connector/main/username.txt"
+const defaultUsernameAllowlistURL = "https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt"
 
 type eventHub struct {
 	mu      sync.RWMutex

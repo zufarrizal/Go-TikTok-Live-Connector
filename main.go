@@ -1606,14 +1606,15 @@ func main() {
 		}
 		allowed, allowErr := usernameAllowlist.isAllowed(req.Username)
 		if allowErr != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"error": "failed to validate username allowlist from github: " + allowErr.Error(),
+			_ = allowErr
+			writeJSON(w, http.StatusForbidden, map[string]any{
+				"error": "You have not purchased a license. Contact +6285156560055",
 			})
 			return
 		}
 		if !allowed {
 			writeJSON(w, http.StatusForbidden, map[string]any{
-				"error": "username is not allowed. add it to github username.txt allowlist first",
+				"error": "You have not purchased a license. Contact +6285156560055",
 			})
 			return
 		}

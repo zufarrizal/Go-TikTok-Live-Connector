@@ -37,7 +37,7 @@
     "gift_id": 0,
     "gift_name": "",
     "diamond": 0,
-    "sound_url": "/static/sounds/apapplepay.mp3",
+    "sound_url": "/static/sounds/Sabar.mp3",
     "mc_command": "ttchat {username} {comment}",
     "run_mc_command": true,
     "run_shortcut": false,

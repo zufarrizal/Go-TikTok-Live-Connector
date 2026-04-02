@@ -1255,53 +1255,107 @@ func parseShortcutKeyToken(token string) (shortcutKeySpec, error) {
 		return shortcutKeySpec{vk: 0x13}, nil
 	case "dot", "period":
 		return shortcutKeySpec{vk: 0xBE}, nil
+	case ".":
+		return shortcutKeySpec{vk: 0xBE}, nil
 	case "comma":
+		return shortcutKeySpec{vk: 0xBC}, nil
+	case ",":
 		return shortcutKeySpec{vk: 0xBC}, nil
 	case "slash", "forwardslash":
 		return shortcutKeySpec{vk: 0xBF}, nil
+	case "/":
+		return shortcutKeySpec{vk: 0xBF}, nil
 	case "backslash":
+		return shortcutKeySpec{vk: 0xDC}, nil
+	case `\`:
 		return shortcutKeySpec{vk: 0xDC}, nil
 	case "minus", "dash", "hyphen":
 		return shortcutKeySpec{vk: 0xBD}, nil
+	case "-":
+		return shortcutKeySpec{vk: 0xBD}, nil
 	case "equal", "equals":
+		return shortcutKeySpec{vk: 0xBB}, nil
+	case "=":
 		return shortcutKeySpec{vk: 0xBB}, nil
 	case "semicolon":
 		return shortcutKeySpec{vk: 0xBA}, nil
+	case ";":
+		return shortcutKeySpec{vk: 0xBA}, nil
 	case "quote", "apostrophe":
+		return shortcutKeySpec{vk: 0xDE}, nil
+	case "'":
 		return shortcutKeySpec{vk: 0xDE}, nil
 	case "backtick", "grave":
 		return shortcutKeySpec{vk: 0xC0}, nil
+	case "`":
+		return shortcutKeySpec{vk: 0xC0}, nil
 	case "openbracket", "lbracket":
+		return shortcutKeySpec{vk: 0xDB}, nil
+	case "[":
 		return shortcutKeySpec{vk: 0xDB}, nil
 	case "closebracket", "rbracket":
 		return shortcutKeySpec{vk: 0xDD}, nil
+	case "]":
+		return shortcutKeySpec{vk: 0xDD}, nil
 	case "question":
+		return shortcutKeySpec{vk: 0xBF, needsShift: true}, nil
+	case "?":
 		return shortcutKeySpec{vk: 0xBF, needsShift: true}, nil
 	case "exclamation":
 		return shortcutKeySpec{vk: 0x31, needsShift: true}, nil
+	case "!":
+		return shortcutKeySpec{vk: 0x31, needsShift: true}, nil
 	case "at":
+		return shortcutKeySpec{vk: 0x32, needsShift: true}, nil
+	case "@":
 		return shortcutKeySpec{vk: 0x32, needsShift: true}, nil
 	case "hash":
 		return shortcutKeySpec{vk: 0x33, needsShift: true}, nil
+	case "#":
+		return shortcutKeySpec{vk: 0x33, needsShift: true}, nil
 	case "dollar":
 		return shortcutKeySpec{vk: 0x34, needsShift: true}, nil
+	case "$":
+		return shortcutKeySpec{vk: 0x34, needsShift: true}, nil
+	case "percent", "%":
+		return shortcutKeySpec{vk: 0x35, needsShift: true}, nil
+	case "caret", "^":
+		return shortcutKeySpec{vk: 0x36, needsShift: true}, nil
 	case "ampersand":
+		return shortcutKeySpec{vk: 0x37, needsShift: true}, nil
+	case "&":
 		return shortcutKeySpec{vk: 0x37, needsShift: true}, nil
 	case "asterisk":
 		return shortcutKeySpec{vk: 0x38, needsShift: true}, nil
+	case "*":
+		return shortcutKeySpec{vk: 0x38, needsShift: true}, nil
+	case "openparen", "(":
+		return shortcutKeySpec{vk: 0x39, needsShift: true}, nil
+	case "closeparen", ")":
+		return shortcutKeySpec{vk: 0x30, needsShift: true}, nil
 	case "underscore":
+		return shortcutKeySpec{vk: 0xBD, needsShift: true}, nil
+	case "_":
 		return shortcutKeySpec{vk: 0xBD, needsShift: true}, nil
 	case "colon":
 		return shortcutKeySpec{vk: 0xBA, needsShift: true}, nil
+	case ":":
+		return shortcutKeySpec{vk: 0xBA, needsShift: true}, nil
 	case "doublequote":
+		return shortcutKeySpec{vk: 0xDE, needsShift: true}, nil
+	case `"`:
 		return shortcutKeySpec{vk: 0xDE, needsShift: true}, nil
 	case "less":
 		return shortcutKeySpec{vk: 0xBC, needsShift: true}, nil
+	case "<":
+		return shortcutKeySpec{vk: 0xBC, needsShift: true}, nil
 	case "greater":
 		return shortcutKeySpec{vk: 0xBE, needsShift: true}, nil
+	case ">":
+		return shortcutKeySpec{vk: 0xBE, needsShift: true}, nil
 	}
-	if len(t) == 2 && strings.HasPrefix(t, "f") {
-		if n, err := strconv.Atoi(t[1:]); err == nil && n >= 1 && n <= 24 {
+	if strings.HasPrefix(t, "f") && len(t) >= 2 {
+		if n, err := strconv.Atoi(t[1:]); err == nil && n >= 1 && n <= 12 {
 			return shortcutKeySpec{vk: uint16(0x70 + n - 1)}, nil
 		}
 	}

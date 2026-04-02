@@ -68,16 +68,55 @@ const statusEl = document.getElementById("status");
     let triggerAudioUnlocked = false;
     const triggerAudioBufferCache = new Map();
     const activeTriggerAudios = new Set();
+
+    function normalizeShortcutSymbols(shortcut) {
+      const raw = String(shortcut || "").trim();
+      if (!raw) return "";
+      const symbolMap = {
+        DOT: ".",
+        COMMA: ",",
+        SLASH: "/",
+        BACKSLASH: "\\",
+        MINUS: "-",
+        EQUAL: "=",
+        SEMICOLON: ";",
+        QUOTE: "'",
+        BACKTICK: "`",
+        OPENBRACKET: "[",
+        CLOSEBRACKET: "]",
+        QUESTION: "?",
+        EXCLAMATION: "!",
+        AT: "@",
+        HASH: "#",
+        DOLLAR: "$",
+        AMPERSAND: "&",
+        ASTERISK: "*",
+        UNDERSCORE: "_",
+        COLON: ":",
+        DOUBLEQUOTE: "\"",
+        LESS: "<",
+        GREATER: ">"
+      };
+      return raw
+        .split("+")
+        .map((part) => {
+          const token = String(part || "").trim();
+          if (!token) return token;
+          const mapped = symbolMap[token.toUpperCase()];
+          return mapped || token;
+        })
+        .join("+");
+    }
+
     function buildShortcutOptions() {
       const keys = [];
       const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
       const digits = "0123456789".split("");
-      const funcs = Array.from({ length: 24 }, (_, i) => "F" + String(i + 1));
+      const funcs = Array.from({ length: 12 }, (_, i) => "F" + String(i + 1));
       const nav = ["ENTER", "TAB", "ESC", "SPACE", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PGUP", "PGDN", "DELETE", "INSERT"];
       const symbols = [
-        "DOT", "COMMA", "SLASH", "BACKSLASH", "MINUS", "EQUAL", "SEMICOLON", "QUOTE",
-        "BACKTICK", "OPENBRACKET", "CLOSEBRACKET", "QUESTION", "EXCLAMATION", "AT",
-        "HASH", "DOLLAR", "AMPERSAND", "ASTERISK", "UNDERSCORE", "COLON"
+        ".", ",", "/", "\\", "-", "=", ";", "'",
+        "`", "[", "]"
       ];
 
       const baseKeys = [...letters, ...digits, ...funcs, ...nav, ...symbols];
@@ -278,7 +317,7 @@ const statusEl = document.getElementById("status");
       for (const item of currentEventItems || []) {
         if (excludeEventId !== null && excludeEventId !== undefined && Number(item.id) === Number(excludeEventId)) continue;
         if (!item || !item.run_shortcut) continue;
-        const key = String(item.shortcut_keys || "").trim();
+        const key = normalizeShortcutSymbols(item.shortcut_keys);
         if (key) used.add(key);
       }
       return used;
@@ -312,7 +351,7 @@ const statusEl = document.getElementById("status");
       if (editingEventId !== null) {
         const currentItem = (currentEventItems || []).find((item) => Number(item.id) === Number(editingEventId));
         if (currentItem && String(currentItem.shortcut_keys || "").trim()) {
-          eventShortcutKeysEl.value = String(currentItem.shortcut_keys || "").trim();
+          eventShortcutKeysEl.value = normalizeShortcutSymbols(currentItem.shortcut_keys);
         }
       }
 
@@ -1249,7 +1288,7 @@ const statusEl = document.getElementById("status");
         const runShortcut = !!item.run_shortcut;
         const modeText = runMC && runShortcut ? "MC + Shortcut" : (runMC ? "MC" : "Shortcut");
         const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
-        const shortcutLabel = String(item.shortcut_keys || "").trim();
+        const shortcutLabel = normalizeShortcutSymbols(item.shortcut_keys);
         const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
         const tr = document.createElement("tr");
         tr.innerHTML =
@@ -1605,7 +1644,7 @@ const statusEl = document.getElementById("status");
       const gift = giftOptions.find((g) => g.id === giftId);
       const runMCCommand = !!eventRunMCCommandEl.checked;
       const runShortcut = !!eventRunShortcutEl.checked;
-      const shortcutKeys = eventShortcutKeysEl.value.trim();
+      const shortcutKeys = normalizeShortcutSymbols(eventShortcutKeysEl.value);
       const shortcutHoldMs = Math.max(0, Math.min(10000, Number(eventShortcutHoldMsEl.value || 0)));
       const payload = {
         type: type,
@@ -1781,7 +1820,7 @@ const statusEl = document.getElementById("status");
           eventRunMCCommandEl.checked = item.run_mc_command !== false;
           eventRunShortcutEl.checked = !!item.run_shortcut;
           eventMCCommandEl.value = item.mc_command || "";
-          eventShortcutKeysEl.value = item.shortcut_keys || "";
+          eventShortcutKeysEl.value = normalizeShortcutSymbols(item.shortcut_keys);
           eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
           eventShortcutPicker.syncFromSelect();
           syncExecutionModeFields();
@@ -1825,7 +1864,7 @@ const statusEl = document.getElementById("status");
             mc_command: item.mc_command || "",
             run_mc_command: item.run_mc_command !== false,
             run_shortcut: !!item.run_shortcut,
-            shortcut_keys: item.shortcut_keys || "",
+            shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
             shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0))
           };
 

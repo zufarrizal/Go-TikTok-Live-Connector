@@ -12,11 +12,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/gorcon/rcon"
 	"github.com/steampoweredtaco/gotiktoklive"
@@ -296,15 +299,19 @@ func sleepOrCancel(ctx context.Context, d time.Duration) bool {
 }
 
 type eventRecord struct {
-	ID        int    `json:"id"`
-	Type      string `json:"type"`
-	Title     string `json:"title"`
-	Label     string `json:"label"`
-	GiftID    int    `json:"gift_id"`
-	GiftName  string `json:"gift_name"`
-	Diamond   int    `json:"diamond"`
-	SoundURL  string `json:"sound_url"`
-	MCCommand string `json:"mc_command"`
+	ID           int    `json:"id"`
+	Type         string `json:"type"`
+	Title        string `json:"title"`
+	Label        string `json:"label"`
+	GiftID       int    `json:"gift_id"`
+	GiftName     string `json:"gift_name"`
+	Diamond      int    `json:"diamond"`
+	SoundURL     string `json:"sound_url"`
+	MCCommand    string `json:"mc_command"`
+	RunMCCommand bool   `json:"run_mc_command"`
+	RunShortcut  bool   `json:"run_shortcut"`
+	ShortcutKeys string `json:"shortcut_keys"`
+	ShortcutHold int    `json:"shortcut_hold_ms"`
 }
 
 type eventStore struct {
@@ -500,7 +507,22 @@ func (s *eventStore) load() error {
 	if err := json.Unmarshal(b, &items); err != nil {
 		return err
 	}
+	changed := false
+	for i := range items {
+		beforeRunMC := items[i].RunMCCommand
+		beforeRunShortcut := items[i].RunShortcut
+		beforeShortcut := strings.TrimSpace(items[i].ShortcutKeys)
+		normalizeEventExecutionMode(&items[i])
+		if beforeRunMC != items[i].RunMCCommand || beforeRunShortcut != items[i].RunShortcut || beforeShortcut != items[i].ShortcutKeys {
+			changed = true
+		}
+	}
 	s.items = items
+	if changed {
+		if err := s.saveLocked(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -524,6 +546,26 @@ func (s *eventStore) saveLocked() error {
 	return os.WriteFile(s.path, b, 0644)
 }
 
+func normalizeEventExecutionMode(item *eventRecord) {
+	if item == nil {
+		return
+	}
+	item.ShortcutKeys = strings.TrimSpace(item.ShortcutKeys)
+	if item.ShortcutHold < 0 {
+		item.ShortcutHold = 0
+	}
+	if item.ShortcutHold > 10000 {
+		item.ShortcutHold = 10000
+	}
+	if item.RunShortcut && item.ShortcutKeys == "" {
+		item.RunShortcut = false
+	}
+	// Backward compatibility for old events.json: if both are false, default to MC command.
+	if !item.RunMCCommand && !item.RunShortcut {
+		item.RunMCCommand = true
+	}
+}
+
 func (s *eventStore) nextIDLocked() int {
 	maxID := 0
 	for _, it := range s.items {
@@ -534,21 +576,26 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
+func (s *eventStore) create(eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item := eventRecord{
-		ID:        s.nextIDLocked(),
-		Type:      strings.TrimSpace(eventType),
-		Title:     strings.TrimSpace(title),
-		Label:     strings.TrimSpace(label),
-		GiftID:    giftID,
-		GiftName:  strings.TrimSpace(giftName),
-		Diamond:   diamond,
-		SoundURL:  strings.TrimSpace(soundURL),
-		MCCommand: strings.TrimSpace(mcCommand),
+		ID:           s.nextIDLocked(),
+		Type:         strings.TrimSpace(eventType),
+		Title:        strings.TrimSpace(title),
+		Label:        strings.TrimSpace(label),
+		GiftID:       giftID,
+		GiftName:     strings.TrimSpace(giftName),
+		Diamond:      diamond,
+		SoundURL:     strings.TrimSpace(soundURL),
+		MCCommand:    strings.TrimSpace(mcCommand),
+		RunMCCommand: runMCCommand,
+		RunShortcut:  runShortcut,
+		ShortcutKeys: strings.TrimSpace(shortcutKeys),
+		ShortcutHold: shortcutHold,
 	}
+	normalizeEventExecutionMode(&item)
 	s.items = append(s.items, item)
 	if err := s.saveLocked(); err != nil {
 		return eventRecord{}, err
@@ -556,7 +603,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, giftName
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -570,6 +617,11 @@ func (s *eventStore) update(id int, eventType, title, label string, giftID int, 
 			s.items[i].Diamond = diamond
 			s.items[i].SoundURL = strings.TrimSpace(soundURL)
 			s.items[i].MCCommand = strings.TrimSpace(mcCommand)
+			s.items[i].RunMCCommand = runMCCommand
+			s.items[i].RunShortcut = runShortcut
+			s.items[i].ShortcutKeys = strings.TrimSpace(shortcutKeys)
+			s.items[i].ShortcutHold = shortcutHold
+			normalizeEventExecutionMode(&s.items[i])
 			if err := s.saveLocked(); err != nil {
 				return eventRecord{}, err
 			}
@@ -637,12 +689,16 @@ type giftComboProgress struct {
 }
 
 type queuedMCTrigger struct {
-	rule      eventRecord
-	eventType string
-	giftID    int
-	vars      map[string]string
-	command   string
-	queuedAt  time.Time
+	rule         eventRecord
+	eventType    string
+	giftID       int
+	vars         map[string]string
+	command      string
+	runMCCommand bool
+	shortcutKeys string
+	shortcutHold int
+	runShortcut  bool
+	queuedAt     time.Time
 }
 
 func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub) *mcEventAutomation {
@@ -659,32 +715,50 @@ func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub)
 
 func (a *mcEventAutomation) processQueue() {
 	for job := range a.queue {
-		out, err := executeCommands(a.rcon, job.command)
-		triggerPayload := map[string]any{
-			"type":          "trigger",
-			"event_id":      job.rule.ID,
-			"event_type":    job.eventType,
-			"event_label":   job.rule.Label,
-			"gift_id":       job.giftID,
-			"gift_name":     job.vars["gift_name"],
-			"username":      job.vars["username"],
-			"repeat_count":  job.vars["repeat_count"],
-			"sound_url":     job.rule.SoundURL,
-			"command":       job.command,
-			"output":        out,
-			"queued_at":     job.queuedAt.Format(time.RFC3339),
-			"processed_at":  time.Now().Format(time.RFC3339),
-			"queue_pending": len(a.queue),
+		commandOut := ""
+		var commandErr error
+		if job.runMCCommand {
+			commandOut, commandErr = executeCommands(a.rcon, job.command)
 		}
-		if err != nil {
-			triggerPayload["command_error"] = err.Error()
-			a.hub.broadcast(mustJSON(triggerPayload))
+		var shortcutErr error
+		if job.runShortcut {
+			shortcutErr = executeKeyboardShortcut(job.shortcutKeys, job.shortcutHold)
+		}
+		triggerPayload := map[string]any{
+			"type":             "trigger",
+			"event_id":         job.rule.ID,
+			"event_type":       job.eventType,
+			"event_label":      job.rule.Label,
+			"gift_id":          job.giftID,
+			"gift_name":        job.vars["gift_name"],
+			"username":         job.vars["username"],
+			"repeat_count":     job.vars["repeat_count"],
+			"sound_url":        job.rule.SoundURL,
+			"command":          job.command,
+			"run_mc_command":   job.runMCCommand,
+			"run_shortcut":     job.runShortcut,
+			"shortcut_keys":    job.shortcutKeys,
+			"shortcut_hold_ms": job.shortcutHold,
+			"output":           commandOut,
+			"queued_at":        job.queuedAt.Format(time.RFC3339),
+			"processed_at":     time.Now().Format(time.RFC3339),
+			"queue_pending":    len(a.queue),
+		}
+		if commandErr != nil {
+			triggerPayload["command_error"] = commandErr.Error()
 			a.hub.broadcast(mustJSON(map[string]any{
 				"type":  "error",
-				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", job.rule.ID, err),
+				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", job.rule.ID, commandErr),
 				"time":  time.Now().Format(time.RFC3339),
 			}))
-			continue
+		}
+		if shortcutErr != nil {
+			triggerPayload["shortcut_error"] = shortcutErr.Error()
+			a.hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": fmt.Sprintf("auto keyboard shortcut failed (event #%d): %v", job.rule.ID, shortcutErr),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
 		}
 		a.hub.broadcast(mustJSON(triggerPayload))
 	}
@@ -693,19 +767,23 @@ func (a *mcEventAutomation) processQueue() {
 func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
 	a.queue <- job
 	a.hub.broadcast(mustJSON(map[string]any{
-		"type":          "trigger_queued",
-		"event_id":      job.rule.ID,
-		"event_type":    job.eventType,
-		"event_label":   job.rule.Label,
-		"gift_id":       job.giftID,
-		"gift_name":     job.vars["gift_name"],
-		"username":      job.vars["username"],
-		"repeat_count":  job.vars["repeat_count"],
-		"sound_url":     job.rule.SoundURL,
-		"command":       job.command,
-		"queued_at":     job.queuedAt.Format(time.RFC3339),
-		"queue_pending": len(a.queue),
-		"time":          time.Now().Format(time.RFC3339),
+		"type":             "trigger_queued",
+		"event_id":         job.rule.ID,
+		"event_type":       job.eventType,
+		"event_label":      job.rule.Label,
+		"gift_id":          job.giftID,
+		"gift_name":        job.vars["gift_name"],
+		"username":         job.vars["username"],
+		"repeat_count":     job.vars["repeat_count"],
+		"sound_url":        job.rule.SoundURL,
+		"command":          job.command,
+		"run_mc_command":   job.runMCCommand,
+		"run_shortcut":     job.runShortcut,
+		"shortcut_keys":    job.shortcutKeys,
+		"shortcut_hold_ms": job.shortcutHold,
+		"queued_at":        job.queuedAt.Format(time.RFC3339),
+		"queue_pending":    len(a.queue),
+		"time":             time.Now().Format(time.RFC3339),
 	}))
 }
 
@@ -745,12 +823,16 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 			jobVars[k] = v
 		}
 		a.enqueueTrigger(queuedMCTrigger{
-			rule:      rule,
-			eventType: eventType,
-			giftID:    giftID,
-			vars:      jobVars,
-			command:   applyCommandTemplate(rule.MCCommand, jobVars),
-			queuedAt:  time.Now(),
+			rule:         rule,
+			eventType:    eventType,
+			giftID:       giftID,
+			vars:         jobVars,
+			command:      applyCommandTemplate(rule.MCCommand, jobVars),
+			runMCCommand: rule.RunMCCommand,
+			shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, jobVars),
+			shortcutHold: rule.ShortcutHold,
+			runShortcut:  rule.RunShortcut,
+			queuedAt:     time.Now(),
 		})
 	}
 }
@@ -1003,6 +1085,284 @@ func applyCommandTemplate(command string, vars map[string]string) string {
 	return out
 }
 
+type shortcutKeySpec struct {
+	vk         uint16
+	needsShift bool
+}
+
+func parseShortcutKeyToken(token string) (shortcutKeySpec, error) {
+	t := strings.TrimSpace(strings.ToLower(token))
+	switch t {
+	case "enter", "return":
+		return shortcutKeySpec{vk: 0x0D}, nil
+	case "tab":
+		return shortcutKeySpec{vk: 0x09}, nil
+	case "esc", "escape":
+		return shortcutKeySpec{vk: 0x1B}, nil
+	case "space", "spacebar":
+		return shortcutKeySpec{vk: 0x20}, nil
+	case "backspace":
+		return shortcutKeySpec{vk: 0x08}, nil
+	case "delete", "del":
+		return shortcutKeySpec{vk: 0x2E}, nil
+	case "insert", "ins":
+		return shortcutKeySpec{vk: 0x2D}, nil
+	case "home":
+		return shortcutKeySpec{vk: 0x24}, nil
+	case "end":
+		return shortcutKeySpec{vk: 0x23}, nil
+	case "pageup", "pgup":
+		return shortcutKeySpec{vk: 0x21}, nil
+	case "pagedown", "pgdn":
+		return shortcutKeySpec{vk: 0x22}, nil
+	case "up", "arrowup":
+		return shortcutKeySpec{vk: 0x26}, nil
+	case "down", "arrowdown":
+		return shortcutKeySpec{vk: 0x28}, nil
+	case "left", "arrowleft":
+		return shortcutKeySpec{vk: 0x25}, nil
+	case "right", "arrowright":
+		return shortcutKeySpec{vk: 0x27}, nil
+	case "capslock":
+		return shortcutKeySpec{vk: 0x14}, nil
+	case "numlock":
+		return shortcutKeySpec{vk: 0x90}, nil
+	case "scrolllock":
+		return shortcutKeySpec{vk: 0x91}, nil
+	case "printscreen", "prtsc":
+		return shortcutKeySpec{vk: 0x2C}, nil
+	case "pause", "break":
+		return shortcutKeySpec{vk: 0x13}, nil
+	case "dot", "period":
+		return shortcutKeySpec{vk: 0xBE}, nil
+	case "comma":
+		return shortcutKeySpec{vk: 0xBC}, nil
+	case "slash", "forwardslash":
+		return shortcutKeySpec{vk: 0xBF}, nil
+	case "backslash":
+		return shortcutKeySpec{vk: 0xDC}, nil
+	case "minus", "dash", "hyphen":
+		return shortcutKeySpec{vk: 0xBD}, nil
+	case "equal", "equals":
+		return shortcutKeySpec{vk: 0xBB}, nil
+	case "semicolon":
+		return shortcutKeySpec{vk: 0xBA}, nil
+	case "quote", "apostrophe":
+		return shortcutKeySpec{vk: 0xDE}, nil
+	case "backtick", "grave":
+		return shortcutKeySpec{vk: 0xC0}, nil
+	case "openbracket", "lbracket":
+		return shortcutKeySpec{vk: 0xDB}, nil
+	case "closebracket", "rbracket":
+		return shortcutKeySpec{vk: 0xDD}, nil
+	case "question":
+		return shortcutKeySpec{vk: 0xBF, needsShift: true}, nil
+	case "exclamation":
+		return shortcutKeySpec{vk: 0x31, needsShift: true}, nil
+	case "at":
+		return shortcutKeySpec{vk: 0x32, needsShift: true}, nil
+	case "hash":
+		return shortcutKeySpec{vk: 0x33, needsShift: true}, nil
+	case "dollar":
+		return shortcutKeySpec{vk: 0x34, needsShift: true}, nil
+	case "ampersand":
+		return shortcutKeySpec{vk: 0x37, needsShift: true}, nil
+	case "asterisk":
+		return shortcutKeySpec{vk: 0x38, needsShift: true}, nil
+	case "underscore":
+		return shortcutKeySpec{vk: 0xBD, needsShift: true}, nil
+	case "colon":
+		return shortcutKeySpec{vk: 0xBA, needsShift: true}, nil
+	case "doublequote":
+		return shortcutKeySpec{vk: 0xDE, needsShift: true}, nil
+	case "less":
+		return shortcutKeySpec{vk: 0xBC, needsShift: true}, nil
+	case "greater":
+		return shortcutKeySpec{vk: 0xBE, needsShift: true}, nil
+	}
+	if len(t) == 2 && strings.HasPrefix(t, "f") {
+		if n, err := strconv.Atoi(t[1:]); err == nil && n >= 1 && n <= 24 {
+			return shortcutKeySpec{vk: uint16(0x70 + n - 1)}, nil
+		}
+	}
+	if len(t) == 1 {
+		ch := t[0]
+		if ch >= 'a' && ch <= 'z' {
+			return shortcutKeySpec{vk: uint16(ch - 'a' + 'A')}, nil
+		}
+		if ch >= '0' && ch <= '9' {
+			return shortcutKeySpec{vk: uint16(ch)}, nil
+		}
+	}
+	return shortcutKeySpec{}, fmt.Errorf("unsupported key token: %s", token)
+}
+
+func parseShortcutToVK(shortcut string) ([]uint16, shortcutKeySpec, error) {
+	parts := strings.Split(shortcut, "+")
+	if len(parts) == 0 {
+		return nil, shortcutKeySpec{}, fmt.Errorf("shortcut is empty")
+	}
+	modCtrl := false
+	modAlt := false
+	modShift := false
+	mainKey := shortcutKeySpec{}
+	mainSet := false
+	for _, raw := range parts {
+		p := strings.TrimSpace(strings.ToLower(raw))
+		if p == "" {
+			continue
+		}
+		switch p {
+		case "ctrl", "control":
+			modCtrl = true
+		case "alt":
+			modAlt = true
+		case "shift":
+			modShift = true
+		case "win", "windows", "meta", "cmd":
+			return nil, shortcutKeySpec{}, fmt.Errorf("windows/meta key is not supported")
+		default:
+			if mainSet {
+				return nil, shortcutKeySpec{}, fmt.Errorf("shortcut must have exactly one main key")
+			}
+			parsed, err := parseShortcutKeyToken(p)
+			if err != nil {
+				return nil, shortcutKeySpec{}, err
+			}
+			mainKey = parsed
+			mainSet = true
+		}
+	}
+	if !mainSet {
+		return nil, shortcutKeySpec{}, fmt.Errorf("shortcut must include a main key")
+	}
+	modifiers := make([]uint16, 0, 3)
+	if modCtrl {
+		modifiers = append(modifiers, 0x11) // VK_CONTROL
+	}
+	if modAlt {
+		modifiers = append(modifiers, 0x12) // VK_MENU (ALT)
+	}
+	if modShift {
+		modifiers = append(modifiers, 0x10) // VK_SHIFT
+	}
+	return modifiers, mainKey, nil
+}
+
+func executeKeyboardShortcut(shortcut string, holdMS int) error {
+	shortcut = strings.TrimSpace(shortcut)
+	if shortcut == "" {
+		return fmt.Errorf("shortcut is empty")
+	}
+	if holdMS < 0 {
+		holdMS = 0
+	}
+	if holdMS > 10000 {
+		holdMS = 10000
+	}
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("keyboard shortcut is only supported on Windows")
+	}
+	modifiers, mainKey, err := parseShortcutToVK(shortcut)
+	if err != nil {
+		return err
+	}
+
+	type keyboardInput struct {
+		Vk        uint16
+		Scan      uint16
+		Flags     uint32
+		Time      uint32
+		ExtraInfo uintptr
+	}
+	type input struct {
+		Type    uint32
+		_       uint32
+		Ki      keyboardInput
+		Padding [8]byte
+	}
+
+	const (
+		inputKeyboard  = 1
+		keyeventfKeyUp = 0x0002
+		vkShift        = 0x10
+	)
+
+	makeKeyInput := func(vk uint16, keyUp bool) input {
+		flags := uint32(0)
+		if keyUp {
+			flags = keyeventfKeyUp
+		}
+		return input{
+			Type: inputKeyboard,
+			Ki: keyboardInput{
+				Vk:    vk,
+				Flags: flags,
+			},
+		}
+	}
+
+	effectiveModifiers := make([]uint16, 0, len(modifiers)+1)
+	effectiveModifiers = append(effectiveModifiers, modifiers...)
+	hasShiftModifier := false
+	for _, vk := range modifiers {
+		if vk == vkShift {
+			hasShiftModifier = true
+			break
+		}
+	}
+	if mainKey.needsShift && !hasShiftModifier {
+		effectiveModifiers = append(effectiveModifiers, vkShift)
+	}
+
+	user32 := syscall.NewLazyDLL("user32.dll")
+	sendInput := user32.NewProc("SendInput")
+
+	send := func(inputs []input) error {
+		if len(inputs) == 0 {
+			return nil
+		}
+		ret, _, callErr := sendInput.Call(
+			uintptr(len(inputs)),
+			uintptr(unsafe.Pointer(&inputs[0])),
+			unsafe.Sizeof(input{}),
+		)
+		if int(ret) != len(inputs) {
+			if callErr != syscall.Errno(0) {
+				return fmt.Errorf("sendinput failed: %v", callErr)
+			}
+			return fmt.Errorf("sendinput failed: sent %d of %d input events", int(ret), len(inputs))
+		}
+		return nil
+	}
+
+	downModifiers := make([]input, 0, len(effectiveModifiers))
+	for _, vk := range effectiveModifiers {
+		downModifiers = append(downModifiers, makeKeyInput(vk, false))
+	}
+	if err := send(downModifiers); err != nil {
+		return err
+	}
+	if err := send([]input{makeKeyInput(mainKey.vk, false)}); err != nil {
+		return err
+	}
+	if holdMS > 0 {
+		time.Sleep(time.Duration(holdMS) * time.Millisecond)
+	}
+	if err := send([]input{makeKeyInput(mainKey.vk, true)}); err != nil {
+		return err
+	}
+	upModifiers := make([]input, 0, len(effectiveModifiers))
+	for i := len(effectiveModifiers) - 1; i >= 0; i-- {
+		upModifiers = append(upModifiers, makeKeyInput(effectiveModifiers[i], true))
+	}
+	if err := send(upModifiers); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func splitCommands(raw string) []string {
 	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	raw = strings.ReplaceAll(raw, "\r", "\n")
@@ -1172,12 +1532,16 @@ func main() {
 			writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
 			var req struct {
-				Type      string `json:"type"`
-				Title     string `json:"title"`
-				Label     string `json:"label"`
-				GiftID    int    `json:"gift_id"`
-				SoundURL  string `json:"sound_url"`
-				MCCommand string `json:"mc_command"`
+				Type         string `json:"type"`
+				Title        string `json:"title"`
+				Label        string `json:"label"`
+				GiftID       int    `json:"gift_id"`
+				SoundURL     string `json:"sound_url"`
+				MCCommand    string `json:"mc_command"`
+				RunMCCommand *bool  `json:"run_mc_command"`
+				RunShortcut  *bool  `json:"run_shortcut"`
+				ShortcutKeys string `json:"shortcut_keys"`
+				ShortcutHold int    `json:"shortcut_hold_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -1197,8 +1561,32 @@ func main() {
 					return
 				}
 			}
-			if strings.TrimSpace(req.MCCommand) == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required"})
+			runMCCommand := true
+			if req.RunMCCommand != nil {
+				runMCCommand = *req.RunMCCommand
+			}
+			runShortcut := false
+			if req.RunShortcut != nil {
+				runShortcut = *req.RunShortcut
+			}
+			shortcutKeys := strings.TrimSpace(req.ShortcutKeys)
+			if runShortcut && shortcutKeys == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_keys is required when run_shortcut=true"})
+				return
+			}
+			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
+				return
+			}
+			if !runShortcut {
+				shortcutKeys = ""
+			}
+			if !runMCCommand && !runShortcut {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
+				return
+			}
+			if runMCCommand && strings.TrimSpace(req.MCCommand) == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required when run_mc_command=true"})
 				return
 			}
 			req.SoundURL = strings.TrimSpace(req.SoundURL)
@@ -1220,7 +1608,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
+			item, err := store.create(req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -1240,12 +1628,16 @@ func main() {
 		switch r.Method {
 		case http.MethodPut:
 			var req struct {
-				Type      string `json:"type"`
-				Title     string `json:"title"`
-				Label     string `json:"label"`
-				GiftID    int    `json:"gift_id"`
-				SoundURL  string `json:"sound_url"`
-				MCCommand string `json:"mc_command"`
+				Type         string `json:"type"`
+				Title        string `json:"title"`
+				Label        string `json:"label"`
+				GiftID       int    `json:"gift_id"`
+				SoundURL     string `json:"sound_url"`
+				MCCommand    string `json:"mc_command"`
+				RunMCCommand *bool  `json:"run_mc_command"`
+				RunShortcut  *bool  `json:"run_shortcut"`
+				ShortcutKeys string `json:"shortcut_keys"`
+				ShortcutHold int    `json:"shortcut_hold_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -1265,8 +1657,32 @@ func main() {
 					return
 				}
 			}
-			if strings.TrimSpace(req.MCCommand) == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required"})
+			runMCCommand := true
+			if req.RunMCCommand != nil {
+				runMCCommand = *req.RunMCCommand
+			}
+			runShortcut := false
+			if req.RunShortcut != nil {
+				runShortcut = *req.RunShortcut
+			}
+			shortcutKeys := strings.TrimSpace(req.ShortcutKeys)
+			if runShortcut && shortcutKeys == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_keys is required when run_shortcut=true"})
+				return
+			}
+			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
+				return
+			}
+			if !runShortcut {
+				shortcutKeys = ""
+			}
+			if !runMCCommand && !runShortcut {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
+				return
+			}
+			if runMCCommand && strings.TrimSpace(req.MCCommand) == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required when run_mc_command=true"})
 				return
 			}
 			req.SoundURL = strings.TrimSpace(req.SoundURL)
@@ -1288,7 +1704,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand)
+			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -1472,17 +1888,49 @@ func main() {
 			"diamond":      strconv.Itoa(item.Diamond),
 			"repeat_count": "1",
 		})
-		out, err := executeCommands(mcRCON, cmd)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
+		shortcut := applyCommandTemplate(item.ShortcutKeys, map[string]string{
+			"event_type":   "test",
+			"username":     "TestPlayer",
+			"nickname":     "Test Player",
+			"comment":      "test comment",
+			"gift_name":    item.GiftName,
+			"gift_id":      strconv.Itoa(item.GiftID),
+			"diamond":      strconv.Itoa(item.Diamond),
+			"repeat_count": "1",
+		})
+		out := ""
+		var cmdErr error
+		if item.RunMCCommand {
+			out, cmdErr = executeCommands(mcRCON, cmd)
+		}
+		var shortcutErr error
+		if item.RunShortcut {
+			shortcutErr = executeKeyboardShortcut(shortcut, item.ShortcutHold)
+		}
+		if cmdErr != nil || shortcutErr != nil {
+			errText := ""
+			if cmdErr != nil {
+				errText = cmdErr.Error()
+			}
+			if shortcutErr != nil {
+				if errText != "" {
+					errText += "; "
+				}
+				errText += shortcutErr.Error()
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": errText, "status": mcRCON.Status()})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":      true,
-			"eventId": id,
-			"command": cmd,
-			"output":  out,
-			"status":  mcRCON.Status(),
+			"ok":               true,
+			"eventId":          id,
+			"command":          cmd,
+			"run_mc_command":   item.RunMCCommand,
+			"run_shortcut":     item.RunShortcut,
+			"shortcut_keys":    shortcut,
+			"shortcut_hold_ms": item.ShortcutHold,
+			"output":           out,
+			"status":           mcRCON.Status(),
 		})
 	})
 

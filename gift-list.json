@@ -1,5 +1,12 @@
 [
   {
+    "id": 18812,
+    "nama_gift": "2026",
+    "diamond": 1,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0b94442d808fc9346e4476eafc7504f7.png~tplv-obj.webp",
+    "image_path": "giftimage/1_2026.webp"
+  },
+  {
     "id": 10716,
     "nama_gift": "Blow a kiss",
     "diamond": 1,
@@ -131,6 +138,13 @@
     "diamond": 1,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/2a5378fbb272f5b4be0678084c66bdc1.png~tplv-obj.webp",
     "image_path": "giftimage/1_Music Album.webp"
+  },
+  {
+    "id": 55535,
+    "nama_gift": "Nyota",
+    "diamond": 1,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/88ed13f411c260572efde90e6a7000c4.png~tplv-obj.webp",
+    "image_path": "giftimage/1_Nyota.webp"
   },
   {
     "id": 19439,
@@ -369,6 +383,13 @@
     "diamond": 30,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",
     "image_path": "giftimage/30_Doughnut.webp"
+  },
+  {
+    "id": 55536,
+    "nama_gift": "Life Star",
+    "diamond": 59,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/30f8efbb46b3310156ffeeb7090a12ac.png~tplv-obj.webp",
+    "image_path": "giftimage/59_Life Star.webp"
   },
   {
     "id": 15062,
@@ -677,6 +698,13 @@
     "diamond": 199,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/92a80ca0eef371f0b7ae70f76f0f29d5.png~tplv-obj.webp",
     "image_path": "giftimage/199_Goalkeeper Save.webp"
+  },
+  {
+    "id": 55537,
+    "nama_gift": "Halo Kiss",
+    "diamond": 199,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/55be9984069e03c571a0d411216b0fe8.png~tplv-obj.webp",
+    "image_path": "giftimage/199_Halo Kiss.webp"
   },
   {
     "id": 19309,
@@ -1216,6 +1244,13 @@
     "diamond": 349,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/13a78105483d213723d66d7fbf308001.png~tplv-obj.webp",
     "image_path": "giftimage/349_Candy Bouquet.webp"
+  },
+  {
+    "id": 56855,
+    "nama_gift": "Festival Bracelet",
+    "diamond": 349,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/6faf18511ee366ec80c955d8e6b4153a.png~tplv-obj.webp",
+    "image_path": "giftimage/349_Festival Bracelet.webp"
   },
   {
     "id": 18228,
@@ -1778,6 +1813,13 @@
     "image_path": "giftimage/530_Bubbly Kiss.webp"
   },
   {
+    "id": 55543,
+    "nama_gift": "Blind Box Nyota",
+    "diamond": 599,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/039661e798b1e1a3b0fd8eba5780c998.png~tplv-obj.webp",
+    "image_path": "giftimage/599_Blind Box Nyota.webp"
+  },
+  {
     "id": 14532,
     "nama_gift": "Fully Bloomed Sakura",
     "diamond": 599,
@@ -2156,6 +2198,13 @@
     "image_path": "giftimage/1999_Doll New Year Greeting.webp"
   },
   {
+    "id": 55538,
+    "nama_gift": "Meteor Shower",
+    "diamond": 1999,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/4f15d3d0719de68dc5c415ad040811b1.png~tplv-obj.webp",
+    "image_path": "giftimage/1999_Meteor Shower.webp"
+  },
+  {
     "id": 7529,
     "nama_gift": "Mystery Firework",
     "diamond": 1999,
@@ -2168,6 +2217,13 @@
     "diamond": 1999,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/5b9bf90278f87b9ca0c286d3c8a12936~tplv-obj.webp",
     "image_path": "giftimage/1999_Star of Red Carpet.webp"
+  },
+  {
+    "id": 10423,
+    "nama_gift": "Club Music",
+    "diamond": 2000,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/610d14c4f6e25a5ae4c8dfc0e82ec909.png~tplv-obj.webp",
+    "image_path": "giftimage/2000_Club Music.webp"
   },
   {
     "id": 13445,
@@ -2352,6 +2408,13 @@
     "image_path": "giftimage/3999_Go Home.webp"
   },
   {
+    "id": 55542,
+    "nama_gift": "Guiding Star",
+    "diamond": 3999,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/950c054074266eb2f7bba703fea98a3f.png~tplv-obj.webp",
+    "image_path": "giftimage/3999_Guiding Star.webp"
+  },
+  {
     "id": 16899,
     "nama_gift": "Magic World",
     "diamond": 4088,
@@ -2371,6 +2434,13 @@
     "diamond": 4500,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/86c9c8fb5aa76488b075f139dd575dfe.png~tplv-obj.webp",
     "image_path": "giftimage/4500_Your Concert.webp"
+  },
+  {
+    "id": 12944,
+    "nama_gift": "Dynamic Music",
+    "diamond": 4888,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/001c4ea85c78e9b35b5ae3228686a24c.png~tplv-obj.webp",
+    "image_path": "giftimage/4888_Dynamic Music.webp"
   },
   {
     "id": 13604,
@@ -2658,6 +2728,13 @@
     "diamond": 14999,
     "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/7bb5606841ee8deaec981c85587ab2be.png~tplv-obj.webp",
     "image_path": "giftimage/14999_Tidecaller Trident.webp"
+  },
+  {
+    "id": 57344,
+    "nama_gift": "Champion Stage",
+    "diamond": 15000,
+    "image_url": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/e68dd776fab8d40e7bb7b321473746b9.png~tplv-obj.webp",
+    "image_path": "giftimage/15000_Champion Stage.webp"
   },
   {
     "id": 10670,

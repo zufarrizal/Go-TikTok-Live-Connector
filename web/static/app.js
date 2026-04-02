@@ -31,10 +31,16 @@ const statusEl = document.getElementById("status");
     const eventLabelEl = document.getElementById("eventLabel");
     const eventGiftEl = document.getElementById("eventGift");
     const eventGiftPickerHostEl = document.getElementById("eventGiftPicker");
+    const eventShortcutPickerHostEl = document.getElementById("eventShortcutPicker");
     const eventSoundEl = document.getElementById("eventSound");
     const pickEventSoundBtn = document.getElementById("pickEventSoundBtn");
     const eventSoundFileEl = document.getElementById("eventSoundFile");
+    const eventRunMCCommandEl = document.getElementById("eventRunMCCommand");
+    const eventRunShortcutEl = document.getElementById("eventRunShortcut");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
+    const shortcutRowEl = document.getElementById("shortcutRow");
+    const eventShortcutKeysEl = document.getElementById("eventShortcutKeys");
+    const eventShortcutHoldMsEl = document.getElementById("eventShortcutHoldMs");
     const resetEventBtn = document.getElementById("resetEventBtn");
     const eventRowsEl = document.getElementById("eventRows");
     const eventBoxRowsEl = document.getElementById("eventBoxRows");
@@ -50,6 +56,32 @@ const statusEl = document.getElementById("status");
     let eventSliderTimer = null;
     let currentEventPage = 0;
     let currentEventItems = [];
+    let simulateCountdownBusy = false;
+    function buildShortcutOptions() {
+      const keys = [];
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+      const digits = "0123456789".split("");
+      const funcs = Array.from({ length: 24 }, (_, i) => "F" + String(i + 1));
+      const nav = ["ENTER", "TAB", "ESC", "SPACE", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PGUP", "PGDN", "DELETE", "INSERT"];
+      const symbols = [
+        "DOT", "COMMA", "SLASH", "BACKSLASH", "MINUS", "EQUAL", "SEMICOLON", "QUOTE",
+        "BACKTICK", "OPENBRACKET", "CLOSEBRACKET", "QUESTION", "EXCLAMATION", "AT",
+        "HASH", "DOLLAR", "AMPERSAND", "ASTERISK", "UNDERSCORE", "COLON"
+      ];
+
+      const baseKeys = [...letters, ...digits, ...funcs, ...nav, ...symbols];
+      const modifiers = ["", "CTRL+", "ALT+", "SHIFT+", "CTRL+SHIFT+", "ALT+SHIFT+"];
+
+      for (const mod of modifiers) {
+        for (const key of baseKeys) {
+          keys.push(mod + key);
+        }
+      }
+
+      return Array.from(new Set(keys));
+    }
+
+    const shortcutOptions = buildShortcutOptions();
 
     function setStatus(text, isOK) {
       statusEl.textContent = text;
@@ -190,6 +222,17 @@ const statusEl = document.getElementById("status");
       return used;
     }
 
+    function getUsedShortcutKeys(excludeEventId) {
+      const used = new Set();
+      for (const item of currentEventItems || []) {
+        if (excludeEventId !== null && excludeEventId !== undefined && Number(item.id) === Number(excludeEventId)) continue;
+        if (!item || !item.run_shortcut) continue;
+        const key = String(item.shortcut_keys || "").trim();
+        if (key) used.add(key);
+      }
+      return used;
+    }
+
     function refreshEventGiftOptions() {
       const usedGiftIds = getUsedGiftIds(editingEventId);
       const filtered = giftOptions.filter((g) => !usedGiftIds.has(Number(g.id)));
@@ -208,6 +251,21 @@ const statusEl = document.getElementById("status");
       }
 
       eventGiftPicker.syncFromSelect();
+    }
+
+    function refreshShortcutOptions() {
+      const usedShortcutKeys = getUsedShortcutKeys(editingEventId);
+      const filtered = shortcutOptions.filter((k) => !usedShortcutKeys.has(String(k)));
+      eventShortcutPicker.setOptions(filtered);
+
+      if (editingEventId !== null) {
+        const currentItem = (currentEventItems || []).find((item) => Number(item.id) === Number(editingEventId));
+        if (currentItem && String(currentItem.shortcut_keys || "").trim()) {
+          eventShortcutKeysEl.value = String(currentItem.shortcut_keys || "").trim();
+        }
+      }
+
+      eventShortcutPicker.syncFromSelect();
     }
 
     function buildGiftImagePathFromEvent(item) {
@@ -460,7 +518,7 @@ const statusEl = document.getElementById("status");
       const search = document.createElement("input");
       search.type = "search";
       search.className = "gift-picker-search";
-      search.placeholder = "Cari gift...";
+      search.placeholder = "Search gift...";
 
       const list = document.createElement("div");
       list.className = "gift-picker-list";
@@ -507,7 +565,7 @@ const statusEl = document.getElementById("status");
         if (filtered.length === 0) {
           const empty = document.createElement("div");
           empty.className = "gift-picker-empty";
-          empty.textContent = "Gift tidak ditemukan.";
+          empty.textContent = "Gift not found.";
           list.appendChild(empty);
           return;
         }
@@ -598,8 +656,142 @@ const statusEl = document.getElementById("status");
       };
     }
 
+    function createShortcutPicker(selectEl, hostEl, placeholder) {
+      const root = document.createElement("div");
+      root.className = "gift-picker";
+      root.classList.add("shortcut-picker");
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "gift-picker-toggle";
+      toggle.setAttribute("aria-haspopup", "listbox");
+      toggle.setAttribute("aria-expanded", "false");
+
+      const selectedWrap = document.createElement("span");
+      selectedWrap.className = "gift-picker-selected";
+
+      const menu = document.createElement("div");
+      menu.className = "gift-picker-menu";
+      menu.hidden = true;
+
+      const search = document.createElement("input");
+      search.type = "search";
+      search.className = "gift-picker-search";
+      search.placeholder = "Search shortcut...";
+
+      const list = document.createElement("div");
+      list.className = "gift-picker-list";
+      list.setAttribute("role", "listbox");
+
+      menu.appendChild(search);
+      menu.appendChild(list);
+      toggle.appendChild(selectedWrap);
+      root.appendChild(toggle);
+      root.appendChild(menu);
+      hostEl.appendChild(root);
+
+      let options = [];
+
+      function renderSelected() {
+        const selected = String(selectEl.value || "").trim();
+        selectedWrap.innerHTML = "";
+        const copy = document.createElement("span");
+        copy.className = "gift-picker-copy";
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected || placeholder) + "</span>";
+        selectedWrap.appendChild(copy);
+      }
+
+      function renderList() {
+        const query = String(search.value || "").trim().toLowerCase();
+        list.innerHTML = "";
+        const filtered = options.filter((k) => !query || String(k).toLowerCase().includes(query));
+
+        if (filtered.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "gift-picker-empty";
+          empty.textContent = "Shortcut not found.";
+          list.appendChild(empty);
+          return;
+        }
+
+        for (const key of filtered) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "gift-picker-option";
+          if (String(key) === String(selectEl.value || "")) {
+            option.classList.add("is-selected");
+          }
+          const copy = document.createElement("span");
+          copy.className = "gift-picker-option-copy";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(key) + "</span>";
+          option.appendChild(copy);
+          option.addEventListener("click", () => {
+            selectEl.value = String(key);
+            renderSelected();
+            renderList();
+            closeMenu();
+            selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+          list.appendChild(option);
+        }
+      }
+
+      function openMenu() {
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        renderList();
+        requestAnimationFrame(() => search.focus());
+      }
+
+      function closeMenu() {
+        menu.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+      }
+
+      toggle.addEventListener("click", () => {
+        if (menu.hidden) openMenu();
+        else closeMenu();
+      });
+
+      search.addEventListener("input", renderList);
+      document.addEventListener("click", (e) => {
+        if (!root.contains(e.target)) {
+          closeMenu();
+        }
+      });
+
+      return {
+        setOptions(keys) {
+          options = Array.isArray(keys) ? [...keys] : [];
+          selectEl.innerHTML = "<option value=\"\"></option>";
+          for (const key of options) {
+            const opt = document.createElement("option");
+            opt.value = String(key);
+            opt.textContent = String(key);
+            selectEl.appendChild(opt);
+          }
+          if (selectEl.value && !options.includes(selectEl.value)) {
+            selectEl.value = "";
+          }
+          renderSelected();
+          renderList();
+        },
+        setDisabled(disabled) {
+          toggle.disabled = !!disabled;
+          root.classList.toggle("disabled", !!disabled);
+          if (disabled) closeMenu();
+        },
+        syncFromSelect() {
+          renderSelected();
+          renderList();
+        }
+      };
+    }
+
     const eventGiftPicker = createGiftPicker(eventGiftEl, eventGiftPickerHostEl, "Select Gift");
     const testEventGiftPicker = createGiftPicker(testEventGiftEl, testEventGiftPickerHostEl, "Select Gift");
+    const eventShortcutPicker = createShortcutPicker(eventShortcutKeysEl, eventShortcutPickerHostEl, "Pilih shortcut");
+    eventShortcutPicker.setOptions(shortcutOptions);
 
     function playTriggerSound(soundURL) {
       const url = normalizeSoundURL(soundURL);
@@ -801,9 +993,16 @@ const statusEl = document.getElementById("status");
       eventTypeEl.value = "gift";
       eventTitleEl.value = "";
       eventSoundEl.value = "";
+      eventRunMCCommandEl.checked = true;
+      eventRunShortcutEl.checked = false;
+      eventShortcutKeysEl.value = "";
+      eventShortcutHoldMsEl.value = "0";
+      eventShortcutPicker.syncFromSelect();
       eventModalTitleEl.textContent = "Add Event";
       refreshEventGiftOptions();
+      refreshShortcutOptions();
       syncGiftFields();
+      syncExecutionModeFields();
       syncLabelHint();
       eventTypeEl.focus();
     }
@@ -858,6 +1057,22 @@ const statusEl = document.getElementById("status");
       eventGiftPicker.syncFromSelect();
     }
 
+    function syncExecutionModeFields() {
+      const runMC = !!eventRunMCCommandEl.checked;
+      const runShortcut = !!eventRunShortcutEl.checked;
+      eventMCCommandEl.disabled = !runMC;
+      eventMCCommandEl.required = runMC;
+      eventMCCommandEl.hidden = !runMC;
+      eventMCCommandEl.style.display = runMC ? "" : "none";
+      eventShortcutKeysEl.required = runShortcut;
+      eventShortcutPicker.setDisabled(!runShortcut);
+      eventShortcutHoldMsEl.disabled = !runShortcut;
+      if (shortcutRowEl) {
+        shortcutRowEl.hidden = !runShortcut;
+        shortcutRowEl.style.display = runShortcut ? "" : "none";
+      }
+    }
+
     function syncLabelHint() {
       const t = eventTypeEl.value;
       const allowLabel = t === "comment" || t === "like";
@@ -902,13 +1117,19 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"8\">No events yet.</td>";
+        tr.innerHTML = "<td colspan=\"10\">No events yet.</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
 
       const sortedItems = sortEventItems(items);
       for (const item of sortedItems) {
+        const runMC = item.run_mc_command !== false;
+        const runShortcut = !!item.run_shortcut;
+        const modeText = runMC && runShortcut ? "MC + Shortcut" : (runMC ? "MC" : "Shortcut");
+        const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
+        const shortcutLabel = String(item.shortcut_keys || "").trim();
+        const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + (item.type || "") + "</td>" +
@@ -918,6 +1139,8 @@ const statusEl = document.getElementById("status");
           "<td>" + (item.diamond ?? 0) + "</td>" +
           "<td>" + esc(getSoundFileName(item.sound_url)) + "</td>" +
           "<td>" + (item.mc_command || "") + "</td>" +
+          "<td>" + esc(shortcutView) + "</td>" +
+          "<td>" + modeText + "</td>" +
           "<td>" +
             "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
             "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">Edit</button>" +
@@ -983,14 +1206,14 @@ const statusEl = document.getElementById("status");
             img.addEventListener("error", () => {
               const fallback = document.createElement("div");
               fallback.className = "event-card-gift-fallback";
-              fallback.innerHTML = "Gambar<br>Gift";
+              fallback.innerHTML = "Gift<br>Image";
               frame.replaceChildren(fallback);
             }, { once: true });
             frame.appendChild(img);
           } else {
             const fallback = document.createElement("div");
             fallback.className = "event-card-gift-fallback";
-            fallback.innerHTML = "Gambar<br>Gift";
+            fallback.innerHTML = "Gift<br>Image";
             frame.appendChild(fallback);
           }
 
@@ -1025,6 +1248,7 @@ const statusEl = document.getElementById("status");
         currentEventItems = data.items || [];
         renderEventRows(currentEventItems);
         refreshEventGiftOptions();
+        refreshShortcutOptions();
         renderEventBoxes(currentEventItems);
       } catch (err) {
         setStatus(err.message || "failed to load events", false);
@@ -1169,6 +1393,7 @@ const statusEl = document.getElementById("status");
     testEventTypeEl.addEventListener("change", syncTestEventFields);
 
     testEventBtn.addEventListener("click", async () => {
+      if (simulateCountdownBusy) return;
       const type = testEventTypeEl.value;
       const username = (testEventUsernameEl.value || "").trim() || "TestPlayer";
       const giftId = Number(testEventGiftEl.value || 0);
@@ -1179,7 +1404,16 @@ const statusEl = document.getElementById("status");
         setStatus("select a gift for simulation", false);
         return;
       }
+      simulateCountdownBusy = true;
+      const originalBtnText = testEventBtn.textContent;
+      testEventBtn.disabled = true;
       try {
+        for (let sec = 3; sec >= 1; sec -= 1) {
+          setStatus("simulate event dalam " + sec + " detik...", false);
+          testEventBtn.textContent = "Simulate (" + sec + ")";
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        testEventBtn.textContent = "Simulating...";
         const res = await fetch("/api/test/event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1198,6 +1432,10 @@ const statusEl = document.getElementById("status");
       } catch (err) {
         setStatus(err.message || "failed to simulate event", false);
         setMCOutput(err.message || "failed to simulate event");
+      } finally {
+        testEventBtn.disabled = false;
+        testEventBtn.textContent = originalBtnText;
+        simulateCountdownBusy = false;
       }
     });
 
@@ -1206,20 +1444,36 @@ const statusEl = document.getElementById("status");
       const type = eventTypeEl.value;
       const giftId = Number(eventGiftEl.value || 0);
       const gift = giftOptions.find((g) => g.id === giftId);
+      const runMCCommand = !!eventRunMCCommandEl.checked;
+      const runShortcut = !!eventRunShortcutEl.checked;
+      const shortcutKeys = eventShortcutKeysEl.value.trim();
+      const shortcutHoldMs = Math.max(0, Math.min(10000, Number(eventShortcutHoldMsEl.value || 0)));
       const payload = {
         type: type,
         title: eventTitleEl.value.trim(),
         label: eventLabelEl.value.trim(),
         gift_id: type === "gift" ? giftId : 0,
         sound_url: normalizeSoundURL(eventSoundEl.value.trim()),
-        mc_command: eventMCCommandEl.value.trim()
+        mc_command: eventMCCommandEl.value.trim(),
+        run_mc_command: runMCCommand,
+        run_shortcut: runShortcut,
+        shortcut_keys: shortcutKeys,
+        shortcut_hold_ms: shortcutHoldMs
       };
       if (!payload.type) {
         setStatus("event type is required", false);
         return;
       }
-      if (!payload.mc_command) {
+      if (!runMCCommand && !runShortcut) {
+        setStatus("select at least one: MC Command or Keyboard Shortcut", false);
+        return;
+      }
+      if (runMCCommand && !payload.mc_command) {
         setStatus("minecraft command is required", false);
+        return;
+      }
+      if (runShortcut && !shortcutKeys) {
+        setStatus("keyboard shortcut is required", false);
         return;
       }
       if (type === "gift" && (!gift || giftId <= 0)) {
@@ -1305,6 +1559,7 @@ const statusEl = document.getElementById("status");
           eventTitleEl.value = item.title || "";
           eventLabelEl.value = item.label || "";
           refreshEventGiftOptions();
+          refreshShortcutOptions();
           if (item.type === "gift" && item.gift_id) {
             eventGiftEl.value = String(item.gift_id);
           } else {
@@ -1313,7 +1568,13 @@ const statusEl = document.getElementById("status");
           syncGiftFields();
           syncLabelHint();
           eventSoundEl.value = item.sound_url || "";
+          eventRunMCCommandEl.checked = item.run_mc_command !== false;
+          eventRunShortcutEl.checked = !!item.run_shortcut;
           eventMCCommandEl.value = item.mc_command || "";
+          eventShortcutKeysEl.value = item.shortcut_keys || "";
+          eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
+          eventShortcutPicker.syncFromSelect();
+          syncExecutionModeFields();
           eventTypeEl.focus();
           openEventModal(true);
           setStatus("editing event #" + id, true);
@@ -1351,7 +1612,11 @@ const statusEl = document.getElementById("status");
             label: item.label || "",
             gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
             sound_url: normalizeSoundURL(item.sound_url || ""),
-            mc_command: item.mc_command || ""
+            mc_command: item.mc_command || "",
+            run_mc_command: item.run_mc_command !== false,
+            run_shortcut: !!item.run_shortcut,
+            shortcut_keys: item.shortcut_keys || "",
+            shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0))
           };
 
           const createRes = await fetch("/api/events", {
@@ -1389,6 +1654,8 @@ const statusEl = document.getElementById("status");
       syncGiftFields();
       syncLabelHint();
     });
+    eventRunMCCommandEl.addEventListener("change", syncExecutionModeFields);
+    eventRunShortcutEl.addEventListener("change", syncExecutionModeFields);
     eventGiftEl.addEventListener("change", syncGiftFields);
     eventSoundFileEl.addEventListener("change", async () => {
       const file = eventSoundFileEl.files && eventSoundFileEl.files[0];
@@ -1447,6 +1714,7 @@ const statusEl = document.getElementById("status");
     };
 
     refreshState();
+    syncExecutionModeFields();
     syncLabelHint();
     loadGiftOptions();
     loadEventsTable();

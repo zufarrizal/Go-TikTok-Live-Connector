@@ -10,37 +10,23 @@
   <main class="wrap">
     <header class="head">
       <h1 class="title">Go-TikTok-Live-Connector</h1>
-      <div id="status" class="status">connecting to server...</div>
+      <div id="status" class="status" aria-live="polite">connecting to server...</div>
     </header>
 
-    <section class="toolbar">
-      <input id="username" type="text" value="masjup88" placeholder="TikTok username, e.g. masjup88" />
-      <button id="connectBtn" class="primary">Connect</button>
-      <button id="stopBtn" class="stop">Stop</button>
-    </section>
-
     <section class="tools-grid">
-      <section class="mc">
-        <h2>Minecraft Connector</h2>
-        <div class="mc-row">
-          <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" />
-          <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" />
-          <input id="mcPassword" type="text" value="123" placeholder="RCON password" />
-          <button id="mcConnectBtn" type="button">Connect RCON</button>
-          <button id="mcDisconnectBtn" type="button">Disconnect</button>
+      <section class="mc" aria-label="TikTok Connection">
+        <h2>Connect TikTok</h2>
+        <div class="connect-row">
+          <input id="username" type="text" value="masjup88" placeholder="TikTok username, e.g. masjup88" autocomplete="off" aria-label="TikTok username">
+          <button id="connectBtn" class="primary" type="button">Connect</button>
+          <button id="stopBtn" class="stop" type="button">Stop</button>
         </div>
-        <div class="mc-row">
-          <textarea id="mcCommand" rows="4" placeholder="Minecraft command, satu baris satu command&#10;Contoh:&#10;list&#10;say Hello world"></textarea>
-          <button id="mcSendBtn" type="button">Send Command</button>
-        </div>
-        <pre id="mcOutput" class="mc-output"></pre>
       </section>
 
-      <section class="mc">
+      <section class="mc" aria-label="Event Simulator">
         <h2>Event Simulator</h2>
-        <div class="mc-status">simulate events for local testing</div>
         <div id="testEventRow" class="mc-row">
-          <select id="testEventType">
+          <select id="testEventType" aria-label="Simulation event type">
             <option value="gift">GiftEvent</option>
             <option value="chat">ChatEvent</option>
             <option value="user_join">UserEvent (Join)</option>
@@ -48,23 +34,42 @@
             <option value="user_share">UserEvent (Share)</option>
             <option value="like">LikeEvent</option>
           </select>
-          <input id="testEventUsername" type="text" value="TestPlayer" placeholder="Tester TikTok username" />
+          <input id="testEventUsername" type="text" value="TestPlayer" placeholder="Tester TikTok username" autocomplete="off" aria-label="Simulation username">
           <div id="testEventGiftPicker" class="gift-picker-host">
-            <select id="testEventGift" class="native-gift-select"></select>
+            <select id="testEventGift" class="native-gift-select" aria-label="Simulation gift"></select>
           </div>
-          <input id="testEventCount" type="number" min="1" value="1" placeholder="Count" />
-          <input id="testEventText" type="text" placeholder="Text/Message (optional)" />
+          <input id="testEventCount" type="number" min="1" value="1" placeholder="Count" aria-label="Simulation count">
+          <input id="testEventText" type="text" placeholder="Text/Message (optional)" autocomplete="off" aria-label="Simulation text">
           <button id="testEventBtn" type="button">Simulate Event</button>
         </div>
       </section>
     </section>
 
+    <section class="tools-single">
+      <section class="mc" aria-label="Minecraft Connector">
+        <h2>Minecraft Connector</h2>
+        <div class="mc-row">
+          <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" autocomplete="off" aria-label="RCON host">
+          <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" aria-label="RCON port">
+          <input id="mcPassword" type="text" value="123" placeholder="RCON password" autocomplete="off" aria-label="RCON password">
+          <button id="mcConnectBtn" type="button">Connect RCON</button>
+          <button id="mcDisconnectBtn" type="button">Disconnect</button>
+        </div>
+        <div class="mc-row">
+          <textarea id="mcCommand" rows="4" placeholder="Minecraft command, one command per line&#10;Example:&#10;list&#10;say Hello world" aria-label="Minecraft commands"></textarea>
+          <button id="mcSendBtn" type="button">Send Command</button>
+        </div>
+        <pre id="mcOutput" class="mc-output" aria-live="polite"></pre>
+      </section>
+    </section>
+
     <section class="event-layout">
-      <section class="crud">
+      <section class="crud" aria-label="Event Panel">
         <div class="crud-top">
           <h2>Event Panel</h2>
           <button id="openEventModalBtn" type="button">Add Event</button>
         </div>
+
         <div class="crud-table-wrap">
           <table class="crud-table">
             <thead>
@@ -76,6 +81,8 @@
                 <th>Diamond</th>
                 <th>Sound</th>
                 <th>MC Command</th>
+                <th>Shortcut</th>
+                <th>Mode</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -83,11 +90,10 @@
           </table>
         </div>
 
-        <section class="event-box-section">
+        <section class="event-box-section" aria-label="Event List Box">
           <div class="event-box-head">
             <h2>Event List Box</h2>
             <div class="event-box-tools">
-              <span>Auto slide 5 x 4</span>
               <button id="exportEventBoxBtn" type="button">Save PNG Slides</button>
             </div>
           </div>
@@ -100,20 +106,21 @@
         </section>
       </section>
 
-      <section class="history-panel">
+      <aside class="history-panel" aria-label="History">
         <h2 class="history-head">History</h2>
         <ul id="events" class="events"></ul>
-      </section>
+      </aside>
     </section>
 
     <div id="eventModal" class="modal" aria-hidden="true">
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
         <div class="modal-head">
           <h3 id="eventModalTitle">Add Event</h3>
           <button id="closeEventModalBtn" type="button">Close</button>
         </div>
+
         <form id="eventForm" class="modal-form" autocomplete="off">
-          <select id="eventType" required autocomplete="off">
+          <select id="eventType" required aria-label="Event type">
             <option value="gift" selected>gift</option>
             <option value="join">join</option>
             <option value="follow">follow</option>
@@ -121,21 +128,36 @@
             <option value="like">like</option>
             <option value="share">share</option>
           </select>
-          <input id="eventTitle" type="text" placeholder="Title for Event List Box" autocomplete="off" />
-          <input id="eventLabel" type="text" placeholder="Rule label/filter (optional)" autocomplete="off" />
+          <input id="eventTitle" type="text" placeholder="Title for Event List Box" autocomplete="off" aria-label="Event title">
+          <input id="eventLabel" type="text" placeholder="Rule label/filter (optional)" autocomplete="off" aria-label="Rule label">
+
           <div id="eventGiftPicker" class="gift-picker-host">
-            <select id="eventGift" class="native-gift-select"></select>
+            <select id="eventGift" class="native-gift-select" aria-label="Gift"></select>
           </div>
+
           <div class="sound-picker full">
-            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" autocomplete="off" />
+            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" autocomplete="off" aria-label="Sound URL or path">
             <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
-            <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" />
+            <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac">
           </div>
-          <textarea id="eventMCCommand" class="full" rows="5" placeholder="Minecraft command, satu baris satu command&#10;Contoh:&#10;say Welcome {username}&#10;give {username} diamond 1" required></textarea>
-          <div class="placeholder-help full">
-            <strong>Available placeholders:</strong>
-            <span><code>{event_type}</code> <code>{username}</code> <code>{nickname}</code> <code>{comment}</code> <code>{likes}</code> <code>{total_likes}</code> <code>{gift_name}</code> <code>{gift_id}</code> <code>{diamond}</code> <code>{repeat_count}</code></span>
+
+          <div class="execution-mode full">
+            <label><input id="eventRunShortcut" type="checkbox"> Run Keyboard Shortcut</label>
+            <label><input id="eventRunMCCommand" type="checkbox" checked> Run MC Command</label>
           </div>
+
+          <div id="shortcutRow" class="shortcut-inline full">
+            <div id="eventShortcutPicker" class="gift-picker-host">
+              <select id="eventShortcutKeys" class="native-gift-select" aria-label="Shortcut keys"></select>
+            </div>
+            <div class="shortcut-hold-wrap">
+              <input id="eventShortcutHoldMs" type="number" min="0" max="10000" step="10" value="0" placeholder="Hold" aria-label="Shortcut hold in milliseconds">
+              <span class="shortcut-hold-suffix">ms</span>
+            </div>
+          </div>
+
+          <textarea id="eventMCCommand" class="full" rows="5" placeholder="Minecraft command, one command per line&#10;Example:&#10;say Welcome {username}&#10;give {username} diamond 1" required aria-label="MC command"></textarea>
+
           <div class="modal-actions full">
             <button id="resetEventBtn" type="button">Reset</button>
             <button id="saveEventBtn" type="submit" class="save">Save</button>
@@ -145,7 +167,6 @@
     </div>
 
     <div id="eventExportStage" class="event-export-stage" aria-hidden="true"></div>
-
   </main>
 
   <script src="/static/vendor/html2canvas.min.js"></script>

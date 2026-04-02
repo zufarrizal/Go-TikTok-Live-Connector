@@ -1,0 +1,4 @@
+# Allowed TikTok usernames (one per line).
+# Case-insensitive. You can write with or without "@"
+
+masjup88

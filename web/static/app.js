@@ -1,6 +1,7 @@
 const statusEl = document.getElementById("status");
     const eventsEl = document.getElementById("events");
     const usernameEl = document.getElementById("username");
+    const startBtn = document.getElementById("startBtn");
     const connectBtn = document.getElementById("connectBtn");
     const stopBtn = document.getElementById("stopBtn");
     const mcHostEl = document.getElementById("mcHost");
@@ -21,6 +22,10 @@ const statusEl = document.getElementById("status");
     const eventModalEl = document.getElementById("eventModal");
     const eventBoxModalEl = document.getElementById("eventBoxModal");
     const openEventModalBtn = document.getElementById("openEventModalBtn");
+    const exportEventsBtn = document.getElementById("exportEventsBtn");
+    const loadEventsBtn = document.getElementById("loadEventsBtn");
+    const resetEventsBtn = document.getElementById("resetEventsBtn");
+    const eventsJsonFileEl = document.getElementById("eventsJsonFile");
     const openEventBoxPopupBtn = document.getElementById("openEventBoxPopupBtn");
     const closeEventModalBtn = document.getElementById("closeEventModalBtn");
     const closeEventBoxPopupBtn = document.getElementById("closeEventBoxPopupBtn");
@@ -57,6 +62,12 @@ const statusEl = document.getElementById("status");
     let currentEventPage = 0;
     let currentEventItems = [];
     let simulateCountdownBusy = false;
+    let giftImageVersion = Date.now();
+    let triggerAudioCtx = null;
+    let triggerAudioGain = null;
+    let triggerAudioUnlocked = false;
+    const triggerAudioBufferCache = new Map();
+    const activeTriggerAudios = new Set();
     function buildShortcutOptions() {
       const keys = [];
       const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -151,11 +162,51 @@ const statusEl = document.getElementById("status");
       return data;
     }
 
+    async function exportEventsJSON() {
+      const res = await fetch("/api/events/export");
+      if (!res.ok) {
+        let errText = "failed to export events";
+        try {
+          const data = await res.json();
+          errText = data.error || errText;
+        } catch (_) {
+        }
+        throw new Error(errText);
+      }
+
+      const blob = await res.blob();
+      const dispo = String(res.headers.get("Content-Disposition") || "");
+      const nameMatch = dispo.match(/filename=\"?([^\";]+)\"?/i);
+      const fileName = nameMatch && nameMatch[1] ? nameMatch[1] : "events-export.json";
+
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+    }
+
+    async function loadEventsFromFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/events/load", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to load events");
+      return data;
+    }
+
     function resolveGiftImageSrc(gift) {
       if (!gift) return "";
       const imagePath = String(gift.image_path || "").trim();
       if (imagePath) {
-        return "/" + imagePath.replace(/^[/\\]+/, "").replaceAll("\\", "/");
+        const cleanPath = "/" + imagePath.replace(/^[/\\]+/, "").replaceAll("\\", "/");
+        return cleanPath + (cleanPath.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(giftImageVersion));
       }
       return String(gift.image_url || "").trim();
     }
@@ -377,11 +428,6 @@ const statusEl = document.getElementById("status");
           const clone = slide.cloneNode(true);
           const canvasHost = document.createElement("div");
           canvasHost.className = "event-box-section event-export-canvas";
-          canvasHost.innerHTML =
-            "<div class=\"event-box-head\">" +
-              "<h2>Event List Box</h2>" +
-              "<div class=\"event-box-tools\"><span>Slide " + esc(String(i + 1)) + " / " + esc(String(slides.length)) + "</span></div>" +
-            "</div>";
 
           const grid = document.createElement("div");
           grid.className = "event-export-grid";
@@ -793,12 +839,86 @@ const statusEl = document.getElementById("status");
     const eventShortcutPicker = createShortcutPicker(eventShortcutKeysEl, eventShortcutPickerHostEl, "Pilih shortcut");
     eventShortcutPicker.setOptions(shortcutOptions);
 
-    function playTriggerSound(soundURL) {
+    function ensureTriggerAudioContext() {
+      if (triggerAudioCtx) return triggerAudioCtx;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      try {
+        triggerAudioCtx = new AudioCtx();
+        triggerAudioGain = triggerAudioCtx.createGain();
+        triggerAudioGain.gain.value = 1;
+        triggerAudioGain.connect(triggerAudioCtx.destination);
+      } catch (_) {
+        triggerAudioCtx = null;
+        triggerAudioGain = null;
+      }
+      return triggerAudioCtx;
+    }
+
+    async function unlockTriggerAudio() {
+      if (triggerAudioUnlocked) return true;
+      const ctx = ensureTriggerAudioContext();
+      if (!ctx) {
+        triggerAudioUnlocked = true;
+        return true;
+      }
+      try {
+        if (ctx.state !== "running") {
+          await ctx.resume();
+        }
+        const silent = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = silent;
+        source.connect(triggerAudioGain || ctx.destination);
+        source.start(0);
+        triggerAudioUnlocked = true;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function playTriggerSound(soundURL) {
       const url = normalizeSoundURL(soundURL);
       if (!url) return;
+      try {
+        await unlockTriggerAudio();
+      } catch (_) {
+      }
+
+      const ctx = ensureTriggerAudioContext();
+      if (ctx && (ctx.state === "running" || triggerAudioUnlocked)) {
+        try {
+          let buf = triggerAudioBufferCache.get(url);
+          if (!buf) {
+            const res = await fetch(url, { cache: "no-store" });
+            if (!res.ok) throw new Error("sound fetch failed");
+            const arr = await res.arrayBuffer();
+            buf = await ctx.decodeAudioData(arr.slice(0));
+            triggerAudioBufferCache.set(url, buf);
+          }
+          const source = ctx.createBufferSource();
+          source.buffer = buf;
+          source.connect(triggerAudioGain || ctx.destination);
+          source.start(0);
+          return;
+        } catch (_) {
+        }
+      }
+
       const audio = new Audio(url);
       audio.preload = "auto";
+      audio.muted = false;
+      audio.volume = 1;
+      audio.setAttribute("playsinline", "");
+      activeTriggerAudios.add(audio);
+      const cleanup = () => {
+        activeTriggerAudios.delete(audio);
+      };
+      audio.addEventListener("ended", cleanup, { once: true });
+      audio.addEventListener("error", cleanup, { once: true });
       audio.play().catch(() => {
+        cleanup();
       });
     }
 
@@ -1101,6 +1221,7 @@ const statusEl = document.getElementById("status");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to load gift-list.json");
         giftOptions = data.items || [];
+        giftImageVersion = Date.now();
         refreshEventGiftOptions();
         fillGiftSelect(testEventGiftEl, giftOptions);
         testEventGiftPicker.setOptions(giftOptions);
@@ -1269,6 +1390,44 @@ const statusEl = document.getElementById("status");
         setStatus("failed to fetch state", false);
       }
     }
+
+    async function refreshGiftsByUsername(username, options = {}) {
+      const silent = !!options.silent;
+      username = String(username || "").trim().replace(/^@+/, "");
+      if (!username) return;
+
+      try {
+        const res = await fetch("/api/gifts/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "failed to refresh gift list");
+
+        await loadGiftOptions();
+        if (!silent) {
+          const region = String(data.region || "").trim();
+          const source = String(data.source || "").trim();
+          const regionLabel = region ? (" (" + region + ")") : "";
+          const sourceLabel = source ? (" [" + source + "]") : "";
+          setStatus("gift list refreshed for @" + username + regionLabel + sourceLabel, true);
+        }
+      } catch (err) {
+        if (!silent) {
+          setStatus(err.message || "failed to refresh gift list", false);
+        }
+      }
+    }
+
+    startBtn.addEventListener("click", async () => {
+      const username = usernameEl.value.trim();
+      if (!username) {
+        setStatus("username is required", false);
+        return;
+      }
+      await refreshGiftsByUsername(username);
+    });
 
     connectBtn.addEventListener("click", async () => {
       const username = usernameEl.value.trim();
@@ -1510,6 +1669,57 @@ const statusEl = document.getElementById("status");
       openEventModal(false);
     });
 
+    if (exportEventsBtn) {
+      exportEventsBtn.addEventListener("click", async () => {
+        try {
+          await exportEventsJSON();
+          setStatus("events exported successfully", true);
+        } catch (err) {
+          setStatus(err.message || "failed to export events", false);
+        }
+      });
+    }
+
+    if (loadEventsBtn && eventsJsonFileEl) {
+      loadEventsBtn.addEventListener("click", () => {
+        eventsJsonFileEl.value = "";
+        eventsJsonFileEl.click();
+      });
+
+      eventsJsonFileEl.addEventListener("change", async () => {
+        const file = eventsJsonFileEl.files && eventsJsonFileEl.files[0];
+        if (!file) return;
+        try {
+          const result = await loadEventsFromFile(file);
+          await loadEventsTable();
+          resetEventForm();
+          closeEventModal();
+          setStatus("loaded " + String(result.count || 0) + " event(s) from JSON", true);
+        } catch (err) {
+          setStatus(err.message || "failed to load events", false);
+        } finally {
+          eventsJsonFileEl.value = "";
+        }
+      });
+    }
+
+    if (resetEventsBtn) {
+      resetEventsBtn.addEventListener("click", async () => {
+        if (!confirm("Reset all events from events.json?")) return;
+        try {
+          const res = await fetch("/api/events/reset", { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "failed to reset events");
+          await loadEventsTable();
+          resetEventForm();
+          closeEventModal();
+          setStatus("events reset successfully", true);
+        } catch (err) {
+          setStatus(err.message || "failed to reset events", false);
+        }
+      });
+    }
+
     if (openEventBoxPopupBtn) {
       openEventBoxPopupBtn.addEventListener("click", () => {
         openEventBoxModal();
@@ -1686,6 +1896,16 @@ const statusEl = document.getElementById("status");
         exportEventBoxSlidesAsPNG();
       });
     }
+
+    document.addEventListener("pointerdown", () => {
+      unlockTriggerAudio();
+    }, { passive: true });
+    document.addEventListener("keydown", () => {
+      unlockTriggerAudio();
+    });
+    document.addEventListener("touchstart", () => {
+      unlockTriggerAudio();
+    }, { passive: true });
 
     const source = new EventSource("/events");
     source.onopen = () => {

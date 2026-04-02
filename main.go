@@ -2,16 +2,21 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -25,9 +30,111 @@ import (
 	"github.com/steampoweredtaco/gotiktoklive"
 )
 
+//go:embed web/index.html web/static/**
+var embeddedWebFS embed.FS
+
+var (
+	appBaseDir    string
+	appEventsPath string
+	appGiftList   string
+	appGiftImage  string
+	appSoundsDir  string
+)
+
+const defaultUsernameAllowlistURL = "https://raw.githubusercontent.com/zufarrizal/Go-TikTok-Live-Connector/main/username.txt"
+
 type eventHub struct {
 	mu      sync.RWMutex
 	clients map[chan string]struct{}
+}
+
+type githubUsernameAllowlist struct {
+	mu         sync.Mutex
+	url        string
+	ttl        time.Duration
+	lastFetch  time.Time
+	cachedList map[string]struct{}
+}
+
+func newGithubUsernameAllowlist(url string, ttl time.Duration) *githubUsernameAllowlist {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		url = defaultUsernameAllowlistURL
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	return &githubUsernameAllowlist{
+		url:        url,
+		ttl:        ttl,
+		cachedList: make(map[string]struct{}),
+	}
+}
+
+func (a *githubUsernameAllowlist) isAllowed(username string) (bool, error) {
+	username = normalizeUsername(username)
+	if username == "" {
+		return false, fmt.Errorf("username is required")
+	}
+
+	a.mu.Lock()
+	needRefresh := len(a.cachedList) == 0 || time.Since(a.lastFetch) > a.ttl
+	a.mu.Unlock()
+
+	if needRefresh {
+		if err := a.refresh(); err != nil {
+			return false, err
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.cachedList[username]
+	return ok, nil
+}
+
+func (a *githubUsernameAllowlist) refresh() error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, a.url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build username allowlist request: %w", err)
+	}
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("User-Agent", "Go-TikTok-Live-Connector/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to fetch username allowlist: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("failed to fetch username allowlist: status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read username allowlist: %w", err)
+	}
+
+	lines := strings.Split(string(body), "\n")
+	next := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		s := strings.TrimSpace(line)
+		if s == "" || strings.HasPrefix(s, "#") {
+			continue
+		}
+		next[normalizeUsername(s)] = struct{}{}
+	}
+	if len(next) == 0 {
+		return fmt.Errorf("username allowlist is empty")
+	}
+
+	a.mu.Lock()
+	a.cachedList = next
+	a.lastFetch = time.Now()
+	a.mu.Unlock()
+	return nil
 }
 
 func newEventHub() *eventHub {
@@ -222,7 +329,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"time":  time.Now().Format(time.RFC3339),
 			}))
 		} else {
-			downloadedCount, downloadErrs := downloadGiftImages("giftimage", gifts)
+			downloadedCount, downloadErrs := downloadGiftImages(appGiftImage, gifts)
 			if len(downloadErrs) > 0 {
 				c.hub.broadcast(mustJSON(map[string]any{
 					"type":  "error",
@@ -230,7 +337,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 					"time":  time.Now().Format(time.RFC3339),
 				}))
 			}
-			outFile, saveErr := saveGiftListJSON(username, gifts)
+			outFile, saveErr := saveGiftListJSON(appGiftList, username, gifts)
 			if saveErr != nil {
 				c.hub.broadcast(mustJSON(map[string]any{
 					"type":  "error",
@@ -240,7 +347,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			} else {
 				c.hub.broadcast(mustJSON(map[string]any{
 					"type":    "status",
-					"message": fmt.Sprintf("Gift list saved to %s and downloaded %d gift image(s) to giftimage", outFile, downloadedCount),
+					"message": fmt.Sprintf("Gift list saved to %s and downloaded %d gift image(s) to %s", outFile, downloadedCount, appGiftImage),
 					"time":    time.Now().Format(time.RFC3339),
 				}))
 			}
@@ -642,6 +749,19 @@ func (s *eventStore) delete(id int) error {
 		}
 	}
 	return fmt.Errorf("event id %d not found", id)
+}
+
+func (s *eventStore) replaceAll(items []eventRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.items = make([]eventRecord, len(items))
+	copy(s.items, items)
+	return s.saveLocked()
+}
+
+func (s *eventStore) resetAll() error {
+	return s.replaceAll([]eventRecord{})
 }
 
 func (s *eventStore) rulesForTrigger(eventType string, giftID int) []eventRecord {
@@ -1412,16 +1532,29 @@ func executeCommands(rcon *mcRCONManager, raw string) (string, error) {
 }
 
 func main() {
+	initAppPaths()
+
 	hub := newEventHub()
-	store, err := newEventStore("events.json")
+	store, err := newEventStore(appEventsPath)
 	if err != nil {
 		log.Fatalf("failed to init event store: %v", err)
 	}
+	allowlistURL := strings.TrimSpace(os.Getenv("USERNAME_ALLOWLIST_URL"))
+	usernameAllowlist := newGithubUsernameAllowlist(allowlistURL, 30*time.Second)
 	mcRCON := newMCRCONManagerFromProperties(filepath.Join("Server", "server.properties"))
 	autoMC := newMCEventAutomation(store, mcRCON, hub)
 	ctrl := newStreamController(hub, autoMC.HandleLiveEvent)
 
-	staticFS := http.FileServer(http.Dir(filepath.Join("web", "static")))
+	embeddedStatic, err := fs.Sub(embeddedWebFS, "web/static")
+	if err != nil {
+		log.Fatalf("failed to load embedded static assets: %v", err)
+	}
+	staticFS := http.FileServer(http.FS(embeddedStatic))
+	if err := os.MkdirAll(appSoundsDir, 0755); err != nil {
+		log.Fatalf("failed to init sound directory: %v", err)
+	}
+	soundsFS := http.FileServer(http.Dir(appSoundsDir))
+	http.Handle("/static/sounds/", http.StripPrefix("/static/sounds/", soundsFS))
 	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(strings.ToLower(r.URL.Path), ".css") {
 			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
@@ -1430,7 +1563,7 @@ func main() {
 		}
 		staticFS.ServeHTTP(w, r)
 	})))
-	giftImageFS := http.FileServer(http.Dir("giftimage"))
+	giftImageFS := http.FileServer(http.Dir(appGiftImage))
 	http.Handle("/giftimage/", http.StripPrefix("/giftimage/", giftImageFS))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -1438,7 +1571,13 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join("web", "index.html"))
+		b, readErr := embeddedWebFS.ReadFile("web/index.html")
+		if readErr != nil {
+			http.Error(w, "failed to load page", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(b)
 	})
 
 	http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
@@ -1463,6 +1602,19 @@ func main() {
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+		allowed, allowErr := usernameAllowlist.isAllowed(req.Username)
+		if allowErr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "failed to validate username allowlist from github: " + allowErr.Error(),
+			})
+			return
+		}
+		if !allowed {
+			writeJSON(w, http.StatusForbidden, map[string]any{
+				"error": "username is not allowed. add it to github username.txt allowlist first",
+			})
 			return
 		}
 		if err := ctrl.Start(req.Username); err != nil {
@@ -1594,14 +1746,14 @@ func main() {
 			giftName := ""
 			diamond := 0
 			if req.Type == "gift" {
-				gifts, err := loadGiftListJSON("gift-list.json")
+				gifts, err := loadGiftListJSON(appGiftList)
 				if err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift-list.json: " + err.Error()})
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
 					return
 				}
 				gift, ok := findGiftByID(gifts, req.GiftID)
 				if !ok {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift-list.json"})
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
 					return
 				}
 				giftID = gift.ID
@@ -1690,14 +1842,14 @@ func main() {
 			giftName := ""
 			diamond := 0
 			if req.Type == "gift" {
-				gifts, err := loadGiftListJSON("gift-list.json")
+				gifts, err := loadGiftListJSON(appGiftList)
 				if err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift-list.json: " + err.Error()})
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
 					return
 				}
 				gift, ok := findGiftByID(gifts, req.GiftID)
 				if !ok {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift-list.json"})
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
 					return
 				}
 				giftID = gift.ID
@@ -1721,14 +1873,111 @@ func main() {
 		}
 	})
 
+	http.HandleFunc("/api/events/export", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		items := store.list()
+		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+
+		payload := map[string]any{"items": items}
+		b, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to build export json"})
+			return
+		}
+
+		fileName := "events-" + time.Now().Format("20060102-150405") + ".json"
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+	})
+
+	http.HandleFunc("/api/events/load", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body []byte
+		contentType := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
+		if strings.Contains(contentType, "multipart/form-data") {
+			r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+			if err := r.ParseMultipartForm(10 << 20); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid upload payload"})
+				return
+			}
+			file, _, err := r.FormFile("file")
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "event json file is required"})
+				return
+			}
+			defer file.Close()
+			readBody, err := io.ReadAll(file)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read event file"})
+				return
+			}
+			body = readBody
+		} else {
+			readBody, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 10<<20))
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+				return
+			}
+			body = readBody
+		}
+
+		parsed, err := parseEventRecordsPayload(body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		normalized, err := normalizeImportedEvents(parsed)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		if err := store.replaceAll(normalized); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save imported events"})
+			return
+		}
+
+		hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": fmt.Sprintf("Loaded %d event(s) from JSON", len(normalized)),
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(normalized)})
+	})
+
+	http.HandleFunc("/api/events/reset", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if err := store.resetAll(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to reset events"})
+			return
+		}
+		hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": "events.json has been reset",
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	})
+
 	http.HandleFunc("/api/gifts", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		items, err := loadGiftListJSON("gift-list.json")
+		items, err := loadGiftListJSON(appGiftList)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift-list.json: " + err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
 			return
 		}
 		sort.Slice(items, func(i, j int) bool {
@@ -1741,6 +1990,73 @@ func main() {
 			return items[i].Diamond < items[j].Diamond
 		})
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	})
+
+	http.HandleFunc("/api/gifts/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Username string `json:"username"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+		username := strings.TrimSpace(strings.TrimPrefix(req.Username, "@"))
+		if username == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "username is required"})
+			return
+		}
+
+		gifts, roomID, region, source, err := fetchGiftCatalogFromUsername(username)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+
+		downloadedCount, downloadErrs := downloadGiftImages(appGiftImage, gifts)
+		if len(downloadErrs) > 0 {
+			hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
+		}
+
+		outFile, saveErr := saveGiftListJSON(appGiftList, username, gifts)
+		if saveErr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save gift list json: " + saveErr.Error()})
+			return
+		}
+
+		hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": fmt.Sprintf("Gift list refreshed for @%s (region: %s, source: %s), saved to %s and downloaded %d gift image(s) to %s", username, fallbackRegion(region), source, outFile, downloadedCount, appGiftImage),
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+		hub.broadcast(mustJSON(map[string]any{
+			"type":     "gift_catalog",
+			"username": username,
+			"roomID":   roomID,
+			"region":   region,
+			"source":   source,
+			"count":    len(gifts),
+			"gifts":    gifts,
+			"time":     time.Now().Format(time.RFC3339),
+		}))
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":                true,
+			"username":          username,
+			"room_id":           roomID,
+			"region":            region,
+			"source":            source,
+			"count":             len(gifts),
+			"gift_list_path":    outFile,
+			"downloaded_images": downloadedCount,
+		})
 	})
 
 	http.HandleFunc("/api/upload/sound", func(w http.ResponseWriter, r *http.Request) {
@@ -1769,7 +2085,7 @@ func main() {
 			return
 		}
 
-		soundsDir := filepath.Join("web", "static", "sounds")
+		soundsDir := appSoundsDir
 		if err := os.MkdirAll(soundsDir, 0755); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create sound directory"})
 			return
@@ -1981,14 +2297,14 @@ func main() {
 
 		switch eventType {
 		case "gift":
-			gifts, err := loadGiftListJSON("gift-list.json")
+			gifts, err := loadGiftListJSON(appGiftList)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift-list.json: " + err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
 				return
 			}
 			gift, ok := findGiftByID(gifts, req.GiftID)
 			if !ok {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift-list.json"})
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
 				return
 			}
 			ev = gotiktoklive.GiftEvent{
@@ -2117,17 +2433,125 @@ func main() {
 	http.HandleFunc("/api/test/event", testEventHandler)
 	http.HandleFunc("/api/test/gift", testEventHandler)
 
-	addr := ":8080"
-	log.Printf("Web ready at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	listener, webURL, err := listenAutoPort()
+	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("Web ready at %s", webURL)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		if err := openBrowser(webURL); err != nil {
+			log.Printf("failed to open browser: %v", err)
+		}
+	}()
+	if err := http.Serve(listener, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func listenAutoPort() (net.Listener, string, error) {
+	const host = "127.0.0.1"
+	const preferredPort = 8080
+
+	primaryAddr := net.JoinHostPort(host, strconv.Itoa(preferredPort))
+	ln, err := net.Listen("tcp", primaryAddr)
+	if err != nil {
+		ln, err = net.Listen("tcp", net.JoinHostPort(host, "0"))
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to bind web listener: %w", err)
+		}
+	}
+	actualAddr := ln.Addr().String()
+	return ln, "http://" + actualAddr, nil
+}
+
+func openBrowser(targetURL string) error {
+	targetURL = strings.TrimSpace(targetURL)
+	if targetURL == "" {
+		return fmt.Errorf("empty url")
+	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", targetURL)
+	case "darwin":
+		cmd = exec.Command("open", targetURL)
+	default:
+		cmd = exec.Command("xdg-open", targetURL)
+	}
+	return cmd.Start()
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func initAppPaths() {
+	cwd, _ := os.Getwd()
+	cwd = strings.TrimSpace(cwd)
+
+	exeDir := ""
+	if base, err := os.Executable(); err == nil && strings.TrimSpace(base) != "" {
+		exeDir = strings.TrimSpace(filepath.Dir(base))
+	}
+
+	appEventsPath = resolveAppPath("events.json", false, cwd, exeDir)
+	appGiftList = resolveAppPath("gift-list.json", false, cwd, exeDir)
+	appGiftImage = resolveAppPath("giftimage", true, cwd, exeDir)
+	appSoundsDir = resolveAppPath("sounds", true, cwd, exeDir)
+
+	appBaseDir = strings.TrimSpace(filepath.Dir(appEventsPath))
+	if appBaseDir == "" || appBaseDir == "." {
+		if cwd != "" {
+			appBaseDir = cwd
+		} else if exeDir != "" {
+			appBaseDir = exeDir
+		} else {
+			appBaseDir = "."
+		}
+	}
+}
+
+func resolveAppPath(name string, wantDir bool, roots ...string) string {
+	cleanName := strings.TrimSpace(name)
+	if cleanName == "" {
+		return "."
+	}
+
+	seen := make(map[string]struct{}, len(roots))
+	orderedRoots := make([]string, 0, len(roots))
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		if _, ok := seen[root]; ok {
+			continue
+		}
+		seen[root] = struct{}{}
+		orderedRoots = append(orderedRoots, root)
+	}
+	if len(orderedRoots) == 0 {
+		orderedRoots = append(orderedRoots, ".")
+	}
+
+	for _, root := range orderedRoots {
+		candidate := filepath.Join(root, cleanName)
+		info, err := os.Stat(candidate)
+		if err != nil {
+			continue
+		}
+		if wantDir && info.IsDir() {
+			return candidate
+		}
+		if !wantDir && !info.IsDir() {
+			return candidate
+		}
+	}
+
+	return filepath.Join(orderedRoots[0], cleanName)
 }
 
 func parseIDFromPath(path, prefix string) (int, error) {
@@ -2143,6 +2567,13 @@ func parseIDFromPath(path, prefix string) (int, error) {
 	return id, nil
 }
 
+func normalizeUsername(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "@")
+	v = strings.TrimSpace(v)
+	return strings.ToLower(v)
+}
+
 func isAllowedEventType(v string) bool {
 	switch v {
 	case "join", "comment", "like", "gift", "share", "follow":
@@ -2152,9 +2583,112 @@ func isAllowedEventType(v string) bool {
 	}
 }
 
+func parseEventRecordsPayload(b []byte) ([]eventRecord, error) {
+	b = []byte(strings.TrimSpace(string(b)))
+	if len(b) == 0 {
+		return nil, fmt.Errorf("event payload is empty")
+	}
+
+	var wrapped struct {
+		Items []eventRecord `json:"items"`
+	}
+	if err := json.Unmarshal(b, &wrapped); err == nil && wrapped.Items != nil {
+		return wrapped.Items, nil
+	}
+
+	var direct []eventRecord
+	if err := json.Unmarshal(b, &direct); err == nil {
+		return direct, nil
+	}
+
+	return nil, fmt.Errorf("invalid event payload format")
+}
+
+func normalizeImportedEvents(items []eventRecord) ([]eventRecord, error) {
+	if items == nil {
+		return []eventRecord{}, nil
+	}
+
+	gifts, giftErr := loadGiftListJSON(appGiftList)
+	if giftErr != nil {
+		return nil, fmt.Errorf("failed to read gift list: %w", giftErr)
+	}
+
+	out := make([]eventRecord, 0, len(items))
+	usedIDs := make(map[int]struct{}, len(items))
+	maxID := 0
+
+	for i := range items {
+		item := items[i]
+		item.Type = strings.TrimSpace(strings.ToLower(item.Type))
+		if !isAllowedEventType(item.Type) {
+			return nil, fmt.Errorf("item #%d has invalid type: %q", i+1, item.Type)
+		}
+
+		item.Title = strings.TrimSpace(item.Title)
+		item.Label = strings.TrimSpace(item.Label)
+		item.SoundURL = strings.TrimSpace(item.SoundURL)
+		item.MCCommand = strings.TrimSpace(item.MCCommand)
+		item.ShortcutKeys = strings.TrimSpace(item.ShortcutKeys)
+
+		if item.Type == "like" && item.Label != "" {
+			n, err := strconv.Atoi(item.Label)
+			if err != nil || n < 0 {
+				return nil, fmt.Errorf("item #%d has invalid like label: %q", i+1, item.Label)
+			}
+		}
+
+		if item.Type == "gift" {
+			if item.GiftID <= 0 {
+				return nil, fmt.Errorf("item #%d is gift but gift_id is empty", i+1)
+			}
+			gift, ok := findGiftByID(gifts, item.GiftID)
+			if !ok {
+				return nil, fmt.Errorf("item #%d gift_id %d not found in gift list", i+1, item.GiftID)
+			}
+			item.GiftName = gift.NamaGift
+			item.Diamond = gift.Diamond
+		} else {
+			item.GiftID = 0
+			item.GiftName = ""
+			item.Diamond = 0
+		}
+
+		normalizeEventExecutionMode(&item)
+
+		if item.ID > 0 {
+			if _, exists := usedIDs[item.ID]; exists {
+				item.ID = 0
+			} else {
+				usedIDs[item.ID] = struct{}{}
+				if item.ID > maxID {
+					maxID = item.ID
+				}
+			}
+		} else {
+			item.ID = 0
+		}
+
+		out = append(out, item)
+	}
+
+	for i := range out {
+		if out[i].ID > 0 {
+			continue
+		}
+		maxID++
+		out[i].ID = maxID
+	}
+
+	return out, nil
+}
+
 func loadGiftListJSON(path string) ([]giftListJSONItem, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return []giftListJSONItem{}, nil
+		}
 		return nil, err
 	}
 	if len(strings.TrimSpace(string(b))) == 0 {
@@ -2197,6 +2731,232 @@ func loadProperties(path string) (map[string]string, error) {
 		out[key] = val
 	}
 	return out, nil
+}
+
+func fetchGiftCatalogFromUsername(username string) ([]giftCatalogItem, string, string, string, error) {
+	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	if username == "" {
+		return nil, "", "", "", fmt.Errorf("username is required")
+	}
+
+	tiktok, err := gotiktoklive.NewTikTok()
+	if err != nil {
+		return nil, "", "", "", err
+	}
+
+	roomID, region, err := resolveRoomInfoFromUsername(tiktok, username)
+	if err == nil && strings.TrimSpace(roomID) != "" {
+		gifts, fetchErr := fetchGiftCatalog(tiktok, roomID, username)
+		if fetchErr == nil && len(gifts) > 0 {
+			if strings.TrimSpace(region) == "" {
+				for _, g := range gifts {
+					if strings.TrimSpace(g.Region) != "" {
+						region = strings.TrimSpace(g.Region)
+						break
+					}
+				}
+			}
+			return gifts, roomID, region, "live_room", nil
+		}
+	}
+
+	// Fallback when the user is offline: try generic webcast gift list without room bind.
+	fallbackGifts, fallbackErr := fetchGiftCatalog(nil, "0", username)
+	if fallbackErr == nil && len(fallbackGifts) > 0 {
+		if strings.TrimSpace(region) == "" {
+			for _, g := range fallbackGifts {
+				if strings.TrimSpace(g.Region) != "" {
+					region = strings.TrimSpace(g.Region)
+					break
+				}
+			}
+		}
+		return fallbackGifts, "0", region, "web_fallback", nil
+	}
+
+	// Last fallback: keep service working using existing local gift cache.
+	cached, cacheErr := loadGiftListJSON(appGiftList)
+	if cacheErr == nil && len(cached) > 0 {
+		return toCatalogItemsFromGiftList(cached), "", region, "local_cache", nil
+	}
+
+	if err != nil {
+		return nil, "", "", "", err
+	}
+	if fallbackErr != nil {
+		return nil, "", "", "", fallbackErr
+	}
+	return nil, "", "", "", fmt.Errorf("failed to fetch gift catalog for @%s", username)
+}
+
+func toCatalogItemsFromGiftList(items []giftListJSONItem) []giftCatalogItem {
+	out := make([]giftCatalogItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, giftCatalogItem{
+			ID:        it.ID,
+			Name:      it.NamaGift,
+			Diamonds:  it.Diamond,
+			Region:    it.Region,
+			ImageURL:  it.ImageURL,
+			ImagePath: it.ImagePath,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Diamonds == out[j].Diamonds {
+			if out[i].Name == out[j].Name {
+				return out[i].ID < out[j].ID
+			}
+			return out[i].Name < out[j].Name
+		}
+		return out[i].Diamonds < out[j].Diamonds
+	})
+	return out
+}
+
+func resolveRoomInfoFromUsername(tiktok *gotiktoklive.TikTok, username string) (string, string, error) {
+	if tiktok == nil {
+		return "", "", fmt.Errorf("tiktok client is nil")
+	}
+	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	if username == "" {
+		return "", "", fmt.Errorf("username is required")
+	}
+
+	getRoomInfo := reflect.ValueOf(tiktok).MethodByName("GetRoomInfo")
+	if !getRoomInfo.IsValid() {
+		return "", "", fmt.Errorf("get room info is not available in current gotiktoklive version")
+	}
+	result := getRoomInfo.Call([]reflect.Value{reflect.ValueOf(username)})
+	if len(result) != 2 {
+		return "", "", fmt.Errorf("unexpected get room info response")
+	}
+
+	if !result[1].IsNil() {
+		if err, ok := result[1].Interface().(error); ok && err != nil {
+			return "", "", fmt.Errorf("failed to resolve room for @%s: %w", username, err)
+		}
+		return "", "", fmt.Errorf("failed to resolve room for @%s", username)
+	}
+	if result[0].IsNil() {
+		return "", "", fmt.Errorf("room info for @%s is empty", username)
+	}
+
+	roomInfo := result[0].Interface()
+	roomID := extractReflectStringValue(roomInfo, "RoomID", "RoomId", "room_id", "roomid", "ID", "Id", "id")
+	if strings.TrimSpace(roomID) == "" {
+		return "", "", fmt.Errorf("room_id not found for @%s; make sure the account is currently live", username)
+	}
+	region := extractReflectStringValue(roomInfo, "Region", "region", "Country", "country", "CountryCode", "country_code", "Area", "area")
+	return roomID, strings.TrimSpace(region), nil
+}
+
+func extractReflectStringValue(src any, names ...string) string {
+	if src == nil {
+		return ""
+	}
+	v := reflect.ValueOf(src)
+	for v.IsValid() {
+		if v.Kind() == reflect.Pointer {
+			if v.IsNil() {
+				return ""
+			}
+			v = v.Elem()
+			continue
+		}
+		break
+	}
+	if !v.IsValid() {
+		return ""
+	}
+
+	for _, name := range names {
+		if s := extractFieldString(v, name); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func extractFieldString(v reflect.Value, name string) string {
+	if !v.IsValid() {
+		return ""
+	}
+	switch v.Kind() {
+	case reflect.Struct:
+		f := v.FieldByName(name)
+		if f.IsValid() {
+			if s := valueToString(f); s != "" {
+				return s
+			}
+		}
+		for i := 0; i < v.NumField(); i++ {
+			if s := extractFieldString(v.Field(i), name); s != "" {
+				return s
+			}
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			ks := strings.TrimSpace(fmt.Sprintf("%v", key.Interface()))
+			if strings.EqualFold(ks, name) {
+				if s := valueToString(v.MapIndex(key)); s != "" {
+					return s
+				}
+			}
+			if s := extractFieldString(v.MapIndex(key), name); s != "" {
+				return s
+			}
+		}
+	case reflect.Interface, reflect.Pointer:
+		if v.IsNil() {
+			return ""
+		}
+		return extractFieldString(v.Elem(), name)
+	}
+	return ""
+}
+
+func valueToString(v reflect.Value) string {
+	if !v.IsValid() {
+		return ""
+	}
+	for v.IsValid() && (v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer) {
+		if v.IsNil() {
+			return ""
+		}
+		v = v.Elem()
+	}
+	if !v.IsValid() {
+		return ""
+	}
+	switch v.Kind() {
+	case reflect.String:
+		return strings.TrimSpace(v.String())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if v.Int() == 0 {
+			return ""
+		}
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		if v.Uint() == 0 {
+			return ""
+		}
+		return strconv.FormatUint(v.Uint(), 10)
+	case reflect.Float32, reflect.Float64:
+		if v.Float() == 0 {
+			return ""
+		}
+		return strconv.FormatFloat(v.Float(), 'f', -1, 64)
+	default:
+		return ""
+	}
+}
+
+func fallbackRegion(region string) string {
+	region = strings.TrimSpace(region)
+	if region == "" {
+		return "-"
+	}
+	return region
 }
 
 type giftCatalogItem struct {
@@ -2348,7 +3108,7 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 	return sortGiftCatalogItems(seen), nil
 }
 
-func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) {
+func saveGiftListJSON(path string, username string, gifts []giftCatalogItem) (string, error) {
 	_ = username
 
 	items := make([]giftListJSONItem, 0, len(gifts))
@@ -2367,10 +3127,10 @@ func saveGiftListJSON(username string, gifts []giftCatalogItem) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile("gift-list.json", b, 0644); err != nil {
+	if err := os.WriteFile(path, b, 0644); err != nil {
 		return "", err
 	}
-	return "gift-list.json", nil
+	return path, nil
 }
 
 func firstNonEmptyGiftImageURL(primary []string, extras []struct {
@@ -2434,7 +3194,7 @@ func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {
 		fileExt := detectGiftImageExt(imageURL, "")
 		targetPath := filepath.Join(dir, fileBase+fileExt)
 		if existingPath, ok := existingGiftImagePath(dir, fileBase); ok {
-			gifts[i].ImagePath = filepath.ToSlash(existingPath)
+			gifts[i].ImagePath = giftImageWebPathFromDiskPath(existingPath)
 			continue
 		}
 
@@ -2469,11 +3229,19 @@ func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {
 			continue
 		}
 
-		gifts[i].ImagePath = filepath.ToSlash(targetPath)
+		gifts[i].ImagePath = giftImageWebPathFromDiskPath(targetPath)
 		downloaded++
 	}
 
 	return downloaded, errs
+}
+
+func giftImageWebPathFromDiskPath(path string) string {
+	base := strings.TrimSpace(filepath.Base(path))
+	if base == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("giftimage", base))
 }
 
 func existingGiftImagePath(dir string, fileBase string) (string, bool) {

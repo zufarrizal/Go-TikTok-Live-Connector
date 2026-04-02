@@ -18,7 +18,8 @@
         <h2>Connect TikTok</h2>
         <div class="connect-row">
           <input id="username" type="text" value="masjup88" placeholder="TikTok username, e.g. masjup88" autocomplete="off" aria-label="TikTok username">
-          <button id="connectBtn" class="primary" type="button">Connect</button>
+          <button id="startBtn" class="primary" type="button">Start</button>
+          <button id="connectBtn" type="button">Connect</button>
           <button id="stopBtn" class="stop" type="button">Stop</button>
         </div>
       </section>
@@ -48,14 +49,14 @@
     <section class="tools-single">
       <section class="mc" aria-label="Minecraft Connector">
         <h2>Minecraft Connector</h2>
-        <div class="mc-row">
+        <div class="mc-row mc-rcon-row">
           <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" autocomplete="off" aria-label="RCON host">
           <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" aria-label="RCON port">
           <input id="mcPassword" type="text" value="123" placeholder="RCON password" autocomplete="off" aria-label="RCON password">
           <button id="mcConnectBtn" type="button">Connect RCON</button>
           <button id="mcDisconnectBtn" type="button">Disconnect</button>
         </div>
-        <div class="mc-row">
+        <div class="mc-row mc-command-row">
           <textarea id="mcCommand" rows="4" placeholder="Minecraft command, one command per line&#10;Example:&#10;list&#10;say Hello world" aria-label="Minecraft commands"></textarea>
           <button id="mcSendBtn" type="button">Send Command</button>
         </div>
@@ -67,7 +68,13 @@
       <section class="crud" aria-label="Event Panel">
         <div class="crud-top">
           <h2>Event Panel</h2>
-          <button id="openEventModalBtn" type="button">Add Event</button>
+          <div class="crud-top-actions">
+            <button id="exportEventsBtn" type="button">Export Events</button>
+            <button id="loadEventsBtn" type="button">Load Events</button>
+            <button id="resetEventsBtn" type="button">Reset Events</button>
+            <button id="openEventModalBtn" type="button">Add Event</button>
+            <input id="eventsJsonFile" class="visually-hidden-file" type="file" accept="application/json,.json">
+          </div>
         </div>
 
         <div class="crud-table-wrap">

@@ -20,6 +20,19 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -189,12 +202,13 @@ button:hover {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
 }
 
 .mc-row > * {
   flex: 1 1 200px;
   min-width: 180px;
+  align-self: stretch;
 }
 
 .mc-row textarea {
@@ -207,6 +221,88 @@ button:hover {
   height: var(--control-h);
   line-height: 1.2;
   overflow-y: auto;
+  resize: none;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+#mcConnectBtn,
+#mcDisconnectBtn,
+#mcSendBtn {
+  height: var(--control-h);
+  min-height: var(--control-h);
+  line-height: 1.2;
+}
+
+#testEventBtn,
+#mcConnectBtn,
+#mcSendBtn {
+  background: var(--primary);
+  border-color: var(--primary-border);
+  color: #ffffff;
+}
+
+#mcDisconnectBtn {
+  background: var(--danger);
+  border-color: var(--danger-border);
+  color: #ffffff;
+}
+
+#testEventBtn:hover,
+#mcConnectBtn:hover,
+#mcSendBtn:hover {
+  filter: brightness(1.08);
+}
+
+#mcDisconnectBtn:hover {
+  filter: brightness(1.08);
+}
+
+#mcHost,
+#mcPort,
+#mcPassword,
+#mcConnectBtn,
+#mcDisconnectBtn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#mcCommand {
+  flex: 3 1 0;
+  min-width: 0;
+}
+
+#mcSendBtn {
+  flex: 2 1 0;
+  min-width: 0;
+}
+
+.mc-rcon-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mc-rcon-row > * {
+  min-width: 0;
+  width: 100%;
+  height: var(--control-h);
+  min-height: var(--control-h);
+}
+
+.mc-command-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mc-command-row > * {
+  min-width: 0;
+  width: 100%;
+  height: var(--control-h);
+  min-height: var(--control-h);
 }
 
 #testEventRow {
@@ -296,10 +392,44 @@ button:hover {
   font-size: 16px;
 }
 
+.crud-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .crud-top button,
-#openEventModalBtn {
+#openEventModalBtn,
+#exportEventsBtn,
+#loadEventsBtn,
+#resetEventsBtn {
   background: var(--edit);
   border-color: var(--edit-border);
+}
+
+#openEventModalBtn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+#exportEventsBtn,
+#loadEventsBtn,
+#resetEventsBtn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+#resetEventsBtn {
+  background: var(--danger);
+  border-color: var(--danger-border);
+  color: #ffffff;
 }
 
 .crud-table-wrap {
@@ -319,7 +449,7 @@ button:hover {
   border: 1px solid var(--line);
   padding: 8px 9px;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -333,13 +463,15 @@ button:hover {
 .crud-table td button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 9px;
-  margin-right: 6px;
-  margin-bottom: 4px;
+  justify-content: flex-start;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  margin: 0;
   font-size: 12px;
+  border-radius: 6px;
+  text-align: left;
+  line-height: 1;
 }
 
 .crud-table td button.run {
@@ -378,6 +510,14 @@ button:hover {
 .crud-table th:nth-child(10),
 .crud-table td:nth-child(10) {
   white-space: nowrap;
+}
+
+.crud-table td:nth-child(10) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 4px;
 }
 
 .event-showcase {
@@ -894,6 +1034,32 @@ button:hover {
 
 .gift-picker-search {
   width: 100%;
+  height: var(--control-h);
+  min-height: var(--control-h);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  line-height: 1.2;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.gift-picker-search:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.gift-picker-search::-webkit-search-decoration,
+.gift-picker-search::-webkit-search-cancel-button,
+.gift-picker-search::-webkit-search-results-button,
+.gift-picker-search::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 
 .gift-picker-list {
@@ -965,14 +1131,16 @@ button:hover {
   height: 1080px;
   padding: 32px;
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 16px;
-  background: #0b1220;
+  grid-template-rows: 1fr;
+  gap: 0;
+  background: transparent;
 }
 
 .event-export-canvas .event-slider-window {
   height: 100%;
   padding: 20px;
+  background: transparent;
+  border: 0;
 }
 
 .event-export-grid .event-box-slide {
@@ -987,10 +1155,51 @@ button:hover {
 .event-export-grid .event-card-gift-image {
   max-width: 96px;
   max-height: 96px;
+  display: block;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 8px;
+  border: 2px solid rgba(15, 23, 42, 0.98);
+  outline: 0;
+  box-shadow: none;
+  -webkit-filter: none;
+  filter: none;
 }
 
 .event-export-grid .event-card-gift-subtitle {
   font-size: 40px;
+  color: #ffffff;
+  -webkit-text-stroke: 6px rgba(15, 23, 42, 1);
+  paint-order: stroke fill;
+  text-shadow:
+    -2px -2px 0 rgba(15, 23, 42, 1),
+    2px -2px 0 rgba(15, 23, 42, 1),
+    -2px 2px 0 rgba(15, 23, 42, 1),
+    2px 2px 0 rgba(15, 23, 42, 1),
+    -4px 0 0 rgba(15, 23, 42, 1),
+    4px 0 0 rgba(15, 23, 42, 1),
+    0 -4px 0 rgba(15, 23, 42, 1),
+    0 4px 0 rgba(15, 23, 42, 1),
+    -6px 0 0 rgba(15, 23, 42, 0.98),
+    6px 0 0 rgba(15, 23, 42, 0.98),
+    0 -6px 0 rgba(15, 23, 42, 0.98),
+    0 6px 0 rgba(15, 23, 42, 0.98),
+    0 16px 24px rgba(15, 23, 42, 0.82);
+}
+
+.event-export-grid .event-card-gift {
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.event-export-grid .event-card-gift-frame {
+  background: transparent;
+  border: 0;
+}
+
+.event-export-grid .event-card-gift-fallback {
+  color: #e2e8f0;
 }
 
 #events,
@@ -1007,6 +1216,17 @@ button:hover {
 .gift-picker-list::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+textarea {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+textarea::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 input[type="number"]::-webkit-outer-spin-button,
@@ -1082,5 +1302,10 @@ input[type="number"] {
 
   .event-card-gift-subtitle {
     font-size: 18px;
+  }
+
+  .mc-rcon-row,
+  .mc-command-row {
+    grid-template-columns: 1fr;
   }
 }

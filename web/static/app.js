@@ -38,6 +38,9 @@ const statusEl = document.getElementById("status");
     const testEventBtn = document.getElementById("testEventBtn");
     const testEventRowEl = document.getElementById("testEventRow");
     const mcOutputEl = document.getElementById("mcOutput");
+    const howToUseBtn = document.getElementById("howToUseBtn");
+    const howToModalEl = document.getElementById("howToModal");
+    const closeHowToModalBtn = document.getElementById("closeHowToModalBtn");
     const eventModalEl = document.getElementById("eventModal");
     const eventBoxModalEl = document.getElementById("eventBoxModal");
     const openEventModalBtn = document.getElementById("openEventModalBtn");
@@ -415,13 +418,47 @@ const statusEl = document.getElementById("status");
       return img;
     }
 
+    function isExclusiveGift(gift) {
+      if (!gift || typeof gift !== "object") return false;
+      return !!gift.is_exclusive || Number(gift.type || 0) >= 2;
+    }
+
+    function giftTierLabel(gift) {
+      return isExclusiveGift(gift) ? "Exclusive" : "Regular";
+    }
+
     function fillGiftSelect(selectEl, items) {
       selectEl.innerHTML = "<option value=\"\">Select Gift</option>";
-      for (const g of items) {
-        const opt = document.createElement("option");
-        opt.value = String(g.id);
-        opt.textContent = g.nama_gift + " (" + g.diamond + ")";
-        selectEl.appendChild(opt);
+      const regular = [];
+      const exclusive = [];
+      for (const g of items || []) {
+        if (isExclusiveGift(g)) {
+          exclusive.push(g);
+        } else {
+          regular.push(g);
+        }
+      }
+      const appendGroup = (label, list) => {
+        if (!list.length) return;
+        const group = document.createElement("optgroup");
+        group.label = label;
+        for (const g of list) {
+          const opt = document.createElement("option");
+          opt.value = String(g.id);
+          opt.textContent = g.nama_gift + " (" + g.diamond + ")";
+          group.appendChild(opt);
+        }
+        selectEl.appendChild(group);
+      };
+      appendGroup("Regular", regular);
+      appendGroup("Exclusive", exclusive);
+      if (!regular.length && !exclusive.length) {
+        for (const g of items || []) {
+          const opt = document.createElement("option");
+          opt.value = String(g.id);
+          opt.textContent = g.nama_gift + " (" + g.diamond + ")";
+          selectEl.appendChild(opt);
+        }
       }
     }
 
@@ -815,7 +852,7 @@ const statusEl = document.getElementById("status");
 
         const copy = document.createElement("span");
         copy.className = "gift-picker-copy";
-        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected.nama_gift) + "</span>";
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(giftTierLabel(selected)) + "</span>";
         selectedWrap.appendChild(createGiftThumb(resolveGiftImageSrc(selected), selected.nama_gift || "Gift"));
         selectedWrap.appendChild(copy);
       }
@@ -848,7 +885,7 @@ const statusEl = document.getElementById("status");
 
           const copy = document.createElement("span");
           copy.className = "gift-picker-option-copy";
-          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(g.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(g.diamond) + " diamonds - ID " + esc(g.id) + "</span>";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(g.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(giftTierLabel(g)) + " - " + esc(g.diamond) + " diamonds - ID " + esc(g.id) + "</span>";
           option.appendChild(createGiftThumb(resolveGiftImageSrc(g), g.nama_gift || "Gift"));
           option.appendChild(copy);
           option.addEventListener("click", () => {
@@ -1408,6 +1445,18 @@ const statusEl = document.getElementById("status");
       eventModalEl.setAttribute("aria-hidden", "true");
     }
 
+    function openHowToModal() {
+      if (!howToModalEl) return;
+      howToModalEl.classList.add("show");
+      howToModalEl.setAttribute("aria-hidden", "false");
+    }
+
+    function closeHowToModal() {
+      if (!howToModalEl) return;
+      howToModalEl.classList.remove("show");
+      howToModalEl.setAttribute("aria-hidden", "true");
+    }
+
     function syncEventBoxPopup() {
       if (!eventBoxRowsPopupEl || !eventPaginationPopupEl) return;
       eventBoxRowsPopupEl.innerHTML = eventBoxRowsEl ? eventBoxRowsEl.innerHTML : "";
@@ -1490,7 +1539,13 @@ const statusEl = document.getElementById("status");
         const res = await fetch("/api/gifts");
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "failed to load gift-list.json");
-        giftOptions = data.items || [];
+        const regular = Array.isArray(data.items_regular) ? data.items_regular : [];
+        const exclusive = Array.isArray(data.items_exclusive) ? data.items_exclusive : [];
+        if (regular.length > 0 || exclusive.length > 0) {
+          giftOptions = [...regular, ...exclusive];
+        } else {
+          giftOptions = data.items || [];
+        }
         giftImageVersion = Date.now();
         refreshEventGiftOptions();
         fillGiftSelect(testEventGiftEl, giftOptions);
@@ -2188,6 +2243,18 @@ const statusEl = document.getElementById("status");
       });
     }
 
+    if (howToUseBtn) {
+      howToUseBtn.addEventListener("click", () => {
+        openHowToModal();
+      });
+    }
+
+    if (closeHowToModalBtn) {
+      closeHowToModalBtn.addEventListener("click", () => {
+        closeHowToModal();
+      });
+    }
+
     eventModalEl.addEventListener("click", (e) => {
       if (e.target === eventModalEl) {
         closeEventModal();
@@ -2201,6 +2268,21 @@ const statusEl = document.getElementById("status");
         }
       });
     }
+
+    if (howToModalEl) {
+      howToModalEl.addEventListener("click", (e) => {
+        if (e.target === howToModalEl) {
+          closeHowToModal();
+        }
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (howToModalEl && howToModalEl.classList.contains("show")) {
+        closeHowToModal();
+      }
+    });
 
     async function handleEventActionClick(e) {
       const btn = e.target.closest("button");

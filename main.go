@@ -859,11 +859,11 @@ type likeGoalManager struct {
 
 func newLikeGoalManager(settingsPath string, hub *eventHub, store *eventStore, auto *mcEventAutomation) (*likeGoalManager, error) {
 	m := &likeGoalManager{
-		settingsPath: settingsPath,
-		hub:          hub,
-		store:        store,
-		auto:         auto,
-		state:        defaultLikeGoalState(),
+		settingsPath:         settingsPath,
+		hub:                  hub,
+		store:                store,
+		auto:                 auto,
+		state:                defaultLikeGoalState(),
 		awaitingLiveBaseline: true,
 	}
 	if err := m.load(); err != nil {
@@ -1320,7 +1320,7 @@ type mcEventAutomation struct {
 	giftCombo map[int64]giftComboProgress
 	// Tracks cumulative like counts per username for this runtime session.
 	likeTotals map[string]int
-	queue     chan queuedMCTrigger
+	queue      chan queuedMCTrigger
 }
 
 type giftComboProgress struct {
@@ -1345,12 +1345,12 @@ type queuedMCTrigger struct {
 
 func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub) *mcEventAutomation {
 	a := &mcEventAutomation{
-		store:     store,
-		rcon:      rcon,
-		hub:       hub,
-		giftCombo: make(map[int64]giftComboProgress),
+		store:      store,
+		rcon:       rcon,
+		hub:        hub,
+		giftCombo:  make(map[int64]giftComboProgress),
 		likeTotals: make(map[string]int),
-		queue:     make(chan queuedMCTrigger, 512),
+		queue:      make(chan queuedMCTrigger, 512),
 	}
 	go a.processQueue()
 	return a
@@ -2798,7 +2798,14 @@ func main() {
 			}
 			return items[i].Diamond < items[j].Diamond
 		})
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		regular, exclusive := splitGiftListByExclusivity(items)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"items":           items,
+			"items_regular":   regular,
+			"items_exclusive": exclusive,
+			"count_regular":   len(regular),
+			"count_exclusive": len(exclusive),
+		})
 	})
 
 	http.HandleFunc("/api/gifts/refresh", func(w http.ResponseWriter, r *http.Request) {
@@ -3712,13 +3719,20 @@ func fetchGiftCatalogFromUsername(username string) ([]giftCatalogItem, string, s
 func toCatalogItemsFromGiftList(items []giftListJSONItem) []giftCatalogItem {
 	out := make([]giftCatalogItem, 0, len(items))
 	for _, it := range items {
+		giftType := it.Type
+		if giftType == 0 && it.IsExclusive {
+			giftType = 2
+		}
+		isExclusive := it.IsExclusive || isExclusiveGiftType(giftType)
 		out = append(out, giftCatalogItem{
-			ID:        it.ID,
-			Name:      it.NamaGift,
-			Diamonds:  it.Diamond,
-			Region:    it.Region,
-			ImageURL:  it.ImageURL,
-			ImagePath: it.ImagePath,
+			ID:          it.ID,
+			Name:        it.NamaGift,
+			Diamonds:    it.Diamond,
+			Type:        giftType,
+			IsExclusive: isExclusive,
+			Region:      it.Region,
+			ImageURL:    it.ImageURL,
+			ImagePath:   it.ImagePath,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -4017,24 +4031,44 @@ func fallbackRegion(region string) string {
 	return region
 }
 
+func isExclusiveGiftType(giftType int) bool {
+	return giftType >= 2
+}
+
+func splitGiftListByExclusivity(items []giftListJSONItem) ([]giftListJSONItem, []giftListJSONItem) {
+	regular := make([]giftListJSONItem, 0, len(items))
+	exclusive := make([]giftListJSONItem, 0, len(items))
+	for _, it := range items {
+		if it.IsExclusive || isExclusiveGiftType(it.Type) {
+			exclusive = append(exclusive, it)
+			continue
+		}
+		regular = append(regular, it)
+	}
+	return regular, exclusive
+}
+
 type giftCatalogItem struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Describe  string `json:"describe"`
-	Diamonds  int    `json:"diamonds"`
-	Type      int    `json:"type"`
-	Region    string `json:"region,omitempty"`
-	ImageURL  string `json:"image_url,omitempty"`
-	ImagePath string `json:"image_path,omitempty"`
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Describe    string `json:"describe"`
+	Diamonds    int    `json:"diamonds"`
+	Type        int    `json:"type"`
+	IsExclusive bool   `json:"is_exclusive"`
+	Region      string `json:"region,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+	ImagePath   string `json:"image_path,omitempty"`
 }
 
 type giftListJSONItem struct {
-	ID        int    `json:"id"`
-	NamaGift  string `json:"nama_gift"`
-	Diamond   int    `json:"diamond"`
-	Region    string `json:"region,omitempty"`
-	ImageURL  string `json:"image_url,omitempty"`
-	ImagePath string `json:"image_path,omitempty"`
+	ID          int    `json:"id"`
+	NamaGift    string `json:"nama_gift"`
+	Diamond     int    `json:"diamond"`
+	Type        int    `json:"type,omitempty"`
+	IsExclusive bool   `json:"is_exclusive,omitempty"`
+	Region      string `json:"region,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+	ImagePath   string `json:"image_path,omitempty"`
 }
 
 func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username string) ([]giftCatalogItem, error) {
@@ -4133,12 +4167,13 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 			continue
 		}
 		seen[g.ID] = giftCatalogItem{
-			ID:       g.ID,
-			Name:     g.Name,
-			Describe: g.Describe,
-			Diamonds: g.DiamondCount,
-			Type:     g.Type,
-			ImageURL: firstNonEmptyGiftImageURL(g.Image.URLList, g.Images),
+			ID:          g.ID,
+			Name:        g.Name,
+			Describe:    g.Describe,
+			Diamonds:    g.DiamondCount,
+			Type:        g.Type,
+			IsExclusive: isExclusiveGiftType(g.Type),
+			ImageURL:    firstNonEmptyGiftImageURL(g.Image.URLList, g.Images),
 		}
 	}
 	return sortGiftCatalogItems(seen), nil
@@ -4150,12 +4185,14 @@ func saveGiftListJSON(path string, username string, gifts []giftCatalogItem) (st
 	items := make([]giftListJSONItem, 0, len(gifts))
 	for _, g := range gifts {
 		items = append(items, giftListJSONItem{
-			ID:        g.ID,
-			NamaGift:  g.Name,
-			Diamond:   g.Diamonds,
-			Region:    g.Region,
-			ImageURL:  g.ImageURL,
-			ImagePath: g.ImagePath,
+			ID:          g.ID,
+			NamaGift:    g.Name,
+			Diamond:     g.Diamonds,
+			Type:        g.Type,
+			IsExclusive: g.IsExclusive || isExclusiveGiftType(g.Type),
+			Region:      g.Region,
+			ImageURL:    g.ImageURL,
+			ImagePath:   g.ImagePath,
 		})
 	}
 

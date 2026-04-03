@@ -11,6 +11,7 @@
     <header class="head">
       <h1 class="title">Go-TikTok-Live-Connector</h1>
       <div class="head-actions">
+        <button id="howToUseBtn" type="button">How to Use</button>
         <button id="appSettingsSaveBtn" type="button">Save</button>
       </div>
     </header>
@@ -225,6 +226,23 @@
             <button id="saveEventBtn" type="submit" class="save">Save</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="howToModal" class="modal" aria-hidden="true">
+      <div class="modal-card howto-modal-card" role="dialog" aria-modal="true" aria-labelledby="howToModalTitle">
+        <div class="modal-head">
+          <h3 id="howToModalTitle">How to Use</h3>
+          <button id="closeHowToModalBtn" type="button">Close</button>
+        </div>
+        <div class="howto-content">
+          <ol>
+            <li>Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start</li>
+            <li>Jika server minecraft sudah jalan bisa tekan tombol connect rcon</li>
+            <li>Jika live tiktok sudah berjalan bisa tekan connect</li>
+          </ol>
+          <p>Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator</p>
+        </div>
       </div>
     </div>
 

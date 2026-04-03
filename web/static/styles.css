@@ -82,6 +82,16 @@ body {
   color: #ffffff;
 }
 
+#howToUseBtn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--edit);
+  border-color: var(--edit-border);
+  color: #ffffff;
+}
+
 .toast-host {
   position: fixed;
   top: 16px;
@@ -1396,6 +1406,28 @@ button:hover {
 .modal-actions .save {
   background: var(--edit);
   border-color: var(--edit-border);
+}
+
+.howto-modal-card {
+  max-width: 620px;
+}
+
+.howto-content {
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.howto-content ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.howto-content p {
+  margin: 0;
 }
 
 .sound-picker {

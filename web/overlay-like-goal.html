@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Like Goal Overlay</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="overlay-page">
+  <main class="like-goal-overlay">
+    <div class="like-goal-overlay-glow" aria-hidden="true"></div>
+    <div class="like-goal-overlay-head">
+      <div class="like-goal-overlay-head-main">
+        <div id="overlayLikeGoalTitle" class="like-goal-overlay-title">Like Goal</div>
+        <div id="overlayLikeGoalValue" class="like-goal-overlay-value">0 / 1,000</div>
+      </div>
+      <div class="like-goal-overlay-live">LIVE</div>
+    </div>
+    <div class="like-goal-overlay-track">
+      <div id="overlayLikeGoalFill" class="like-goal-overlay-fill"></div>
+      <div id="overlayLikeGoalPercent" class="like-goal-overlay-percent">0%</div>
+    </div>
+  </main>
+  <script src="/static/overlay-like-goal.js"></script>
+</body>
+</html>

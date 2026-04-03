@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"io"
+	"io/fs"
 	"log"
 	"mime"
 	"net"
@@ -30,7 +30,7 @@ import (
 	"github.com/steampoweredtaco/gotiktoklive"
 )
 
-//go:embed web/index.html web/static/**
+//go:embed web/*.html web/static/**
 var embeddedWebFS embed.FS
 
 var (
@@ -39,6 +39,7 @@ var (
 	appGiftList   string
 	appGiftImage  string
 	appSoundsDir  string
+	appSettings   string
 )
 
 const defaultUsernameAllowlistURL = "https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt"
@@ -300,6 +301,35 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"time":  time.Now().Format(time.RFC3339),
 			}))
 			c.broadcastReconnect(username)
+			if !sleepOrCancel(ctx, streamReconnectDelay) {
+				return
+			}
+			continue
+		}
+
+		_, _, totalLikes, hasTotalLikes, isLive, infoErr := resolveLiveInfoFromUsername(tiktok, username)
+		if infoErr != nil {
+			c.hub.broadcast(mustJSON(map[string]any{
+				"type":  "error",
+				"error": infoErr.Error(),
+				"time":  time.Now().Format(time.RFC3339),
+			}))
+		}
+		if c.onEvent != nil {
+			c.onEvent(likeGoalSyncEvent{
+				Username:      username,
+				Live:          isLive,
+				HasTotalLikes: hasTotalLikes,
+				TotalLikes:    totalLikes,
+				Source:        "reconnect_probe",
+			})
+		}
+		if !isLive {
+			c.hub.broadcast(mustJSON(map[string]any{
+				"type":    "status",
+				"message": fmt.Sprintf("@%s is not live yet. Rechecking in %ds...", username, int(streamReconnectDelay/time.Second)),
+				"time":    time.Now().Format(time.RFC3339),
+			}))
 			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
 			}
@@ -795,6 +825,492 @@ func (s *eventStore) getByID(id int) (eventRecord, bool) {
 	return eventRecord{}, false
 }
 
+type likeGoalState struct {
+	Title           string `json:"title"`
+	Goal            int    `json:"goal"`
+	CurrentGoal     int    `json:"current_goal"`
+	CurrentLikes    int    `json:"current_likes"`
+	Mode            string `json:"mode"`
+	TriggerEventID  int    `json:"trigger_event_id"`
+	Enabled         bool   `json:"enabled"`
+	TriggerCount    int    `json:"trigger_count"`
+	LastTriggeredAt string `json:"last_triggered_at,omitempty"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
+}
+
+type likeGoalSyncEvent struct {
+	Username      string
+	Live          bool
+	HasTotalLikes bool
+	TotalLikes    int
+	Source        string
+}
+
+type likeGoalManager struct {
+	mu           sync.Mutex
+	settingsPath string
+	hub          *eventHub
+	store        *eventStore
+	auto         *mcEventAutomation
+	state        likeGoalState
+	// Guard to prevent replay triggers before live total likes baseline is loaded.
+	awaitingLiveBaseline bool
+}
+
+func newLikeGoalManager(settingsPath string, hub *eventHub, store *eventStore, auto *mcEventAutomation) (*likeGoalManager, error) {
+	m := &likeGoalManager{
+		settingsPath: settingsPath,
+		hub:          hub,
+		store:        store,
+		auto:         auto,
+		state:        defaultLikeGoalState(),
+		awaitingLiveBaseline: true,
+	}
+	if err := m.load(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func defaultLikeGoalState() likeGoalState {
+	return likeGoalState{
+		Title:        "Like Goal",
+		Goal:         1000,
+		CurrentGoal:  1000,
+		CurrentLikes: 0,
+		Mode:         "increase",
+		Enabled:      true,
+		UpdatedAt:    time.Now().Format(time.RFC3339),
+	}
+}
+
+func normalizeLikeGoalState(state *likeGoalState) {
+	if state == nil {
+		return
+	}
+	state.Title = strings.TrimSpace(state.Title)
+	if state.Title == "" {
+		state.Title = "Like Goal"
+	}
+	if state.Goal <= 0 {
+		state.Goal = 1000
+	}
+	if state.CurrentGoal <= 0 {
+		state.CurrentGoal = state.Goal
+	}
+	mode := strings.ToLower(strings.TrimSpace(state.Mode))
+	if mode != "double" {
+		mode = "increase"
+	}
+	state.Mode = mode
+	if state.CurrentLikes < 0 {
+		state.CurrentLikes = 0
+	}
+	if state.TriggerCount < 0 {
+		state.TriggerCount = 0
+	}
+}
+
+func (m *likeGoalManager) load() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	settings, err := loadUnifiedSettings(m.settingsPath)
+	if err != nil {
+		return err
+	}
+
+	next := defaultLikeGoalState()
+	next.Title = settings.LikeGoal.Title
+	next.Goal = settings.LikeGoal.Goal
+	next.CurrentGoal = settings.LikeGoal.Goal
+	next.Mode = settings.LikeGoal.Mode
+	next.TriggerEventID = settings.LikeGoal.TriggerEventID
+	next.Enabled = settings.LikeGoal.Enabled
+	if settings.LikeGoalState != nil {
+		if settings.LikeGoalState.CurrentGoal > 0 {
+			next.CurrentGoal = settings.LikeGoalState.CurrentGoal
+		}
+		next.CurrentLikes = settings.LikeGoalState.CurrentLikes
+		next.TriggerCount = settings.LikeGoalState.TriggerCount
+		next.LastTriggeredAt = settings.LikeGoalState.LastTriggeredAt
+		next.UpdatedAt = settings.LikeGoalState.UpdatedAt
+	}
+	normalizeLikeGoalState(&next)
+	m.state = next
+	return m.saveLocked()
+}
+
+func (m *likeGoalManager) saveLocked() error {
+	m.state.UpdatedAt = time.Now().Format(time.RFC3339)
+	settings, err := loadUnifiedSettings(m.settingsPath)
+	if err != nil {
+		return err
+	}
+	stateCopy := m.state
+	settings.LikeGoal = unifiedSettingsLikeGoal{
+		Title:          m.state.Title,
+		Goal:           m.state.Goal,
+		Mode:           m.state.Mode,
+		TriggerEventID: m.state.TriggerEventID,
+		Enabled:        m.state.Enabled,
+	}
+	settings.LikeGoalState = &stateCopy
+	return saveUnifiedSettings(m.settingsPath, settings)
+}
+
+func (m *likeGoalManager) snapshotLocked() likeGoalState {
+	cp := m.state
+	return cp
+}
+
+func (m *likeGoalManager) State() likeGoalState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.snapshotLocked()
+}
+
+func (m *likeGoalManager) broadcastStateLocked(reason string) {
+	if m.hub == nil {
+		return
+	}
+	m.hub.broadcast(mustJSON(map[string]any{
+		"type":   "like_goal_state",
+		"state":  m.snapshotLocked(),
+		"reason": strings.TrimSpace(reason),
+		"time":   time.Now().Format(time.RFC3339),
+	}))
+}
+
+func (m *likeGoalManager) Configure(title string, goal int, mode string, triggerEventID int, enabled bool, resetProgress bool) (likeGoalState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if goal <= 0 {
+		return likeGoalState{}, fmt.Errorf("goal must be greater than 0")
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "increase" && mode != "double" {
+		return likeGoalState{}, fmt.Errorf("mode must be increase or double")
+	}
+	if triggerEventID > 0 {
+		if _, ok := m.store.getByID(triggerEventID); !ok {
+			return likeGoalState{}, fmt.Errorf("trigger event not found")
+		}
+	}
+
+	m.state.Title = strings.TrimSpace(title)
+	if m.state.Title == "" {
+		m.state.Title = "Like Goal"
+	}
+	m.state.Goal = goal
+	m.state.Mode = mode
+	m.state.TriggerEventID = triggerEventID
+	m.state.Enabled = enabled
+	if resetProgress || m.state.CurrentGoal <= 0 {
+		m.state.CurrentLikes = 0
+		m.state.CurrentGoal = goal
+		m.state.TriggerCount = 0
+		m.state.LastTriggeredAt = ""
+	}
+	normalizeLikeGoalState(&m.state)
+	if err := m.saveLocked(); err != nil {
+		return likeGoalState{}, err
+	}
+	m.broadcastStateLocked("config_updated")
+	return m.snapshotLocked(), nil
+}
+
+func (m *likeGoalManager) ResetProgress() (likeGoalState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.state.CurrentLikes = 0
+	m.state.CurrentGoal = m.state.Goal
+	m.state.TriggerCount = 0
+	m.state.LastTriggeredAt = ""
+	normalizeLikeGoalState(&m.state)
+	if err := m.saveLocked(); err != nil {
+		return likeGoalState{}, err
+	}
+	m.broadcastStateLocked("progress_reset")
+	return m.snapshotLocked(), nil
+}
+
+func nextLikeGoalThreshold(current int, base int, mode string) int {
+	if base <= 0 {
+		base = 1
+	}
+	maxInt := int(^uint(0) >> 1)
+	if mode == "double" {
+		if current > (1<<30) || current > maxInt/2 {
+			if current > maxInt-base {
+				return maxInt
+			}
+			return current + base
+		}
+		return current * 2
+	}
+	if current > maxInt-base {
+		return maxInt
+	}
+	return current + base
+}
+
+func (m *likeGoalManager) applyAbsoluteLikesLocked(totalLikes int) bool {
+	if totalLikes < 0 {
+		totalLikes = 0
+	}
+	normalizeLikeGoalState(&m.state)
+
+	changed := m.state.CurrentLikes != totalLikes
+	m.state.CurrentLikes = totalLikes
+	m.state.TriggerCount = 0
+	m.state.LastTriggeredAt = ""
+
+	nextGoal := m.state.Goal
+	for nextGoal > 0 && totalLikes >= nextGoal && m.state.TriggerCount < 100000 {
+		m.state.TriggerCount++
+		advanced := nextLikeGoalThreshold(nextGoal, m.state.Goal, m.state.Mode)
+		if advanced <= nextGoal {
+			break
+		}
+		nextGoal = advanced
+	}
+	if nextGoal <= 0 {
+		nextGoal = m.state.Goal
+	}
+	if m.state.CurrentGoal != nextGoal {
+		changed = true
+	}
+	m.state.CurrentGoal = nextGoal
+	normalizeLikeGoalState(&m.state)
+	return changed
+}
+
+func (m *likeGoalManager) SyncAbsoluteLikes(totalLikes int, reason string) (likeGoalState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if !m.applyAbsoluteLikesLocked(totalLikes) {
+		return m.snapshotLocked(), nil
+	}
+	if err := m.saveLocked(); err != nil {
+		return likeGoalState{}, err
+	}
+	m.broadcastStateLocked(reason)
+	return m.snapshotLocked(), nil
+}
+
+func (m *likeGoalManager) SyncFromUsername(username string, reasonLive string, reasonOffline string) error {
+	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	if username == "" {
+		return nil
+	}
+	tiktok, err := gotiktoklive.NewTikTok()
+	if err != nil {
+		return err
+	}
+	_, _, totalLikes, hasTotalLikes, isLive, err := resolveLiveInfoFromUsername(tiktok, username)
+	if err != nil {
+		return err
+	}
+	if !isLive {
+		m.mu.Lock()
+		m.awaitingLiveBaseline = true
+		m.mu.Unlock()
+		_, err = m.SyncAbsoluteLikes(0, reasonOffline)
+		return err
+	}
+	if hasTotalLikes {
+		_, err = m.SyncAbsoluteLikes(totalLikes, reasonLive)
+		if err == nil {
+			m.mu.Lock()
+			m.awaitingLiveBaseline = false
+			m.mu.Unlock()
+		}
+		return err
+	}
+	return nil
+}
+
+func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
+	m.mu.Lock()
+	state := m.snapshotLocked()
+	triggerEventID := m.state.TriggerEventID
+	m.mu.Unlock()
+
+	if triggerEventID <= 0 {
+		if m.hub != nil {
+			m.hub.broadcast(mustJSON(map[string]any{
+				"type":    "status",
+				"message": "Like goal test sent (no trigger event configured)",
+				"time":    time.Now().Format(time.RFC3339),
+			}))
+		}
+		return state, nil
+	}
+
+	rule, ok := m.store.getByID(triggerEventID)
+	if !ok {
+		return state, fmt.Errorf("like goal trigger event #%d not found", triggerEventID)
+	}
+
+	vars := map[string]string{
+		"event_type":   "like_goal_test",
+		"username":     "LikeGoalTester",
+		"nickname":     "LikeGoalTester",
+		"follow":       "true",
+		"likes":        "1",
+		"total_likes":  strconv.Itoa(state.CurrentLikes),
+		"repeat_count": "1",
+	}
+
+	if m.auto != nil {
+		m.auto.enqueueTrigger(queuedMCTrigger{
+			rule:         rule,
+			eventType:    "like_goal_test",
+			giftID:       0,
+			vars:         vars,
+			command:      applyCommandTemplate(rule.MCCommand, vars),
+			runMCCommand: rule.RunMCCommand,
+			shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, vars),
+			shortcutHold: rule.ShortcutHold,
+			runShortcut:  rule.RunShortcut,
+			queuedAt:     time.Now(),
+		})
+	}
+
+	if m.hub != nil {
+		m.hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": "Like goal test sent (progress unchanged)",
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+	}
+	return state, nil
+}
+
+func (m *likeGoalManager) HandleLiveEvent(ev any) {
+	if syncEvent, ok := ev.(likeGoalSyncEvent); ok {
+		if !syncEvent.Live {
+			m.mu.Lock()
+			m.awaitingLiveBaseline = true
+			m.mu.Unlock()
+			_, _ = m.SyncAbsoluteLikes(0, "live_offline")
+			return
+		}
+		if syncEvent.HasTotalLikes {
+			_, _ = m.SyncAbsoluteLikes(syncEvent.TotalLikes, "live_room_sync")
+			m.mu.Lock()
+			m.awaitingLiveBaseline = false
+			m.mu.Unlock()
+		}
+		return
+	}
+
+	likeEvent, ok := ev.(gotiktoklive.LikeEvent)
+	if !ok {
+		return
+	}
+
+	username := historyUsernameFromEvent(likeEvent, likeEvent.User)
+	nickname := safeNicknameFromUser(likeEvent.User)
+	follow := strconv.FormatBool(isFollowerFromIdentity(nil, likeEvent.User))
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Do not trigger goals until we have loaded an absolute total-like baseline.
+	if m.awaitingLiveBaseline {
+		if likeEvent.TotalLikes > 0 {
+			changed := m.applyAbsoluteLikesLocked(likeEvent.TotalLikes)
+			m.awaitingLiveBaseline = false
+			if changed {
+				_ = m.saveLocked()
+				m.broadcastStateLocked("baseline_initialized")
+			}
+		}
+		return
+	}
+
+	if m.state.CurrentLikes < likeEvent.TotalLikes {
+		m.state.CurrentLikes = likeEvent.TotalLikes
+	} else if likeEvent.TotalLikes <= 0 && likeEvent.Likes > 0 {
+		m.state.CurrentLikes += likeEvent.Likes
+	}
+	if m.state.CurrentLikes < 0 {
+		m.state.CurrentLikes = 0
+	}
+
+	triggerCount := 0
+	for m.state.Enabled && m.state.TriggerEventID > 0 && m.state.CurrentLikes >= m.state.CurrentGoal {
+		rule, ok := m.store.getByID(m.state.TriggerEventID)
+		if !ok {
+			m.state.Enabled = false
+			if m.hub != nil {
+				m.hub.broadcast(mustJSON(map[string]any{
+					"type":  "error",
+					"error": fmt.Sprintf("like goal trigger event #%d not found", m.state.TriggerEventID),
+					"time":  time.Now().Format(time.RFC3339),
+				}))
+			}
+			break
+		}
+
+		vars := map[string]string{
+			"event_type":   "like_goal",
+			"username":     username,
+			"nickname":     nickname,
+			"follow":       follow,
+			"likes":        strconv.Itoa(likeEvent.Likes),
+			"total_likes":  strconv.Itoa(m.state.CurrentLikes),
+			"repeat_count": "1",
+		}
+		if m.auto != nil {
+			m.auto.enqueueTrigger(queuedMCTrigger{
+				rule:         rule,
+				eventType:    "like_goal",
+				giftID:       0,
+				vars:         vars,
+				command:      applyCommandTemplate(rule.MCCommand, vars),
+				runMCCommand: rule.RunMCCommand,
+				shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, vars),
+				shortcutHold: rule.ShortcutHold,
+				runShortcut:  rule.RunShortcut,
+				queuedAt:     time.Now(),
+			})
+		}
+
+		m.state.TriggerCount++
+		m.state.LastTriggeredAt = time.Now().Format(time.RFC3339)
+		if m.state.Mode == "double" {
+			if m.state.CurrentGoal > (1 << 30) {
+				m.state.CurrentGoal += m.state.Goal
+			} else {
+				m.state.CurrentGoal *= 2
+			}
+		} else {
+			m.state.CurrentGoal += m.state.Goal
+		}
+		if m.state.CurrentGoal <= 0 {
+			m.state.CurrentGoal = m.state.Goal
+		}
+		triggerCount++
+		if triggerCount >= 20 {
+			break
+		}
+	}
+
+	normalizeLikeGoalState(&m.state)
+	_ = m.saveLocked()
+	if triggerCount > 0 {
+		m.broadcastStateLocked("goal_reached")
+		return
+	}
+	m.broadcastStateLocked("likes_updated")
+}
+
 type mcEventAutomation struct {
 	store *eventStore
 	rcon  *mcRCONManager
@@ -802,6 +1318,8 @@ type mcEventAutomation struct {
 	mu    sync.Mutex
 	// Tracks grouped gift combo progression by TikTok GroupID.
 	giftCombo map[int64]giftComboProgress
+	// Tracks cumulative like counts per username for this runtime session.
+	likeTotals map[string]int
 	queue     chan queuedMCTrigger
 }
 
@@ -831,6 +1349,7 @@ func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub)
 		rcon:      rcon,
 		hub:       hub,
 		giftCombo: make(map[int64]giftComboProgress),
+		likeTotals: make(map[string]int),
 		queue:     make(chan queuedMCTrigger, 512),
 	}
 	go a.processQueue()
@@ -919,6 +1438,18 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	if eventType == "" {
 		return
 	}
+	if eventType == "like" {
+		username := strings.TrimSpace(vars["username"])
+		delta, err := strconv.Atoi(strings.TrimSpace(vars["likes"]))
+		if err != nil || delta <= 0 {
+			delta = 1
+		}
+		prevTotal, currTotal := a.addLikeTotal(username, delta)
+		vars["likes_delta"] = strconv.Itoa(delta)
+		vars["likes_prev"] = strconv.Itoa(prevTotal)
+		// Keep `likes` as cumulative like amount per username.
+		vars["likes"] = strconv.Itoa(currTotal)
+	}
 	if eventType == "gift" {
 		shouldProcess, totalRepeatCount := a.normalizeGiftCounts(ev, loopCount)
 		if !shouldProcess {
@@ -961,6 +1492,25 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	}
 }
 
+func (a *mcEventAutomation) addLikeTotal(username string, delta int) (int, int) {
+	if delta <= 0 {
+		delta = 1
+	}
+	key := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(username, "@")))
+	if key == "" {
+		key = "testplayer"
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	prev := a.likeTotals[key]
+	next := prev + delta
+	if next < 0 {
+		next = prev
+	}
+	a.likeTotals[key] = next
+	return prev, next
+}
+
 func ruleLabelMatches(rule eventRecord, vars map[string]string) bool {
 	label := strings.TrimSpace(rule.Label)
 	if label == "" {
@@ -972,14 +1522,24 @@ func ruleLabelMatches(rule eventRecord, vars map[string]string) bool {
 		return strings.Contains(comment, strings.ToLower(label))
 	case "like":
 		target, err := strconv.Atoi(label)
-		if err != nil || target < 0 {
+		if err != nil || target <= 0 {
 			return false
 		}
 		current, err := strconv.Atoi(strings.TrimSpace(vars["likes"]))
 		if err != nil {
 			return false
 		}
-		return current == target
+		prev := 0
+		if rawPrev := strings.TrimSpace(vars["likes_prev"]); rawPrev != "" {
+			if parsedPrev, parseErr := strconv.Atoi(rawPrev); parseErr == nil && parsedPrev > 0 {
+				prev = parsedPrev
+			}
+		}
+		if current < target {
+			return false
+		}
+		// Trigger only when crossing target boundary to avoid re-trigger every event.
+		return (prev / target) < (current / target)
 	default:
 		return true
 	}
@@ -1600,7 +2160,25 @@ func main() {
 	usernameAllowlist := newGithubUsernameAllowlist(defaultUsernameAllowlistURL, 30*time.Second)
 	mcRCON := newMCRCONManagerFromProperties(filepath.Join("Server", "server.properties"))
 	autoMC := newMCEventAutomation(store, mcRCON, hub)
-	ctrl := newStreamController(hub, autoMC.HandleLiveEvent)
+	likeGoal, err := newLikeGoalManager(appSettings, hub, store, autoMC)
+	if err != nil {
+		log.Fatalf("failed to init like goal store: %v", err)
+	}
+	ctrl := newStreamController(hub, func(ev any) {
+		autoMC.HandleLiveEvent(ev)
+		likeGoal.HandleLiveEvent(ev)
+	})
+	if settings, err := loadUnifiedSettings(appSettings); err == nil && strings.TrimSpace(settings.Username) != "" {
+		go func(username string) {
+			if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {
+				hub.broadcast(mustJSON(map[string]any{
+					"type":  "error",
+					"error": "failed to sync like goal on startup: " + syncErr.Error(),
+					"time":  time.Now().Format(time.RFC3339),
+				}))
+			}
+		}(settings.Username)
+	}
 
 	embeddedStatic, err := fs.Sub(embeddedWebFS, "web/static")
 	if err != nil {
@@ -1641,16 +2219,123 @@ func main() {
 		_, _ = w.Write(b)
 	})
 
+	http.HandleFunc("/overlay/like-goal", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/overlay/like-goal" {
+			http.NotFound(w, r)
+			return
+		}
+		b, readErr := embeddedWebFS.ReadFile("web/overlay-like-goal.html")
+		if readErr != nil {
+			http.Error(w, "failed to load page", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(b)
+	})
+
 	http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		running, username := ctrl.State()
+		if strings.TrimSpace(username) == "" {
+			if settings, err := loadUnifiedSettings(appSettings); err == nil {
+				username = settings.Username
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"running":  running,
 			"username": username,
 		})
+	})
+
+	http.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			running, runtimeUsername := ctrl.State()
+			_ = running
+			settings, err := loadUnifiedSettings(appSettings)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load settings"})
+				return
+			}
+			rconStatus := mcRCON.Status()
+			likeState := likeGoal.State()
+			normalizeUnifiedSettings(&settings)
+			if strings.TrimSpace(settings.Username) == "" {
+				if strings.TrimSpace(runtimeUsername) != "" {
+					settings.Username = strings.TrimSpace(strings.TrimPrefix(runtimeUsername, "@"))
+				}
+			}
+			if strings.TrimSpace(settings.Minecraft.Host) == "" {
+				if host, ok := rconStatus["host"].(string); ok {
+					settings.Minecraft.Host = strings.TrimSpace(host)
+				}
+			}
+			if settings.Minecraft.Port <= 0 {
+				switch v := rconStatus["port"].(type) {
+				case float64:
+					settings.Minecraft.Port = int(v)
+				case int:
+					settings.Minecraft.Port = v
+				}
+			}
+			if settings.Minecraft.Port <= 0 {
+				settings.Minecraft.Port = 25575
+			}
+			if strings.TrimSpace(settings.LikeGoal.Title) == "" {
+				settings.LikeGoal.Title = likeState.Title
+			}
+			if settings.LikeGoal.Goal <= 0 {
+				settings.LikeGoal.Goal = likeState.Goal
+			}
+			if settings.LikeGoal.TriggerEventID <= 0 {
+				settings.LikeGoal.TriggerEventID = likeState.TriggerEventID
+			}
+			if settings.LikeGoal.Mode != "increase" && settings.LikeGoal.Mode != "double" {
+				settings.LikeGoal.Mode = "increase"
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"settings":        settings,
+				"like_goal_state": likeState,
+			})
+		case http.MethodPut:
+			var req unifiedSettingsJSON
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+				return
+			}
+			normalizeUnifiedSettings(&req)
+			likeState, err := likeGoal.Configure(
+				req.LikeGoal.Title,
+				req.LikeGoal.Goal,
+				req.LikeGoal.Mode,
+				req.LikeGoal.TriggerEventID,
+				req.LikeGoal.Enabled,
+				true,
+			)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+				return
+			}
+			stateCopy := likeState
+			req.LikeGoalState = &stateCopy
+			if err := saveUnifiedSettings(appSettings, req); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save settings"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":              true,
+				"settings":        req,
+				"like_goal_state": likeState,
+			})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
 	})
 
 	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
@@ -1682,6 +2367,10 @@ func main() {
 		if err := ctrl.Start(req.Username); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
+		}
+		if settings, err := loadUnifiedSettings(appSettings); err == nil {
+			settings.Username = strings.TrimSpace(strings.TrimPrefix(req.Username, "@"))
+			_ = saveUnifiedSettings(appSettings, settings)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
@@ -2030,6 +2719,64 @@ func main() {
 			"time":    time.Now().Format(time.RFC3339),
 		}))
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	})
+
+	http.HandleFunc("/api/like-goal", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, map[string]any{"state": likeGoal.State()})
+		case http.MethodPut:
+			var req struct {
+				Title          string `json:"title"`
+				Goal           int    `json:"goal"`
+				Mode           string `json:"mode"`
+				TriggerEventID int    `json:"trigger_event_id"`
+				Enabled        *bool  `json:"enabled"`
+				ResetProgress  bool   `json:"reset_progress"`
+			}
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+				return
+			}
+			enabled := true
+			if req.Enabled != nil {
+				enabled = *req.Enabled
+			}
+			state, err := likeGoal.Configure(req.Title, req.Goal, req.Mode, req.TriggerEventID, enabled, req.ResetProgress)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "state": state})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.HandleFunc("/api/like-goal/reset", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		state, err := likeGoal.ResetProgress()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to reset like goal progress"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "state": state})
+	})
+
+	http.HandleFunc("/api/like-goal/test", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		state, err := likeGoal.TriggerTest()
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "state": state})
 	})
 
 	http.HandleFunc("/api/gifts", func(w http.ResponseWriter, r *http.Request) {
@@ -2481,6 +3228,7 @@ func main() {
 		}))
 
 		autoMC.HandleLiveEvent(ev)
+		likeGoal.HandleLiveEvent(ev)
 		writeJSON(w, http.StatusOK, resp)
 	}
 
@@ -2542,6 +3290,123 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+type unifiedSettingsMinecraft struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Password string `json:"password"`
+}
+
+type unifiedSettingsLikeGoal struct {
+	Title          string `json:"title"`
+	Goal           int    `json:"goal"`
+	Mode           string `json:"mode"`
+	TriggerEventID int    `json:"trigger_event_id"`
+	Enabled        bool   `json:"enabled"`
+}
+
+type unifiedSettingsJSON struct {
+	Username      string                   `json:"username"`
+	Minecraft     unifiedSettingsMinecraft `json:"minecraft"`
+	LikeGoal      unifiedSettingsLikeGoal  `json:"like_goal"`
+	LikeGoalState *likeGoalState           `json:"like_goal_state,omitempty"`
+	UpdatedAt     string                   `json:"updated_at,omitempty"`
+}
+
+func defaultUnifiedSettings() unifiedSettingsJSON {
+	return unifiedSettingsJSON{
+		Username: "",
+		Minecraft: unifiedSettingsMinecraft{
+			Host:     "127.0.0.1",
+			Port:     25575,
+			Password: "",
+		},
+		LikeGoal: unifiedSettingsLikeGoal{
+			Title:          "Like Goal",
+			Goal:           1000,
+			Mode:           "increase",
+			TriggerEventID: 0,
+			Enabled:        true,
+		},
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	}
+}
+
+func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
+	if s == nil {
+		return
+	}
+	s.Username = strings.TrimSpace(strings.TrimPrefix(s.Username, "@"))
+	s.Minecraft.Host = strings.TrimSpace(s.Minecraft.Host)
+	if s.Minecraft.Host == "" {
+		s.Minecraft.Host = "127.0.0.1"
+	}
+	if s.Minecraft.Port <= 0 || s.Minecraft.Port > 65535 {
+		s.Minecraft.Port = 25575
+	}
+	s.LikeGoal.Title = strings.TrimSpace(s.LikeGoal.Title)
+	if s.LikeGoal.Title == "" {
+		s.LikeGoal.Title = "Like Goal"
+	}
+	if s.LikeGoal.Goal <= 0 {
+		s.LikeGoal.Goal = 1000
+	}
+	s.LikeGoal.Mode = strings.ToLower(strings.TrimSpace(s.LikeGoal.Mode))
+	if s.LikeGoal.Mode != "double" {
+		s.LikeGoal.Mode = "increase"
+	}
+	if s.LikeGoal.TriggerEventID < 0 {
+		s.LikeGoal.TriggerEventID = 0
+	}
+	if s.LikeGoalState != nil {
+		normalizeLikeGoalState(s.LikeGoalState)
+		s.LikeGoalState.Title = s.LikeGoal.Title
+		s.LikeGoalState.Goal = s.LikeGoal.Goal
+		s.LikeGoalState.Mode = s.LikeGoal.Mode
+		s.LikeGoalState.TriggerEventID = s.LikeGoal.TriggerEventID
+		s.LikeGoalState.Enabled = s.LikeGoal.Enabled
+	}
+}
+
+func loadUnifiedSettings(path string) (unifiedSettingsJSON, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		cfg := defaultUnifiedSettings()
+		return cfg, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg := defaultUnifiedSettings()
+			return cfg, nil
+		}
+		return unifiedSettingsJSON{}, err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		cfg := defaultUnifiedSettings()
+		return cfg, nil
+	}
+	var cfg unifiedSettingsJSON
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return unifiedSettingsJSON{}, err
+	}
+	normalizeUnifiedSettings(&cfg)
+	return cfg, nil
+}
+
+func saveUnifiedSettings(path string, cfg unifiedSettingsJSON) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+	normalizeUnifiedSettings(&cfg)
+	cfg.UpdatedAt = time.Now().Format(time.RFC3339)
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0644)
+}
+
 func initAppPaths() {
 	cwd, _ := os.Getwd()
 	cwd = strings.TrimSpace(cwd)
@@ -2555,6 +3420,7 @@ func initAppPaths() {
 	appGiftList = resolveAppPath("gift-list.json", false, cwd, exeDir)
 	appGiftImage = resolveAppPath("giftimage", true, cwd, exeDir)
 	appSoundsDir = resolveAppPath("sounds", true, cwd, exeDir)
+	appSettings = resolveAppPath("settings.json", false, cwd, exeDir)
 
 	appBaseDir = strings.TrimSpace(filepath.Dir(appEventsPath))
 	if appBaseDir == "" || appBaseDir == "." {
@@ -2867,41 +3733,60 @@ func toCatalogItemsFromGiftList(items []giftListJSONItem) []giftCatalogItem {
 	return out
 }
 
-func resolveRoomInfoFromUsername(tiktok *gotiktoklive.TikTok, username string) (string, string, error) {
+func resolveLiveInfoFromUsername(tiktok *gotiktoklive.TikTok, username string) (string, string, int, bool, bool, error) {
 	if tiktok == nil {
-		return "", "", fmt.Errorf("tiktok client is nil")
+		return "", "", 0, false, false, fmt.Errorf("tiktok client is nil")
 	}
 	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
 	if username == "" {
-		return "", "", fmt.Errorf("username is required")
+		return "", "", 0, false, false, fmt.Errorf("username is required")
 	}
 
 	getRoomInfo := reflect.ValueOf(tiktok).MethodByName("GetRoomInfo")
 	if !getRoomInfo.IsValid() {
-		return "", "", fmt.Errorf("get room info is not available in current gotiktoklive version")
+		return "", "", 0, false, false, fmt.Errorf("get room info is not available in current gotiktoklive version")
 	}
 	result := getRoomInfo.Call([]reflect.Value{reflect.ValueOf(username)})
 	if len(result) != 2 {
-		return "", "", fmt.Errorf("unexpected get room info response")
+		return "", "", 0, false, false, fmt.Errorf("unexpected get room info response")
 	}
 
 	if !result[1].IsNil() {
 		if err, ok := result[1].Interface().(error); ok && err != nil {
-			return "", "", fmt.Errorf("failed to resolve room for @%s: %w", username, err)
+			return "", "", 0, false, false, fmt.Errorf("failed to resolve room for @%s: %w", username, err)
 		}
-		return "", "", fmt.Errorf("failed to resolve room for @%s", username)
+		return "", "", 0, false, false, fmt.Errorf("failed to resolve room for @%s", username)
 	}
 	if result[0].IsNil() {
-		return "", "", fmt.Errorf("room info for @%s is empty", username)
+		return "", "", 0, false, false, fmt.Errorf("room info for @%s is empty", username)
 	}
 
 	roomInfo := result[0].Interface()
 	roomID := extractReflectStringValue(roomInfo, "RoomID", "RoomId", "room_id", "roomid", "ID", "Id", "id")
 	if strings.TrimSpace(roomID) == "" {
-		return "", "", fmt.Errorf("room_id not found for @%s; make sure the account is currently live", username)
+		return "", "", 0, false, false, nil
 	}
 	region := extractReflectStringValue(roomInfo, "Region", "region", "Country", "country", "CountryCode", "country_code", "Area", "area")
-	return roomID, strings.TrimSpace(region), nil
+	totalLikes, hasTotalLikes := extractReflectIntValue(
+		roomInfo,
+		"TotalLikes", "total_likes", "total_likes_count", "TotalLikeCount", "total_like_count",
+		"LikeCount", "like_count", "likes", "Likes",
+	)
+	if totalLikes < 0 {
+		totalLikes = 0
+	}
+	return roomID, strings.TrimSpace(region), totalLikes, hasTotalLikes, true, nil
+}
+
+func resolveRoomInfoFromUsername(tiktok *gotiktoklive.TikTok, username string) (string, string, error) {
+	roomID, region, _, _, isLive, err := resolveLiveInfoFromUsername(tiktok, username)
+	if err != nil {
+		return "", "", err
+	}
+	if !isLive || strings.TrimSpace(roomID) == "" {
+		return "", "", fmt.Errorf("room_id not found for @%s; make sure the account is currently live", username)
+	}
+	return roomID, region, nil
 }
 
 func extractReflectStringValue(src any, names ...string) string {
@@ -2969,6 +3854,71 @@ func extractFieldString(v reflect.Value, name string) string {
 	return ""
 }
 
+func extractReflectIntValue(src any, names ...string) (int, bool) {
+	if src == nil {
+		return 0, false
+	}
+	v := reflect.ValueOf(src)
+	for v.IsValid() {
+		if v.Kind() == reflect.Pointer {
+			if v.IsNil() {
+				return 0, false
+			}
+			v = v.Elem()
+			continue
+		}
+		break
+	}
+	if !v.IsValid() {
+		return 0, false
+	}
+	for _, name := range names {
+		if n, ok := extractFieldInt(v, name); ok {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+func extractFieldInt(v reflect.Value, name string) (int, bool) {
+	if !v.IsValid() {
+		return 0, false
+	}
+	switch v.Kind() {
+	case reflect.Struct:
+		f := v.FieldByName(name)
+		if f.IsValid() {
+			if n, ok := valueToInt(f); ok {
+				return n, true
+			}
+		}
+		for i := 0; i < v.NumField(); i++ {
+			if n, ok := extractFieldInt(v.Field(i), name); ok {
+				return n, true
+			}
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			ks := strings.TrimSpace(fmt.Sprintf("%v", key.Interface()))
+			mv := v.MapIndex(key)
+			if strings.EqualFold(ks, name) {
+				if n, ok := valueToInt(mv); ok {
+					return n, true
+				}
+			}
+			if n, ok := extractFieldInt(mv, name); ok {
+				return n, true
+			}
+		}
+	case reflect.Interface, reflect.Pointer:
+		if v.IsNil() {
+			return 0, false
+		}
+		return extractFieldInt(v.Elem(), name)
+	}
+	return 0, false
+}
+
 func valueToString(v reflect.Value) string {
 	if !v.IsValid() {
 		return ""
@@ -3002,6 +3952,60 @@ func valueToString(v reflect.Value) string {
 		return strconv.FormatFloat(v.Float(), 'f', -1, 64)
 	default:
 		return ""
+	}
+}
+
+func valueToInt(v reflect.Value) (int, bool) {
+	if !v.IsValid() {
+		return 0, false
+	}
+	for v.IsValid() && (v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer) {
+		if v.IsNil() {
+			return 0, false
+		}
+		v = v.Elem()
+	}
+	if !v.IsValid() {
+		return 0, false
+	}
+	maxInt := int64(^uint(0) >> 1)
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n := v.Int()
+		if n > maxInt {
+			n = maxInt
+		}
+		if n < 0 {
+			n = 0
+		}
+		return int(n), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		n := v.Uint()
+		if n > uint64(maxInt) {
+			n = uint64(maxInt)
+		}
+		return int(n), true
+	case reflect.Float32, reflect.Float64:
+		n := int64(v.Float())
+		if n > maxInt {
+			n = maxInt
+		}
+		if n < 0 {
+			n = 0
+		}
+		return int(n), true
+	case reflect.String:
+		s := strings.TrimSpace(v.String())
+		if s == "" {
+			return 0, false
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil || n < 0 {
+			return 0, false
+		}
+		return n, true
+	default:
+		return 0, false
 	}
 }
 

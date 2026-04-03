@@ -61,5 +61,7 @@
 !main.go
 !username.txt
 !web/index.html
+!web/overlay-like-goal.html
 !web/static/app.js
+!web/static/overlay-like-goal.js
 !web/static/styles.css

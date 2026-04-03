@@ -5,8 +5,8 @@ on block damage:
     if {_toolName} does not contain "pickaxe":
         stop
 
-    # Bedrock cannot be broken
-    if event-block is bedrock:
+    # Bedrock and cobweb cannot be broken
+    if event-block is bedrock or cobweb:
         stop
 
     cancel event
@@ -24,10 +24,11 @@ on block damage:
 
                 set {_block} to block at {_loc}
                 if {_block} is not bedrock:
-                    if {_block} is not air:
-                        # Ambil drop asli blok, lalu hancurkan blok tersebut.
-                        set {_drops::*} to drops of {_block}
-                        set block at {_loc} to air
-                        play sound "block.stone.break" with volume 1 and pitch 1 to player
-                        loop {_drops::*}:
-                            drop loop-value-4 at {_loc}
+                    if {_block} is not cobweb:
+                        if {_block} is not air:
+                            # Ambil drop asli blok, lalu hancurkan blok tersebut.
+                            set {_drops::*} to drops of {_block}
+                            set block at {_loc} to air
+                            play sound "block.stone.break" with volume 1 and pitch 1 to player
+                            loop {_drops::*}:
+                                drop loop-value-4 at {_loc}

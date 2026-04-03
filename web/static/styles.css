@@ -66,6 +66,22 @@ body {
   line-height: 1.2;
 }
 
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#appSettingsSaveBtn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--primary);
+  border-color: var(--primary-border);
+  color: #ffffff;
+}
+
 .toast-host {
   position: fixed;
   top: 16px;
@@ -193,7 +209,7 @@ button:hover {
 
 .tools-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 30%) minmax(0, 70%);
+  grid-template-columns: minmax(240px, 32%) minmax(0, 68%);
   gap: 10px;
   align-items: start;
   padding: 12px 18px;
@@ -363,44 +379,116 @@ button:hover {
 }
 
 #testEventRow {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  --test-cols-giftlike:
+    clamp(86px, 11%, 120px)
+    clamp(110px, 16%, 170px)
+    minmax(120px, 1.9fr)
+    clamp(56px, 8%, 86px)
+    clamp(92px, 14%, 130px);
+  --test-cols-chat:
+    clamp(86px, 12%, 130px)
+    clamp(120px, 18%, 190px)
+    minmax(140px, 1fr)
+    clamp(96px, 16%, 150px);
+  --test-cols-count:
+    clamp(86px, 12%, 130px)
+    clamp(120px, 22%, 220px)
+    clamp(56px, 10%, 90px)
+    clamp(96px, 18%, 150px);
+  --test-cols-basic:
+    clamp(86px, 16%, 140px)
+    minmax(140px, 1fr)
+    clamp(96px, 18%, 150px);
+  grid-template-columns: var(--test-cols-giftlike);
+  gap: 6px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+}
+
+#testEventRow.mode-giftlike {
+  grid-template-columns: var(--test-cols-giftlike);
+}
+
+#testEventRow.mode-chat {
+  grid-template-columns: var(--test-cols-chat);
+}
+
+#testEventRow.mode-count {
+  grid-template-columns: var(--test-cols-chat);
+}
+
+#testEventRow.mode-basic {
+  grid-template-columns: var(--test-cols-basic);
 }
 
 #testEventType {
-  flex: 0 0 150px;
-  min-width: 150px;
+  min-width: 0;
 }
 
 #testEventUsername {
-  flex: 1 1 180px;
-  min-width: 160px;
+  min-width: 0;
 }
 
 #testEventGiftPicker {
-  flex: 1.3 1 260px;
-  min-width: 220px;
+  min-width: 0;
 }
 
 #testEventCount {
-  flex: 0 0 90px;
-  min-width: 90px;
+  min-width: 0;
 }
 
 #testEventText {
-  flex: 1 1 220px;
-  min-width: 180px;
+  min-width: 0;
 }
 
 #testEventBtn {
-  flex: 0 0 140px;
-  min-width: 140px;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 0 8px;
 }
 
 #testEventRow > * {
+  width: 100%;
   min-width: 0;
+}
+
+#testEventRow > input,
+#testEventRow > select,
+#testEventRow > button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#testEventGiftPicker {
+  overflow: visible;
+}
+
+/* Keep Event Simulator gift picker identical to modal gift picker */
+#testEventGiftPicker .gift-picker-toggle {
+  min-height: var(--control-h);
+  height: var(--control-h);
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+#testEventGiftPicker .gift-picker-thumb,
+#testEventGiftPicker .gift-picker-thumb-placeholder {
+  width: calc(var(--control-h) - 10px);
+  height: calc(var(--control-h) - 10px);
+  flex: 0 0 calc(var(--control-h) - 10px);
+}
+
+#testEventGiftPicker .gift-picker-name {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+#testEventGiftPicker .gift-picker-meta {
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .mc-status {
@@ -421,6 +509,353 @@ button:hover {
   word-break: break-word;
   font-family: Consolas, "Courier New", monospace;
   font-size: 12px;
+}
+
+.like-goal-row > * {
+  min-width: 0;
+}
+
+#likeGoalTitle {
+  flex: 1.2 1 220px;
+}
+
+#likeGoalValue {
+  flex: 0 0 130px;
+}
+
+#likeGoalModePicker {
+  flex: 0 0 130px;
+  min-width: 0;
+}
+
+#likeGoalTriggerEventPicker {
+  flex: 1.2 1 240px;
+  min-width: 0;
+}
+
+.like-goal-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b1220;
+  min-height: var(--control-h);
+  color: var(--text);
+  font-size: 13px;
+}
+
+#likeGoalTestBtn {
+  background: var(--edit);
+  border-color: var(--edit-border);
+  color: #ffffff;
+}
+
+#likeGoalResetBtn {
+  background: var(--danger);
+  border-color: var(--danger-border);
+  color: #ffffff;
+}
+
+#likeGoalOverlayLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-h);
+  padding: 0 12px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  background: #1f2937;
+}
+
+#likeGoalOverlayLink:hover {
+  filter: brightness(1.05);
+}
+
+#likeGoalCopyLinkBtn {
+  background: #1f2937;
+  border-color: #334155;
+  color: #ffffff;
+}
+
+.like-goal-preview {
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b1220;
+  display: grid;
+  gap: 6px;
+}
+
+.like-goal-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.like-goal-preview-title {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.like-goal-preview-text {
+  color: #cbd5e1;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.like-goal-progress-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.like-goal-progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #14b8a6);
+  transition: width 260ms ease;
+}
+
+.overlay-page {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.like-goal-overlay {
+  position: relative;
+  overflow: hidden;
+  width: min(860px, calc(100vw - 24px));
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(14, 116, 144, 0.36), rgba(15, 23, 42, 0.68) 52%, rgba(2, 6, 23, 0.86)),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.88));
+  backdrop-filter: blur(8px);
+  display: grid;
+  gap: 12px;
+  box-shadow:
+    0 14px 42px rgba(2, 6, 23, 0.58),
+    inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  animation: overlay-float 6s ease-in-out infinite;
+}
+
+.like-goal-overlay::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(45, 212, 191, 0.5), rgba(56, 189, 248, 0.42), rgba(250, 204, 21, 0.45));
+  filter: blur(16px);
+  opacity: 0.46;
+  z-index: 0;
+  animation: overlay-border-shift 7s linear infinite;
+}
+
+.like-goal-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+.like-goal-overlay-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(70% 80% at 15% 20%, rgba(20, 184, 166, 0.22), transparent 72%),
+    radial-gradient(60% 60% at 85% 18%, rgba(56, 189, 248, 0.2), transparent 70%);
+  animation: overlay-glow-pulse 4.2s ease-in-out infinite;
+}
+
+.like-goal-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.like-goal-overlay-head-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.like-goal-overlay-title {
+  color: #ffffff;
+  font-weight: 900;
+  font-size: clamp(22px, 3.8vw, 38px);
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 2px 8px rgba(2, 6, 23, 0.85),
+    0 0 20px rgba(56, 189, 248, 0.22);
+}
+
+.like-goal-overlay-live {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  color: #fde68a;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  background: rgba(120, 53, 15, 0.4);
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.24);
+  animation: overlay-live-blink 1.4s ease-in-out infinite;
+}
+
+.like-goal-overlay-value {
+  color: #dbeafe;
+  font-weight: 800;
+  font-size: clamp(16px, 2.4vw, 28px);
+  white-space: nowrap;
+  text-shadow: 0 1px 10px rgba(2, 6, 23, 0.7);
+}
+
+.like-goal-overlay-track {
+  position: relative;
+  width: 100%;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.92)),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(51, 65, 85, 0.32) 0 10px,
+      rgba(30, 41, 59, 0.32) 10px 20px
+    );
+  overflow: hidden;
+  box-shadow: inset 0 2px 5px rgba(2, 6, 23, 0.72);
+}
+
+.like-goal-overlay-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e 0%, #14b8a6 45%, #38bdf8 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 253, 250, 0.24),
+    0 0 24px rgba(20, 184, 166, 0.52);
+  transition: width 180ms linear;
+  position: relative;
+}
+
+.like-goal-overlay-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.26) 0 8px,
+    rgba(255, 255, 255, 0.06) 8px 16px
+  );
+  mix-blend-mode: screen;
+  animation: overlay-fill-stripes 1s linear infinite;
+}
+
+.like-goal-overlay-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  right: -24px;
+  transform: skewX(-20deg);
+  background: rgba(255, 255, 255, 0.45);
+  filter: blur(4px);
+  animation: overlay-fill-shine 2.6s ease-in-out infinite;
+}
+
+.like-goal-overlay-percent {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #f8fafc;
+  font-size: clamp(18px, 2.9vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-shadow:
+    0 1px 4px rgba(2, 6, 23, 0.95),
+    0 0 12px rgba(14, 165, 233, 0.3);
+  pointer-events: none;
+}
+
+.like-goal-overlay.is-boost .like-goal-overlay-track {
+  animation: overlay-track-boost 420ms ease;
+}
+
+.like-goal-overlay.is-boost .like-goal-overlay-percent {
+  animation: overlay-percent-pop 420ms ease;
+}
+
+@keyframes overlay-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes overlay-border-shift {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(2deg) scale(1.02); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes overlay-glow-pulse {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+@keyframes overlay-live-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.98); }
+}
+
+@keyframes overlay-fill-stripes {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(24px); }
+}
+
+@keyframes overlay-fill-shine {
+  0%, 100% { right: -30px; opacity: 0.28; }
+  50% { right: 8px; opacity: 0.58; }
+}
+
+@keyframes overlay-track-boost {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.012); }
+  100% { transform: scale(1); }
+}
+
+@keyframes overlay-percent-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 
 .event-layout {
@@ -1338,8 +1773,35 @@ input[type="number"] {
   }
 
   #testEventRow {
-    display: flex;
-    flex-wrap: wrap;
+    --test-cols-giftlike:
+      clamp(78px, 10%, 106px)
+      clamp(96px, 15%, 140px)
+      minmax(100px, 1.75fr)
+      clamp(52px, 7%, 76px)
+      clamp(84px, 12%, 112px);
+    --test-cols-chat:
+      clamp(78px, 11%, 112px)
+      clamp(100px, 17%, 150px)
+      minmax(112px, 1fr)
+      clamp(84px, 14%, 118px);
+    --test-cols-count:
+      clamp(78px, 12%, 114px)
+      clamp(100px, 25%, 180px)
+      clamp(52px, 9%, 78px)
+      clamp(84px, 15%, 120px);
+    --test-cols-basic:
+      clamp(78px, 16%, 118px)
+      minmax(112px, 1fr)
+      clamp(84px, 16%, 118px);
+    gap: 5px;
+  }
+
+  #testEventRow > input,
+  #testEventRow > select,
+  #testEventRow > button {
+    font-size: 11px;
+    padding-left: 5px;
+    padding-right: 5px;
   }
 
   .event-layout {
@@ -1357,14 +1819,52 @@ input[type="number"] {
     padding: 12px;
   }
 
+  .head {
+    flex-wrap: wrap;
+  }
+
+  .head-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .tools-grid,
   .event-layout {
     grid-template-columns: 1fr;
   }
 
   #testEventRow {
-    display: flex;
-    flex-wrap: wrap;
+    --test-cols-giftlike:
+      clamp(70px, 9%, 96px)
+      clamp(86px, 13%, 124px)
+      minmax(88px, 1.6fr)
+      clamp(46px, 6%, 68px)
+      clamp(76px, 11%, 102px);
+    --test-cols-chat:
+      clamp(70px, 10%, 102px)
+      clamp(88px, 15%, 130px)
+      minmax(92px, 1fr)
+      clamp(76px, 13%, 106px);
+    --test-cols-count:
+      clamp(70px, 11%, 104px)
+      clamp(88px, 22%, 150px)
+      clamp(46px, 8%, 70px)
+      clamp(76px, 13%, 106px);
+    --test-cols-basic:
+      clamp(70px, 14%, 104px)
+      minmax(96px, 1fr)
+      clamp(76px, 14%, 106px);
+    gap: 4px;
+  }
+
+  #testEventRow > input,
+  #testEventRow > select,
+  #testEventRow > button {
+    min-height: 32px;
+    height: 32px;
+    font-size: 10px;
+    padding-left: 4px;
+    padding-right: 4px;
   }
 
   .modal-form {
@@ -1399,5 +1899,25 @@ input[type="number"] {
   .mc-rcon-row,
   .mc-command-row {
     grid-template-columns: 1fr;
+  }
+
+  .like-goal-overlay-head-main {
+    gap: 8px;
+  }
+
+  .like-goal-overlay-title {
+    font-size: clamp(16px, 4.2vw, 24px);
+  }
+
+  .like-goal-overlay-value {
+    font-size: clamp(14px, 3.4vw, 20px);
+  }
+
+  .like-goal-overlay-track {
+    height: 40px;
+  }
+
+  .like-goal-overlay-percent {
+    font-size: clamp(16px, 3.2vw, 22px);
   }
 }

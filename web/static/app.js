@@ -1,3 +1,6 @@
+// =========================
+// DOM References & State
+// =========================
 const statusEl = document.getElementById("status");
     const eventsEl = document.getElementById("events");
     const usernameEl = document.getElementById("username");
@@ -11,6 +14,21 @@ const statusEl = document.getElementById("status");
     const mcDisconnectBtn = document.getElementById("mcDisconnectBtn");
     const mcCommandEl = document.getElementById("mcCommand");
     const mcSendBtn = document.getElementById("mcSendBtn");
+    const likeGoalTitleEl = document.getElementById("likeGoalTitle");
+    const likeGoalValueEl = document.getElementById("likeGoalValue");
+    const likeGoalModeEl = document.getElementById("likeGoalMode");
+    const likeGoalModePickerHostEl = document.getElementById("likeGoalModePicker");
+    const likeGoalTriggerEventEl = document.getElementById("likeGoalTriggerEvent");
+    const likeGoalTriggerEventPickerHostEl = document.getElementById("likeGoalTriggerEventPicker");
+    const likeGoalEnabledEl = document.getElementById("likeGoalEnabled");
+    const likeGoalTestBtn = document.getElementById("likeGoalTestBtn");
+    const likeGoalResetBtn = document.getElementById("likeGoalResetBtn");
+    const likeGoalOverlayLinkEl = document.getElementById("likeGoalOverlayLink");
+    const likeGoalCopyLinkBtn = document.getElementById("likeGoalCopyLinkBtn");
+    const likeGoalPreviewTitleEl = document.getElementById("likeGoalPreviewTitle");
+    const likeGoalProgressTextEl = document.getElementById("likeGoalProgressText");
+    const likeGoalProgressBarEl = document.getElementById("likeGoalProgressBar");
+    const appSettingsSaveBtn = document.getElementById("appSettingsSaveBtn");
     const testEventTypeEl = document.getElementById("testEventType");
     const testEventUsernameEl = document.getElementById("testEventUsername");
     const testEventGiftEl = document.getElementById("testEventGift");
@@ -18,6 +36,7 @@ const statusEl = document.getElementById("status");
     const testEventCountEl = document.getElementById("testEventCount");
     const testEventTextEl = document.getElementById("testEventText");
     const testEventBtn = document.getElementById("testEventBtn");
+    const testEventRowEl = document.getElementById("testEventRow");
     const mcOutputEl = document.getElementById("mcOutput");
     const eventModalEl = document.getElementById("eventModal");
     const eventBoxModalEl = document.getElementById("eventBoxModal");
@@ -76,6 +95,11 @@ const statusEl = document.getElementById("status");
     let toastHostEl = null;
     let lastToastSignature = "";
     let lastToastAt = 0;
+    let likeGoalState = null;
+
+    // =========================
+    // Toast Helpers
+    // =========================
 
     function ensureToastHost() {
       if (toastHostEl && document.body.contains(toastHostEl)) return toastHostEl;
@@ -183,6 +207,9 @@ const statusEl = document.getElementById("status");
 
     ensureEventSlideNavButtons();
 
+    // =========================
+    // Picker / Shortcut Helpers
+    // =========================
     function normalizeShortcutSymbols(shortcut) {
       const raw = String(shortcut || "").trim();
       if (!raw) return "";
@@ -897,7 +924,8 @@ const statusEl = document.getElementById("status");
       };
     }
 
-    function createShortcutPicker(selectEl, hostEl, placeholder) {
+    function createShortcutPicker(selectEl, hostEl, placeholder, cfg = {}) {
+      const withSearch = cfg.withSearch !== false;
       const root = document.createElement("div");
       root.className = "gift-picker";
       root.classList.add("shortcut-picker");
@@ -924,7 +952,9 @@ const statusEl = document.getElementById("status");
       list.className = "gift-picker-list";
       list.setAttribute("role", "listbox");
 
-      menu.appendChild(search);
+      if (withSearch) {
+        menu.appendChild(search);
+      }
       menu.appendChild(list);
       toggle.appendChild(selectedWrap);
       root.appendChild(toggle);
@@ -933,19 +963,38 @@ const statusEl = document.getElementById("status");
 
       let options = [];
 
+      function normalizeOption(item) {
+        if (typeof item === "string") {
+          const text = String(item || "").trim();
+          return { value: text, label: text };
+        }
+        if (item && typeof item === "object") {
+          const value = String(item.value ?? item.id ?? "").trim();
+          const label = String(item.label ?? item.title ?? item.name ?? value).trim();
+          return { value, label: label || value };
+        }
+        return { value: "", label: "" };
+      }
+
       function renderSelected() {
         const selected = String(selectEl.value || "").trim();
         selectedWrap.innerHTML = "";
+        const selectedOption = options.find((item) => String(item.value) === selected);
         const copy = document.createElement("span");
         copy.className = "gift-picker-copy";
-        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected || placeholder) + "</span>";
+        const selectedLabel = selectedOption ? selectedOption.label : selected;
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selectedLabel || placeholder) + "</span>";
         selectedWrap.appendChild(copy);
       }
 
       function renderList() {
-        const query = String(search.value || "").trim().toLowerCase();
+        const query = withSearch ? String(search.value || "").trim().toLowerCase() : "";
         list.innerHTML = "";
-        const filtered = options.filter((k) => !query || String(k).toLowerCase().includes(query));
+        const filtered = options.filter((item) => {
+          if (!query) return true;
+          return String(item.label || "").toLowerCase().includes(query) ||
+            String(item.value || "").toLowerCase().includes(query);
+        });
 
         if (filtered.length === 0) {
           const empty = document.createElement("div");
@@ -955,19 +1004,19 @@ const statusEl = document.getElementById("status");
           return;
         }
 
-        for (const key of filtered) {
+        for (const item of filtered) {
           const option = document.createElement("button");
           option.type = "button";
           option.className = "gift-picker-option";
-          if (String(key) === String(selectEl.value || "")) {
+          if (String(item.value) === String(selectEl.value || "")) {
             option.classList.add("is-selected");
           }
           const copy = document.createElement("span");
           copy.className = "gift-picker-option-copy";
-          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(key) + "</span>";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(item.label) + "</span>";
           option.appendChild(copy);
           option.addEventListener("click", () => {
-            selectEl.value = String(key);
+            selectEl.value = String(item.value);
             renderSelected();
             renderList();
             closeMenu();
@@ -981,7 +1030,9 @@ const statusEl = document.getElementById("status");
         menu.hidden = false;
         toggle.setAttribute("aria-expanded", "true");
         renderList();
-        requestAnimationFrame(() => search.focus());
+        if (withSearch) {
+          requestAnimationFrame(() => search.focus());
+        }
       }
 
       function closeMenu() {
@@ -994,7 +1045,9 @@ const statusEl = document.getElementById("status");
         else closeMenu();
       });
 
-      search.addEventListener("input", renderList);
+      if (withSearch) {
+        search.addEventListener("input", renderList);
+      }
       document.addEventListener("click", (e) => {
         if (!root.contains(e.target)) {
           closeMenu();
@@ -1002,17 +1055,20 @@ const statusEl = document.getElementById("status");
       });
 
       return {
-        setOptions(keys) {
-          options = Array.isArray(keys) ? [...keys] : [];
+        setOptions(items) {
+          options = (Array.isArray(items) ? items : []).map(normalizeOption).filter((item) => String(item.value || "").trim() !== "");
           selectEl.innerHTML = "<option value=\"\"></option>";
-          for (const key of options) {
+          for (const item of options) {
             const opt = document.createElement("option");
-            opt.value = String(key);
-            opt.textContent = String(key);
+            opt.value = String(item.value);
+            opt.textContent = String(item.label || item.value);
             selectEl.appendChild(opt);
           }
-          if (selectEl.value && !options.includes(selectEl.value)) {
+          if (selectEl.value && !options.some((item) => String(item.value) === String(selectEl.value))) {
             selectEl.value = "";
+          }
+          if (withSearch) {
+            search.value = "";
           }
           renderSelected();
           renderList();
@@ -1032,7 +1088,14 @@ const statusEl = document.getElementById("status");
     const eventGiftPicker = createGiftPicker(eventGiftEl, eventGiftPickerHostEl, "Select Gift");
     const testEventGiftPicker = createGiftPicker(testEventGiftEl, testEventGiftPickerHostEl, "Select Gift");
     const eventShortcutPicker = createShortcutPicker(eventShortcutKeysEl, eventShortcutPickerHostEl, "Pilih shortcut");
+    const likeGoalModePicker = createShortcutPicker(likeGoalModeEl, likeGoalModePickerHostEl, "Select mode", { withSearch: false });
+    const likeGoalTriggerPicker = createShortcutPicker(likeGoalTriggerEventEl, likeGoalTriggerEventPickerHostEl, "Select event trigger");
     eventShortcutPicker.setOptions(shortcutOptions);
+    likeGoalModePicker.setOptions([
+      { value: "increase", label: "increase" },
+      { value: "double", label: "double" }
+    ]);
+    likeGoalModePicker.syncFromSelect();
 
     function ensureTriggerAudioContext() {
       if (triggerAudioCtx) return triggerAudioCtx;
@@ -1180,6 +1243,16 @@ const statusEl = document.getElementById("status");
 
         return {
           html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge system\">TRIGGER</span><span class=\"ev-text\">" + detail + "</span>"
+        };
+      }
+
+      if (payload.type === "like_goal_state") {
+        const state = payload.state || {};
+        const title = String(state.title || "Like Goal");
+        const currentLikes = Math.max(0, Number(state.current_likes || 0));
+        const currentGoal = Math.max(1, Number(state.current_goal || state.goal || 1));
+        return {
+          html: "<span class=\"ev-badge like\">LIKE GOAL</span><span class=\"ev-text\">" + esc(title) + "</span><span class=\"ev-meta\">" + esc(currentLikes) + " / " + esc(currentGoal) + "</span>"
         };
       }
 
@@ -1559,6 +1632,166 @@ const statusEl = document.getElementById("status");
       setupEventLoop(pages.length);
     }
 
+    function refreshLikeGoalTriggerOptions(selectedId) {
+      if (!likeGoalTriggerEventEl) return;
+      const selected = Number(selectedId || likeGoalTriggerEventEl.value || 0);
+      const rows = [...(currentEventItems || [])].sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+      const options = [];
+      for (const item of rows) {
+        const labelTitle = String(item.title || "").trim();
+        const label = labelTitle || String(item.type || "event");
+        options.push({
+          value: String(item.id),
+          label: label
+        });
+      }
+      likeGoalTriggerPicker.setOptions(options);
+      if (selected > 0 && options.some((item) => Number(item.value) === selected)) {
+        likeGoalTriggerEventEl.value = String(selected);
+      } else {
+        likeGoalTriggerEventEl.value = "";
+      }
+      likeGoalTriggerPicker.syncFromSelect();
+    }
+
+    function renderLikeGoalState(state) {
+      if (!state) return;
+      likeGoalState = state;
+      const title = String(state.title || "Like Goal").trim() || "Like Goal";
+      const goal = Math.max(1, Number(state.goal || 1));
+      const currentGoal = Math.max(1, Number(state.current_goal || goal));
+      const currentLikes = Math.max(0, Number(state.current_likes || 0));
+      const mode = String(state.mode || "increase").toLowerCase() === "double" ? "double" : "increase";
+      const triggerEventId = Math.max(0, Number(state.trigger_event_id || 0));
+      const enabled = !!state.enabled;
+      const percent = Math.max(0, Math.min(100, Math.round((currentLikes / currentGoal) * 100)));
+
+      if (likeGoalTitleEl) likeGoalTitleEl.value = title;
+      if (likeGoalValueEl) likeGoalValueEl.value = String(goal);
+      if (likeGoalModeEl) likeGoalModeEl.value = mode;
+      likeGoalModePicker.syncFromSelect();
+      if (likeGoalEnabledEl) likeGoalEnabledEl.checked = enabled;
+
+      refreshLikeGoalTriggerOptions(triggerEventId);
+
+      if (likeGoalPreviewTitleEl) likeGoalPreviewTitleEl.textContent = title;
+      if (likeGoalProgressTextEl) likeGoalProgressTextEl.textContent = currentLikes + " / " + currentGoal;
+      if (likeGoalProgressBarEl) likeGoalProgressBarEl.style.width = percent + "%";
+    }
+
+    async function loadLikeGoalState(options = {}) {
+      const silent = !!options.silent;
+      if (!likeGoalTitleEl) return;
+      try {
+        const res = await fetch("/api/like-goal");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "failed to load like goal");
+        renderLikeGoalState(data.state || {});
+      } catch (err) {
+        if (!silent) {
+          setStatus(err.message || "failed to load like goal", false);
+        }
+      }
+    }
+
+    async function resetLikeGoalProgress() {
+      if (!likeGoalTitleEl) return;
+      const res = await fetch("/api/like-goal/reset", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to reset like goal progress");
+      renderLikeGoalState(data.state || {});
+      setStatus("like goal progress reset", true);
+    }
+
+    async function testLikeGoalNow() {
+      if (!likeGoalState) {
+        throw new Error("like goal state is not ready");
+      }
+      const res = await fetch("/api/like-goal/test", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to test like goal");
+      if (data.state) {
+        renderLikeGoalState(data.state);
+      }
+      setStatus("like goal test sent (progress unchanged)", true);
+    }
+
+    function collectSettingsPayload() {
+      const username = String(usernameEl && usernameEl.value ? usernameEl.value : "").trim().replace(/^@+/, "");
+      const mcHost = String(mcHostEl && mcHostEl.value ? mcHostEl.value : "").trim();
+      const mcPort = Math.max(1, Math.min(65535, Number(mcPortEl && mcPortEl.value ? mcPortEl.value : 25575) || 25575));
+      const mcPassword = String(mcPasswordEl && mcPasswordEl.value ? mcPasswordEl.value : "");
+      const likeGoalTitle = String(likeGoalTitleEl && likeGoalTitleEl.value ? likeGoalTitleEl.value : "").trim();
+      const likeGoalGoal = Math.max(1, Number(likeGoalValueEl && likeGoalValueEl.value ? likeGoalValueEl.value : 1) || 1);
+      const likeGoalMode = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? "double" : "increase";
+      const likeGoalTriggerEventID = Math.max(0, Number(likeGoalTriggerEventEl && likeGoalTriggerEventEl.value ? likeGoalTriggerEventEl.value : 0) || 0);
+      const likeGoalEnabled = !!(likeGoalEnabledEl && likeGoalEnabledEl.checked);
+      return {
+        username,
+        minecraft: {
+          host: mcHost,
+          port: mcPort,
+          password: mcPassword
+        },
+        like_goal: {
+          title: likeGoalTitle,
+          goal: likeGoalGoal,
+          mode: likeGoalMode,
+          trigger_event_id: likeGoalTriggerEventID,
+          enabled: likeGoalEnabled
+        }
+      };
+    }
+
+    function applyLoadedSettings(settings) {
+      if (!settings || typeof settings !== "object") return;
+
+      const username = String(settings.username || "").trim();
+      if (usernameEl && username) {
+        usernameEl.value = username;
+      }
+
+      const mc = settings.minecraft || {};
+      if (mcHostEl && typeof mc.host === "string") mcHostEl.value = mc.host;
+      if (mcPortEl && Number(mc.port) > 0) mcPortEl.value = String(Math.max(1, Math.min(65535, Number(mc.port))));
+      if (mcPasswordEl && typeof mc.password === "string") mcPasswordEl.value = mc.password;
+
+      const goalState = settings.like_goal_state || settings.like_goal || {};
+      if (goalState && typeof goalState === "object" && Object.keys(goalState).length > 0) {
+        renderLikeGoalState(goalState);
+      }
+    }
+
+    async function saveUnifiedSettings() {
+      const payload = collectSettingsPayload();
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to save settings");
+      applyLoadedSettings(data.settings || payload);
+      if (data.like_goal_state) {
+        renderLikeGoalState(data.like_goal_state);
+      }
+      setStatus("settings saved", true);
+    }
+
+    async function loadUnifiedSettings(options = {}) {
+      const silent = !!options.silent;
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed to load settings");
+      applyLoadedSettings(data.settings || {});
+      if (data.like_goal_state) {
+        renderLikeGoalState(data.like_goal_state);
+      }
+      if (!silent) {
+        setStatus("settings loaded", true);
+      }
+    }
+
     async function loadEventsTable() {
       try {
         const res = await fetch("/api/events");
@@ -1569,6 +1802,7 @@ const statusEl = document.getElementById("status");
         refreshEventGiftOptions();
         refreshShortcutOptions();
         renderEventBoxes(currentEventItems);
+        refreshLikeGoalTriggerOptions(likeGoalState && likeGoalState.trigger_event_id);
       } catch (err) {
         setStatus(err.message || "failed to load events", false);
       }
@@ -1578,9 +1812,11 @@ const statusEl = document.getElementById("status");
       try {
         const res = await fetch("/state");
         const state = await res.json();
+        if (state && state.username) {
+          usernameEl.value = state.username || "";
+        }
         if (state.running) {
           hasConnectedTikTok = true;
-          usernameEl.value = state.username || "";
           setStatus("tracking @" + (state.username || "-"), true);
         } else {
           setStatus("idle (not connected)", false);
@@ -1619,6 +1855,9 @@ const statusEl = document.getElementById("status");
       }
     }
 
+    // =========================
+    // UI Event Bindings
+    // =========================
     startBtn.addEventListener("click", async () => {
       const username = usernameEl.value.trim();
       if (!username) {
@@ -1747,6 +1986,19 @@ const statusEl = document.getElementById("status");
         testEventCountEl.value = "1";
       }
       testEventGiftPicker.syncFromSelect();
+
+      if (testEventRowEl) {
+        testEventRowEl.classList.remove("mode-giftlike", "mode-chat", "mode-count", "mode-basic");
+        if (isChat) {
+          testEventRowEl.classList.add("mode-chat");
+        } else if (isGift) {
+          testEventRowEl.classList.add("mode-giftlike");
+        } else if (needsCount) {
+          testEventRowEl.classList.add("mode-count");
+        } else {
+          testEventRowEl.classList.add("mode-basic");
+        }
+      }
     }
 
     testEventTypeEl.addEventListener("change", syncTestEventFields);
@@ -2097,6 +2349,52 @@ const statusEl = document.getElementById("status");
       });
     }
 
+    if (likeGoalOverlayLinkEl) {
+      likeGoalOverlayLinkEl.href = "/overlay/like-goal";
+    }
+
+    if (likeGoalCopyLinkBtn) {
+      likeGoalCopyLinkBtn.addEventListener("click", async () => {
+        try {
+          const fullURL = window.location.origin + "/overlay/like-goal";
+          await navigator.clipboard.writeText(fullURL);
+          setStatus("overlay link copied", true);
+        } catch (_) {
+          setStatus("failed to copy overlay link", false);
+        }
+      });
+    }
+
+    if (likeGoalTestBtn) {
+      likeGoalTestBtn.addEventListener("click", async () => {
+        try {
+          await testLikeGoalNow();
+        } catch (err) {
+          setStatus(err.message || "failed to test like goal", false);
+        }
+      });
+    }
+
+    if (likeGoalResetBtn) {
+      likeGoalResetBtn.addEventListener("click", async () => {
+        try {
+          await resetLikeGoalProgress();
+        } catch (err) {
+          setStatus(err.message || "failed to reset like goal progress", false);
+        }
+      });
+    }
+
+    if (appSettingsSaveBtn) {
+      appSettingsSaveBtn.addEventListener("click", async () => {
+        try {
+          await saveUnifiedSettings();
+        } catch (err) {
+          setStatus(err.message || "failed to save settings", false);
+        }
+      });
+    }
+
     setupGlobalButtonToasts();
 
     document.addEventListener("pointerdown", () => {
@@ -2109,6 +2407,9 @@ const statusEl = document.getElementById("status");
       unlockTriggerAudio();
     }, { passive: true });
 
+    // =========================
+    // Stream Events (SSE)
+    // =========================
     const source = new EventSource("/events");
     source.onopen = () => {
       refreshState();
@@ -2127,6 +2428,9 @@ const statusEl = document.getElementById("status");
         if (payload.type === "trigger") {
           playTriggerSound(payload.sound_url);
         }
+        if (payload.type === "like_goal_state") {
+          renderLikeGoalState(payload.state || {});
+        }
         if (payload.type === "status") {
           const message = String(payload.message || "");
           const ok = !message.toLowerCase().includes("error") && !message.toLowerCase().includes("stopped");
@@ -2139,8 +2443,13 @@ const statusEl = document.getElementById("status");
       }
     };
 
+    // =========================
+    // Initial Bootstrap
+    // =========================
     refreshState();
     syncExecutionModeFields();
     syncLabelHint();
     loadGiftOptions();
     loadEventsTable();
+    loadLikeGoalState({ silent: true });
+    loadUnifiedSettings({ silent: true }).catch(() => {});

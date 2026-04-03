@@ -10,6 +10,9 @@
   <main class="wrap">
     <header class="head">
       <h1 class="title">Go-TikTok-Live-Connector</h1>
+      <div class="head-actions">
+        <button id="appSettingsSaveBtn" type="button">Save</button>
+      </div>
     </header>
 
     <section class="tools-grid">
@@ -40,7 +43,7 @@
           </div>
           <input id="testEventCount" type="number" min="1" value="1" placeholder="Count" aria-label="Simulation count">
           <input id="testEventText" type="text" placeholder="Text/Message (optional)" autocomplete="off" aria-label="Simulation text">
-          <button id="testEventBtn" type="button">Simulate Event</button>
+          <button id="testEventBtn" type="button">Simulate</button>
         </div>
       </section>
     </section>
@@ -60,6 +63,41 @@
           <button id="mcSendBtn" type="button">Send Command</button>
         </div>
         <pre id="mcOutput" class="mc-output" aria-live="polite"></pre>
+      </section>
+    </section>
+
+    <section class="tools-single">
+      <section class="mc" aria-label="Like Goal">
+        <h2>Like Goal (OBS Overlay)</h2>
+        <div class="mc-row like-goal-row">
+          <input id="likeGoalTitle" type="text" value="Like Goal" placeholder="Title (e.g. 1M Likes)" autocomplete="off" aria-label="Like goal title">
+          <input id="likeGoalValue" type="number" min="1" value="1000" placeholder="Goal" aria-label="Like goal target">
+          <div id="likeGoalModePicker" class="gift-picker-host">
+            <select id="likeGoalMode" class="native-gift-select" aria-label="Like goal mode">
+              <option value="increase">increase</option>
+              <option value="double">double</option>
+            </select>
+          </div>
+          <div id="likeGoalTriggerEventPicker" class="gift-picker-host">
+            <select id="likeGoalTriggerEvent" class="native-gift-select" aria-label="Like goal trigger event">
+              <option value="0">Select event trigger</option>
+            </select>
+          </div>
+          <label class="like-goal-enabled"><input id="likeGoalEnabled" type="checkbox" checked> Enabled</label>
+          <button id="likeGoalTestBtn" type="button">Test Like Goal</button>
+          <button id="likeGoalResetBtn" type="button">Reset Progress</button>
+          <a id="likeGoalOverlayLink" href="/overlay/like-goal" target="_blank" rel="noopener noreferrer">Open Overlay</a>
+          <button id="likeGoalCopyLinkBtn" type="button">Copy Link</button>
+        </div>
+        <div class="like-goal-preview" aria-live="polite">
+          <div class="like-goal-preview-head">
+            <div id="likeGoalPreviewTitle" class="like-goal-preview-title">Like Goal</div>
+            <div id="likeGoalProgressText" class="like-goal-preview-text">0 / 1000</div>
+          </div>
+          <div class="like-goal-progress-track">
+            <div id="likeGoalProgressBar" class="like-goal-progress-fill"></div>
+          </div>
+        </div>
       </section>
     </section>
 

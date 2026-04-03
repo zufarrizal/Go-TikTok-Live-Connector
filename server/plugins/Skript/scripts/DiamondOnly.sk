@@ -1,0 +1,64 @@
+# Whitelist inventory:
+# - diamond
+# - enchanted golden apple
+# - armor
+# - tools
+
+function is_allowed_item(it: item) :: boolean:
+    if {_it} is diamond:
+        return true
+    if {_it} is enchanted golden apple:
+        return true
+
+    if {_it} is leather helmet or leather chestplate or leather leggings or leather boots:
+        return true
+    if {_it} is chainmail helmet or chainmail chestplate or chainmail leggings or chainmail boots:
+        return true
+    if {_it} is iron helmet or iron chestplate or iron leggings or iron boots:
+        return true
+    if {_it} is golden helmet or golden chestplate or golden leggings or golden boots:
+        return true
+    if {_it} is diamond helmet or diamond chestplate or diamond leggings or diamond boots:
+        return true
+    if {_it} is netherite helmet or netherite chestplate or netherite leggings or netherite boots:
+        return true
+    if {_it} is turtle helmet:
+        return true
+
+    if {_it} is wooden sword or stone sword or iron sword or golden sword or diamond sword or netherite sword:
+        return true
+    if {_it} is wooden pickaxe or stone pickaxe or iron pickaxe or golden pickaxe or diamond pickaxe or netherite pickaxe:
+        return true
+    if {_it} is wooden axe or stone axe or iron axe or golden axe or diamond axe or netherite axe:
+        return true
+    if {_it} is wooden shovel or stone shovel or iron shovel or golden shovel or diamond shovel or netherite shovel:
+        return true
+    if {_it} is wooden hoe or stone hoe or iron hoe or golden hoe or diamond hoe or netherite hoe:
+        return true
+    if "%type of {_it}%" contains "arrow":
+        return true
+
+    return false
+
+function clear_non_whitelist_items(p: player):
+    loop all items in {_p}'s inventory:
+        if loop-item is not air:
+            if is_allowed_item(loop-item) is false:
+                remove loop-item from {_p}'s inventory
+
+on join:
+    wait 5 ticks
+    clear_non_whitelist_items(player)
+
+on respawn:
+    wait 5 ticks
+    clear_non_whitelist_items(player)
+
+on pickup:
+    if is_allowed_item(event-item) is true:
+        stop
+    cancel event
+
+every 10 ticks:
+    loop all players:
+        clear_non_whitelist_items(loop-player)

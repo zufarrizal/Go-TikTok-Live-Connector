@@ -1,38 +1,24 @@
-# Ignore everything by default
-*
+# Build artifacts
+*.exe
+*.out
+*.log
+stdout
 
-# Runtime cache/output that must never be committed
+# Editor/OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# App runtime data
+events.json
+gift-list.json
+settings.json
 giftimage/
+sounds/
 
-# Keep gitignore itself
-!.gitignore
-
-# Keep required root files
-!go.mod
-!go.sum
-!LICENSE
-!main.go
-!README
-!README.md
-!eula.txt
-!paper.jar
-!server.properties
-!start-server.bat
-!Skript-2.14.3.jar
-!file.sk
-
-# Keep web folder and all contents
-!web/
-!web/**
-
-# Allow traversing server tree, then keep only specific files
-!server/
-server/**
-!server/**/
-!server/eula.txt
-!server/paper.jar
-!server/server.properties
-!server/start-server.bat
-!server/plugins/
-!server/plugins/Skript-2.14.3.jar
-!server/**/file.sk
+# Minecraft server runtime data
+server/usercache.json
+server/version_history.json
+server/whitelist.json
+server/permissions.yml
+server/plugins/Skript/variables.csv

@@ -21,7 +21,7 @@ Project ini berisi:
   - test event/simulator
   - kontrol RCON
   - export Event List Box ke PNG slides
-- Folder `server/` (Paper + Skript) untuk sisi gameplay Minecraft.
+- Folder `server/` (Paper + Skript + plugin tambahan) untuk sisi gameplay Minecraft.
 
 ## Fitur Utama
 
@@ -55,19 +55,32 @@ Project ini berisi:
   - event automation
   - RCON manager
   - simulator endpoint
-- `events.json`
-  - database rule event
-- `gift-list.json`
-  - cache daftar gift aktif
-- `giftimage/`
-  - cache gambar gift yang dipakai UI
-- `sounds/`
-  - storage upload audio runtime
-  - diserve ke `/static/sounds/...`
 - `web/index.html`, `web/static/app.js`, `web/static/styles.css`
   - dashboard UI
 - `server/`
-  - Paper server + Skript
+  - `paper.jar`, `eula.txt`, `server.properties`, `start-server.bat`
+  - `plugins/Skript-2.14.3.jar`
+  - `plugins/ServerTap-0.6.1.jar`
+  - `plugins/Skript/` untuk script `.sk` dan konfigurasi Skript
+
+## File Commit vs Runtime
+
+Sesuai `.gitignore`, file yang **di-ignore** (runtime/hasil jalan aplikasi) saat ini:
+
+- `events.json`
+- `gift-list.json`
+- `settings.json`
+- `giftimage/`
+- `sounds/`
+- `stdout`
+- `*.exe`
+- `server/usercache.json`
+- `server/version_history.json`
+- `server/whitelist.json`
+- `server/permissions.yml`
+- `server/plugins/Skript/variables.csv`
+
+File source, web, dan file server inti tetap bisa di-commit seperti biasa.
 
 ## Menjalankan Aplikasi
 
@@ -281,6 +294,10 @@ File/folder berikut akan sering berubah saat aplikasi berjalan:
 - `gift-list.json`
 - `giftimage/`
 - `sounds/`
+- `server/usercache.json`
+- `server/version_history.json`
+- `server/whitelist.json`
+- `server/permissions.yml`
 
 Saran:
 

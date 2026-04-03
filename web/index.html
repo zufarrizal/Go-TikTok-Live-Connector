@@ -11,6 +11,10 @@
     <header class="head">
       <h1 class="title">Go-TikTok-Live-Connector</h1>
       <div class="head-actions">
+        <button id="languageToggleBtn" type="button" aria-label="Toggle language" title="Switch language">
+          <img id="languageFlagIcon" src="/static/flags/id.svg" alt="Indonesia flag">
+          <span id="languageCodeLabel">ID</span>
+        </button>
         <button id="howToUseBtn" type="button">How to Use</button>
         <button id="appSettingsSaveBtn" type="button">Save</button>
       </div>
@@ -18,7 +22,7 @@
 
     <section class="tools-grid">
       <section class="mc" aria-label="TikTok Connection">
-        <h2>Connect TikTok</h2>
+        <h2 id="connectTikTokTitle">Connect TikTok</h2>
         <div class="connect-row">
           <input id="username" type="text" value="masjup88" placeholder="TikTok username, e.g. masjup88" autocomplete="off" aria-label="TikTok username">
           <button id="startBtn" class="primary" type="button">Start</button>
@@ -28,7 +32,7 @@
       </section>
 
       <section class="mc" aria-label="Event Simulator">
-        <h2>Event Simulator</h2>
+        <h2 id="eventSimulatorTitle">Event Simulator</h2>
         <div id="testEventRow" class="mc-row">
           <select id="testEventType" aria-label="Simulation event type">
             <option value="gift">GiftEvent</option>
@@ -51,7 +55,7 @@
 
     <section class="tools-single">
       <section class="mc" aria-label="Minecraft Connector">
-        <h2>Minecraft Connector</h2>
+        <h2 id="minecraftConnectorTitle">Minecraft Connector</h2>
         <div class="mc-row mc-rcon-row">
           <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" autocomplete="off" aria-label="RCON host">
           <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" aria-label="RCON port">
@@ -69,7 +73,7 @@
 
     <section class="tools-single">
       <section class="mc" aria-label="Like Goal">
-        <h2>Like Goal (OBS Overlay)</h2>
+        <h2 id="likeGoalSectionTitle">Like Goal (OBS Overlay)</h2>
         <div class="mc-row like-goal-row">
           <input id="likeGoalTitle" type="text" value="Like Goal" placeholder="Title (e.g. 1M Likes)" autocomplete="off" aria-label="Like goal title">
           <input id="likeGoalValue" type="number" min="1" value="1000" placeholder="Goal" aria-label="Like goal target">
@@ -84,7 +88,7 @@
               <option value="0">Select event trigger</option>
             </select>
           </div>
-          <label class="like-goal-enabled"><input id="likeGoalEnabled" type="checkbox" checked> Enabled</label>
+          <label id="likeGoalEnabledLabel" class="like-goal-enabled"><input id="likeGoalEnabled" type="checkbox" checked> Enabled</label>
           <button id="likeGoalTestBtn" type="button">Test Like Goal</button>
           <button id="likeGoalResetBtn" type="button">Reset Progress</button>
           <a id="likeGoalOverlayLink" href="/overlay/like-goal" target="_blank" rel="noopener noreferrer">Open Overlay</a>
@@ -105,7 +109,7 @@
     <section class="event-layout">
       <section class="crud" aria-label="Event Panel">
         <div class="crud-top">
-          <h2>Event Panel</h2>
+          <h2 id="eventPanelTitle">Event Panel</h2>
           <div class="crud-top-actions">
             <button id="exportEventsBtn" type="button">Export Events</button>
             <button id="loadEventsBtn" type="button">Load Events</button>
@@ -119,16 +123,16 @@
           <table class="crud-table">
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Title</th>
-                <th>Label</th>
-                <th>Gift Name</th>
-                <th>Diamond</th>
-                <th>Sound</th>
-                <th>MC Command</th>
-                <th>Shortcut</th>
-                <th>Mode</th>
-                <th>Actions</th>
+                <th id="thType">Type</th>
+                <th id="thTitle">Title</th>
+                <th id="thLabel">Label</th>
+                <th id="thGiftName">Gift Name</th>
+                <th id="thDiamond">Diamond</th>
+                <th id="thSound">Sound</th>
+                <th id="thMCCommand">MC Command</th>
+                <th id="thShortcut">Shortcut</th>
+                <th id="thMode">Mode</th>
+                <th id="thActions">Actions</th>
               </tr>
             </thead>
             <tbody id="eventRows"></tbody>
@@ -137,7 +141,7 @@
 
         <section class="event-box-section" aria-label="Event List Box">
           <div class="event-box-head">
-            <h2>Event List Box</h2>
+            <h2 id="eventListBoxTitle">Event List Box</h2>
             <div class="event-box-tools">
               <button id="exportEventBoxBtn" type="button">Save PNG Slides</button>
             </div>
@@ -156,7 +160,7 @@
       </section>
 
       <aside class="history-panel" aria-label="History">
-        <h2 class="history-head">History</h2>
+        <h2 id="historyTitle" class="history-head">History</h2>
         <ul id="events" class="events"></ul>
       </aside>
     </section>
@@ -207,7 +211,7 @@
 
           <textarea id="eventMCCommand" class="full" rows="5" placeholder="Minecraft command, one command per line&#10;Example:&#10;say Welcome {username}&#10;give {username} diamond 1" required aria-label="MC command"></textarea>
           <div class="placeholder-help full">
-            <strong>Available placeholders for MC Command</strong>
+            <strong id="eventPlaceholderTitle">Available placeholders for MC Command</strong>
             <code>{username}</code>
             <code>{nickname}</code>
             <code>{follow}</code>
@@ -237,13 +241,13 @@
         </div>
         <div class="howto-content">
           <ol>
-            <li>Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start</li>
-            <li>Jika server minecraft sudah jalan bisa tekan tombol connect rcon</li>
-            <li>Jika live tiktok sudah berjalan bisa tekan connect</li>
+            <li id="howtoStep1">Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start</li>
+            <li id="howtoStep2">Jika server minecraft sudah jalan bisa tekan tombol connect rcon</li>
+            <li id="howtoStep3">Jika live tiktok sudah berjalan bisa tekan connect</li>
           </ol>
-          <p>Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator</p>
+          <p id="howtoStep4">Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator</p>
         </div>
-        <div class="howto-footer">
+        <div id="howtoFooter" class="howto-footer">
           Jika belum membeli lisensi bisa melalui WhatsApp : +62851 5656 0055
         </div>
       </div>

@@ -29,6 +29,9 @@ const statusEl = document.getElementById("status");
     const likeGoalProgressTextEl = document.getElementById("likeGoalProgressText");
     const likeGoalProgressBarEl = document.getElementById("likeGoalProgressBar");
     const appSettingsSaveBtn = document.getElementById("appSettingsSaveBtn");
+    const languageToggleBtn = document.getElementById("languageToggleBtn");
+    const languageFlagIcon = document.getElementById("languageFlagIcon");
+    const languageCodeLabel = document.getElementById("languageCodeLabel");
     const testEventTypeEl = document.getElementById("testEventType");
     const testEventUsernameEl = document.getElementById("testEventUsername");
     const testEventGiftEl = document.getElementById("testEventGift");
@@ -78,6 +81,30 @@ const statusEl = document.getElementById("status");
     const eventExportStageEl = document.getElementById("eventExportStage");
     const eventBoxRowsPopupEl = document.getElementById("eventBoxRowsPopup");
     const eventPaginationPopupEl = document.getElementById("eventPaginationPopup");
+    const connectTikTokTitleEl = document.getElementById("connectTikTokTitle");
+    const eventSimulatorTitleEl = document.getElementById("eventSimulatorTitle");
+    const minecraftConnectorTitleEl = document.getElementById("minecraftConnectorTitle");
+    const likeGoalSectionTitleEl = document.getElementById("likeGoalSectionTitle");
+    const likeGoalEnabledLabelEl = document.getElementById("likeGoalEnabledLabel");
+    const eventPanelTitleEl = document.getElementById("eventPanelTitle");
+    const eventListBoxTitleEl = document.getElementById("eventListBoxTitle");
+    const historyTitleEl = document.getElementById("historyTitle");
+    const thTypeEl = document.getElementById("thType");
+    const thTitleEl = document.getElementById("thTitle");
+    const thLabelEl = document.getElementById("thLabel");
+    const thGiftNameEl = document.getElementById("thGiftName");
+    const thDiamondEl = document.getElementById("thDiamond");
+    const thSoundEl = document.getElementById("thSound");
+    const thMCCommandEl = document.getElementById("thMCCommand");
+    const thShortcutEl = document.getElementById("thShortcut");
+    const thModeEl = document.getElementById("thMode");
+    const thActionsEl = document.getElementById("thActions");
+    const eventPlaceholderTitleEl = document.getElementById("eventPlaceholderTitle");
+    const howtoStep1El = document.getElementById("howtoStep1");
+    const howtoStep2El = document.getElementById("howtoStep2");
+    const howtoStep3El = document.getElementById("howtoStep3");
+    const howtoStep4El = document.getElementById("howtoStep4");
+    const howtoFooterEl = document.getElementById("howtoFooter");
     let editingEventId = null;
     let giftOptions = [];
     const MAX_EVENT_HISTORY = 10;
@@ -99,6 +126,424 @@ const statusEl = document.getElementById("status");
     let lastToastSignature = "";
     let lastToastAt = 0;
     let likeGoalState = null;
+    const I18N_STORAGE_KEY = "gtlc_lang";
+    let currentLang = "id";
+    const I18N = {
+      id: {
+        "ui.howToUse": "Cara Pakai",
+        "ui.save": "Simpan",
+        "ui.connectTikTok": "Hubungkan TikTok",
+        "ui.eventSimulator": "Simulator Event",
+        "ui.minecraftConnector": "Konektor Minecraft",
+        "ui.likeGoal": "Target Like (OBS Overlay)",
+        "ui.enabled": "Aktif",
+        "ui.testLikeGoal": "Tes Target Like",
+        "ui.resetProgress": "Reset Progres",
+        "ui.openOverlay": "Buka Overlay",
+        "ui.copyLink": "Salin Link",
+        "ui.eventPanel": "Panel Event",
+        "ui.exportEvents": "Ekspor Event",
+        "ui.loadEvents": "Muat Event",
+        "ui.resetEvents": "Reset Event",
+        "ui.addEvent": "Tambah Event",
+        "ui.eventListBox": "Kotak Daftar Event",
+        "ui.savePngSlides": "Simpan PNG Slides",
+        "ui.prev": "Sebelumnya",
+        "ui.next": "Berikutnya",
+        "ui.history": "Riwayat",
+        "ui.close": "Tutup",
+        "ui.uploadSound": "Unggah Suara",
+        "ui.runShortcut": "Jalankan Shortcut Keyboard",
+        "ui.runMC": "Jalankan Perintah MC",
+        "ui.reset": "Reset",
+        "ui.type": "Tipe",
+        "ui.title": "Judul",
+        "ui.label": "Label",
+        "ui.giftName": "Nama Gift",
+        "ui.diamond": "Diamond",
+        "ui.sound": "Suara",
+        "ui.mcCommand": "Perintah MC",
+        "ui.shortcut": "Shortcut",
+        "ui.mode": "Mode",
+        "ui.actions": "Aksi",
+        "ui.mcOnly": "MC",
+        "ui.mcAndShortcut": "MC + Shortcut",
+        "ui.run": "Jalankan",
+        "ui.edit": "Ubah",
+        "ui.duplicate": "Duplikat",
+        "ui.delete": "Hapus",
+        "ui.placeholderHelp": "Placeholder yang tersedia untuk Perintah MC",
+        "ui.simulate": "Simulasi",
+        "ui.connect": "Hubungkan",
+        "ui.stop": "Berhenti",
+        "ui.start": "Mulai",
+        "ui.disconnect": "Putuskan",
+        "ui.connectRcon": "Hubungkan RCON",
+        "ui.sendCommand": "Kirim Perintah",
+        "ui.likeGoalSelectTrigger": "Pilih event trigger",
+        "ui.selectGift": "Pilih Gift",
+        "ui.selectShortcut": "Pilih shortcut",
+        "ui.selectMode": "Pilih mode",
+        "ui.searchGift": "Cari gift...",
+        "ui.searchShortcut": "Cari shortcut...",
+        "ui.giftNotFound": "Gift tidak ditemukan.",
+        "ui.shortcutNotFound": "Shortcut tidak ditemukan.",
+        "ui.noEventsYet": "Belum ada event.",
+        "ui.noGiftEventsYet": "Belum ada event gift.",
+        "ui.eventModalAdd": "Tambah Event",
+        "ui.eventModalEdit": "Edit Event",
+        "ui.pickButtonClicked": "Tombol \"{button}\" ditekan",
+        "howto.step1": "Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start",
+        "howto.step2": "Jika server minecraft sudah jalan bisa tekan tombol connect rcon",
+        "howto.step3": "Jika live tiktok sudah berjalan bisa tekan connect",
+        "howto.step4": "Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator",
+        "howto.footer": "Jika belum membeli lisensi bisa melalui WhatsApp : +62851 5656 0055",
+        "msg.requiredUsername": "username wajib diisi",
+        "msg.tracking": "melacak @{username}",
+        "msg.idle": "idle (belum terhubung)",
+        "msg.fetchStateFailed": "gagal mengambil status",
+        "msg.starting": "memulai @{username}...",
+        "msg.stopped": "berhenti",
+        "msg.serverDisconnectedRetry": "server terputus (mencoba lagi...)",
+        "msg.settingsSaved": "pengaturan tersimpan",
+        "msg.settingsLoaded": "pengaturan dimuat",
+        "msg.eventsExported": "event berhasil diekspor",
+        "msg.eventsReset": "event berhasil direset",
+        "msg.eventCreated": "event berhasil dibuat",
+        "msg.eventUpdated": "event berhasil diperbarui",
+        "msg.eventDeleted": "event berhasil dihapus",
+        "msg.eventDuplicated": "event berhasil diduplikasi",
+        "msg.overlayCopied": "link overlay disalin",
+        "msg.overlayCopyFailed": "gagal menyalin link overlay",
+        "msg.likeGoalReset": "progres target like direset",
+        "msg.likeGoalTestSent": "tes target like terkirim (progres tidak berubah)",
+        "msg.simulateCountdown": "simulasi event dalam {sec} detik...",
+        "msg.eventSimulated": "event disimulasikan: {type} @{username}",
+        "msg.loadedEventCount": "berhasil memuat {count} event dari JSON",
+        "msg.editingEvent": "mengedit event #{id}",
+        "msg.eventTestSucceeded": "tes event #{id} berhasil",
+        "msg.giftRefreshed": "daftar gift diperbarui untuk @{username}{region}{source}",
+        "msg.resetEventsConfirm": "Reset semua event dari events.json?",
+        "msg.deleteEventConfirm": "Hapus event #{id}?",
+        "msg.emptyCommand": "Perintah kosong.",
+        "msg.rconConnected": "RCON terhubung.",
+        "msg.rconDisconnected": "RCON terputus.",
+        "msg.simulatedOutput": "Simulasi {type} - {message}",
+        "msg.noOutput": "(tidak ada output)",
+        "msg.uploading": "Mengunggah..."
+      },
+      en: {
+        "ui.howToUse": "How to Use",
+        "ui.save": "Save",
+        "ui.connectTikTok": "Connect TikTok",
+        "ui.eventSimulator": "Event Simulator",
+        "ui.minecraftConnector": "Minecraft Connector",
+        "ui.likeGoal": "Like Goal (OBS Overlay)",
+        "ui.enabled": "Enabled",
+        "ui.testLikeGoal": "Test Like Goal",
+        "ui.resetProgress": "Reset Progress",
+        "ui.openOverlay": "Open Overlay",
+        "ui.copyLink": "Copy Link",
+        "ui.eventPanel": "Event Panel",
+        "ui.exportEvents": "Export Events",
+        "ui.loadEvents": "Load Events",
+        "ui.resetEvents": "Reset Events",
+        "ui.addEvent": "Add Event",
+        "ui.eventListBox": "Event List Box",
+        "ui.savePngSlides": "Save PNG Slides",
+        "ui.prev": "Prev",
+        "ui.next": "Next",
+        "ui.history": "History",
+        "ui.close": "Close",
+        "ui.uploadSound": "Upload Sound",
+        "ui.runShortcut": "Run Keyboard Shortcut",
+        "ui.runMC": "Run MC Command",
+        "ui.reset": "Reset",
+        "ui.type": "Type",
+        "ui.title": "Title",
+        "ui.label": "Label",
+        "ui.giftName": "Gift Name",
+        "ui.diamond": "Diamond",
+        "ui.sound": "Sound",
+        "ui.mcCommand": "MC Command",
+        "ui.shortcut": "Shortcut",
+        "ui.mode": "Mode",
+        "ui.actions": "Actions",
+        "ui.mcOnly": "MC",
+        "ui.mcAndShortcut": "MC + Shortcut",
+        "ui.run": "Run",
+        "ui.edit": "Edit",
+        "ui.duplicate": "Duplicate",
+        "ui.delete": "Delete",
+        "ui.placeholderHelp": "Available placeholders for MC Command",
+        "ui.simulate": "Simulate",
+        "ui.connect": "Connect",
+        "ui.stop": "Stop",
+        "ui.start": "Start",
+        "ui.disconnect": "Disconnect",
+        "ui.connectRcon": "Connect RCON",
+        "ui.sendCommand": "Send Command",
+        "ui.likeGoalSelectTrigger": "Select event trigger",
+        "ui.selectGift": "Select Gift",
+        "ui.selectShortcut": "Select shortcut",
+        "ui.selectMode": "Select mode",
+        "ui.searchGift": "Search gift...",
+        "ui.searchShortcut": "Search shortcut...",
+        "ui.giftNotFound": "Gift not found.",
+        "ui.shortcutNotFound": "Shortcut not found.",
+        "ui.noEventsYet": "No events yet.",
+        "ui.noGiftEventsYet": "No gift events yet.",
+        "ui.eventModalAdd": "Add Event",
+        "ui.eventModalEdit": "Edit Event",
+        "ui.pickButtonClicked": "Button \"{button}\" clicked",
+        "howto.step1": "When opening the app for the first time, you must enter the username and press Start",
+        "howto.step2": "If your Minecraft server is already running, you can press Connect RCON",
+        "howto.step3": "If the TikTok live has started, you can press Connect",
+        "howto.step4": "If you want to test events, you can press Run or use Event Simulator",
+        "howto.footer": "If you have not purchased a license, contact WhatsApp: +62851 5656 0055",
+        "msg.requiredUsername": "username is required",
+        "msg.tracking": "tracking @{username}",
+        "msg.idle": "idle (not connected)",
+        "msg.fetchStateFailed": "failed to fetch state",
+        "msg.starting": "starting @{username}...",
+        "msg.stopped": "stopped",
+        "msg.serverDisconnectedRetry": "server disconnected (retrying...)",
+        "msg.settingsSaved": "settings saved",
+        "msg.settingsLoaded": "settings loaded",
+        "msg.eventsExported": "events exported successfully",
+        "msg.eventsReset": "events reset successfully",
+        "msg.eventCreated": "event created successfully",
+        "msg.eventUpdated": "event updated successfully",
+        "msg.eventDeleted": "event deleted successfully",
+        "msg.eventDuplicated": "event duplicated successfully",
+        "msg.overlayCopied": "overlay link copied",
+        "msg.overlayCopyFailed": "failed to copy overlay link",
+        "msg.likeGoalReset": "like goal progress reset",
+        "msg.likeGoalTestSent": "like goal test sent (progress unchanged)",
+        "msg.simulateCountdown": "simulate event in {sec}s...",
+        "msg.eventSimulated": "event simulated: {type} @{username}",
+        "msg.loadedEventCount": "loaded {count} event(s) from JSON",
+        "msg.editingEvent": "editing event #{id}",
+        "msg.eventTestSucceeded": "event test #{id} succeeded",
+        "msg.giftRefreshed": "gift list refreshed for @{username}{region}{source}",
+        "msg.resetEventsConfirm": "Reset all events from events.json?",
+        "msg.deleteEventConfirm": "Delete event #{id}?",
+        "msg.emptyCommand": "Command is empty.",
+        "msg.rconConnected": "RCON connected.",
+        "msg.rconDisconnected": "RCON disconnected.",
+        "msg.simulatedOutput": "Simulated {type} - {message}",
+        "msg.noOutput": "(no output)",
+        "msg.uploading": "Uploading..."
+      }
+    };
+
+    function t(key, vars = {}) {
+      const pack = I18N[currentLang] || I18N.en;
+      let out = pack[key] || I18N.en[key] || key;
+      for (const [k, v] of Object.entries(vars || {})) {
+        out = out.replaceAll("{" + k + "}", String(v));
+      }
+      return out;
+    }
+
+    function translateKnownMessage(raw) {
+      const text = String(raw || "").trim();
+      if (!text) return "";
+      const exactPairs = [
+        [I18N.id["msg.requiredUsername"], I18N.en["msg.requiredUsername"]],
+        [I18N.id["msg.idle"], I18N.en["msg.idle"]],
+        [I18N.id["msg.fetchStateFailed"], I18N.en["msg.fetchStateFailed"]],
+        [I18N.id["msg.stopped"], I18N.en["msg.stopped"]],
+        [I18N.id["msg.serverDisconnectedRetry"], I18N.en["msg.serverDisconnectedRetry"]],
+        [I18N.id["msg.settingsSaved"], I18N.en["msg.settingsSaved"]],
+        [I18N.id["msg.settingsLoaded"], I18N.en["msg.settingsLoaded"]],
+        [I18N.id["msg.eventsExported"], I18N.en["msg.eventsExported"]],
+        [I18N.id["msg.eventsReset"], I18N.en["msg.eventsReset"]],
+        [I18N.id["msg.eventCreated"], I18N.en["msg.eventCreated"]],
+        [I18N.id["msg.eventUpdated"], I18N.en["msg.eventUpdated"]],
+        [I18N.id["msg.eventDeleted"], I18N.en["msg.eventDeleted"]],
+        [I18N.id["msg.eventDuplicated"], I18N.en["msg.eventDuplicated"]],
+        [I18N.id["msg.overlayCopied"], I18N.en["msg.overlayCopied"]],
+        [I18N.id["msg.overlayCopyFailed"], I18N.en["msg.overlayCopyFailed"]],
+        [I18N.id["msg.likeGoalReset"], I18N.en["msg.likeGoalReset"]],
+        [I18N.id["msg.likeGoalTestSent"], I18N.en["msg.likeGoalTestSent"]],
+        [I18N.id["msg.emptyCommand"], I18N.en["msg.emptyCommand"]],
+        [I18N.id["msg.rconConnected"], I18N.en["msg.rconConnected"]],
+        [I18N.id["msg.rconDisconnected"], I18N.en["msg.rconDisconnected"]],
+        [I18N.id["msg.noOutput"], I18N.en["msg.noOutput"]],
+        [I18N.id["msg.uploading"], I18N.en["msg.uploading"]]
+      ];
+      for (const pair of exactPairs) {
+        if (text === pair[0] || text === pair[1]) {
+          return currentLang === "id" ? pair[0] : pair[1];
+        }
+      }
+
+      let m = text.match(/^tracking @(.+)$/i) || text.match(/^melacak @(.+)$/i);
+      if (m) return t("msg.tracking", { username: m[1] });
+      m = text.match(/^starting @(.+)\.\.\.$/i) || text.match(/^memulai @(.+)\.\.\.$/i);
+      if (m) return t("msg.starting", { username: m[1] });
+      m = text.match(/^simulate event in (\d+)s\.\.\.$/i) || text.match(/^simulasi event dalam (\d+) detik\.\.\.$/i);
+      if (m) return t("msg.simulateCountdown", { sec: m[1] });
+      m = text.match(/^event simulated: (.+) @(.+)$/i) || text.match(/^event disimulasikan: (.+) @(.+)$/i);
+      if (m) return t("msg.eventSimulated", { type: m[1], username: m[2] });
+      m = text.match(/^loaded (\d+) event\(s\) from JSON$/i) || text.match(/^berhasil memuat (\d+) event dari JSON$/i);
+      if (m) return t("msg.loadedEventCount", { count: m[1] });
+      m = text.match(/^editing event #(\d+)$/i) || text.match(/^mengedit event #(\d+)$/i);
+      if (m) return t("msg.editingEvent", { id: m[1] });
+      m = text.match(/^event test #(\d+) succeeded$/i) || text.match(/^tes event #(\d+) berhasil$/i);
+      if (m) return t("msg.eventTestSucceeded", { id: m[1] });
+      m = text.match(/^gift list refreshed for @([^(\[]+)(.*)$/i) || text.match(/^daftar gift diperbarui untuk @([^(\[]+)(.*)$/i);
+      if (m) {
+        const username = String(m[1] || "").trim();
+        const suffix = String(m[2] || "");
+        return t("msg.giftRefreshed", {
+          username,
+          region: suffix.includes("(") ? suffix.slice(suffix.indexOf("("), suffix.includes("[") ? suffix.indexOf("[") : undefined).trim() : "",
+          source: suffix.includes("[") ? " " + suffix.slice(suffix.indexOf("[")).trim() : ""
+        });
+      }
+      m = text.match(/^Simulated (.+) - (.+)$/i) || text.match(/^Simulasi (.+) - (.+)$/i);
+      if (m) return t("msg.simulatedOutput", { type: m[1], message: m[2] });
+      if (currentLang === "id") {
+        return text
+          .replace(/failed to/ig, "gagal")
+          .replace(/is required/ig, "wajib diisi")
+          .replace(/not found/ig, "tidak ditemukan")
+          .replace(/invalid request body/ig, "body request tidak valid")
+          .replace(/method not allowed/ig, "metode tidak diizinkan");
+      }
+      return text
+        .replace(/gagal/ig, "failed")
+        .replace(/wajib diisi/ig, "is required")
+        .replace(/tidak ditemukan/ig, "not found")
+        .replace(/body request tidak valid/ig, "invalid request body")
+        .replace(/metode tidak diizinkan/ig, "method not allowed");
+    }
+
+    function applyLanguageUI() {
+      document.documentElement.lang = currentLang;
+      const isID = currentLang === "id";
+      if (languageFlagIcon) {
+        languageFlagIcon.src = isID ? "/static/flags/id.svg" : "/static/flags/en.svg";
+        languageFlagIcon.alt = isID ? "Indonesia flag" : "English flag";
+      }
+      if (languageCodeLabel) {
+        languageCodeLabel.textContent = isID ? "ID" : "EN";
+      }
+      if (languageToggleBtn) {
+        languageToggleBtn.setAttribute("aria-label", isID ? "Switch to English" : "Ganti ke Bahasa Indonesia");
+        languageToggleBtn.title = isID ? "Switch to English" : "Ganti ke Bahasa Indonesia";
+      }
+      document.title = "Go-TikTok-Live-Connector";
+      if (howToUseBtn) howToUseBtn.textContent = t("ui.howToUse");
+      if (appSettingsSaveBtn) appSettingsSaveBtn.textContent = t("ui.save");
+      if (connectTikTokTitleEl) connectTikTokTitleEl.textContent = t("ui.connectTikTok");
+      if (eventSimulatorTitleEl) eventSimulatorTitleEl.textContent = t("ui.eventSimulator");
+      if (minecraftConnectorTitleEl) minecraftConnectorTitleEl.textContent = t("ui.minecraftConnector");
+      if (likeGoalSectionTitleEl) likeGoalSectionTitleEl.textContent = t("ui.likeGoal");
+      if (eventPanelTitleEl) eventPanelTitleEl.textContent = t("ui.eventPanel");
+      if (eventListBoxTitleEl) eventListBoxTitleEl.textContent = t("ui.eventListBox");
+      if (historyTitleEl) historyTitleEl.textContent = t("ui.history");
+      if (thTypeEl) thTypeEl.textContent = t("ui.type");
+      if (thTitleEl) thTitleEl.textContent = t("ui.title");
+      if (thLabelEl) thLabelEl.textContent = t("ui.label");
+      if (thGiftNameEl) thGiftNameEl.textContent = t("ui.giftName");
+      if (thDiamondEl) thDiamondEl.textContent = t("ui.diamond");
+      if (thSoundEl) thSoundEl.textContent = t("ui.sound");
+      if (thMCCommandEl) thMCCommandEl.textContent = t("ui.mcCommand");
+      if (thShortcutEl) thShortcutEl.textContent = t("ui.shortcut");
+      if (thModeEl) thModeEl.textContent = t("ui.mode");
+      if (thActionsEl) thActionsEl.textContent = t("ui.actions");
+      if (eventPlaceholderTitleEl) eventPlaceholderTitleEl.textContent = t("ui.placeholderHelp");
+      if (startBtn) startBtn.textContent = t("ui.start");
+      if (connectBtn) connectBtn.textContent = t("ui.connect");
+      if (stopBtn) stopBtn.textContent = t("ui.stop");
+      if (mcConnectBtn) mcConnectBtn.textContent = t("ui.connectRcon");
+      if (mcDisconnectBtn) mcDisconnectBtn.textContent = t("ui.disconnect");
+      if (mcSendBtn) mcSendBtn.textContent = t("ui.sendCommand");
+      if (testEventBtn) testEventBtn.textContent = t("ui.simulate");
+      if (exportEventsBtn) exportEventsBtn.textContent = t("ui.exportEvents");
+      if (loadEventsBtn) loadEventsBtn.textContent = t("ui.loadEvents");
+      if (resetEventsBtn) resetEventsBtn.textContent = t("ui.resetEvents");
+      if (openEventModalBtn) openEventModalBtn.textContent = t("ui.addEvent");
+      if (exportEventBoxBtn) exportEventBoxBtn.textContent = t("ui.savePngSlides");
+      if (eventPrevSlideBtn) eventPrevSlideBtn.textContent = t("ui.prev");
+      if (eventNextSlideBtn) eventNextSlideBtn.textContent = t("ui.next");
+      if (closeEventModalBtn) closeEventModalBtn.textContent = t("ui.close");
+      if (closeHowToModalBtn) closeHowToModalBtn.textContent = t("ui.close");
+      if (pickEventSoundBtn) pickEventSoundBtn.textContent = t("ui.uploadSound");
+      if (resetEventBtn) resetEventBtn.textContent = t("ui.reset");
+      if (likeGoalTestBtn) likeGoalTestBtn.textContent = t("ui.testLikeGoal");
+      if (likeGoalResetBtn) likeGoalResetBtn.textContent = t("ui.resetProgress");
+      if (likeGoalOverlayLinkEl) likeGoalOverlayLinkEl.textContent = t("ui.openOverlay");
+      if (likeGoalCopyLinkBtn) likeGoalCopyLinkBtn.textContent = t("ui.copyLink");
+      if (likeGoalEnabledLabelEl) {
+        const input = likeGoalEnabledLabelEl.querySelector("input");
+        likeGoalEnabledLabelEl.textContent = "";
+        if (input) likeGoalEnabledLabelEl.appendChild(input);
+        likeGoalEnabledLabelEl.appendChild(document.createTextNode(" " + t("ui.enabled")));
+      }
+      if (testEventUsernameEl) testEventUsernameEl.placeholder = currentLang === "id" ? "Username TikTok tester" : "Tester TikTok username";
+      if (testEventCountEl) testEventCountEl.placeholder = currentLang === "id" ? "Jumlah" : "Count";
+      if (testEventTextEl) testEventTextEl.placeholder = currentLang === "id" ? "Teks/Pesan (opsional)" : "Text/Message (optional)";
+      if (usernameEl) usernameEl.placeholder = currentLang === "id" ? "Username TikTok, misal masjup88" : "TikTok username, e.g. masjup88";
+      if (mcHostEl) mcHostEl.placeholder = currentLang === "id" ? "Host (contoh 127.0.0.1)" : "Host (e.g. 127.0.0.1)";
+      if (mcPortEl) mcPortEl.placeholder = currentLang === "id" ? "Port (contoh 25575)" : "Port (e.g. 25575)";
+      if (mcPasswordEl) mcPasswordEl.placeholder = currentLang === "id" ? "Password RCON" : "RCON password";
+      if (eventTitleEl) eventTitleEl.placeholder = currentLang === "id" ? "Judul untuk Event List Box" : "Title for Event List Box";
+      if (eventLabelEl) eventLabelEl.placeholder = currentLang === "id" ? "Label/filter rule (opsional)" : "Rule label/filter (optional)";
+      if (eventSoundEl) eventSoundEl.placeholder = currentLang === "id" ? "URL/path suara (opsional, contoh /static/sounds/trigger.mp3)" : "Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)";
+      if (eventShortcutHoldMsEl) eventShortcutHoldMsEl.placeholder = currentLang === "id" ? "Tahan" : "Hold";
+      if (howToModalEl) {
+        const title = document.getElementById("howToModalTitle");
+        if (title) title.textContent = t("ui.howToUse");
+      }
+      if (howtoStep1El) howtoStep1El.textContent = t("howto.step1");
+      if (howtoStep2El) howtoStep2El.textContent = t("howto.step2");
+      if (howtoStep3El) howtoStep3El.textContent = t("howto.step3");
+      if (howtoStep4El) howtoStep4El.textContent = t("howto.step4");
+      if (howtoFooterEl) howtoFooterEl.textContent = t("howto.footer");
+      if (eventGiftPicker && typeof eventGiftPicker.setPlaceholder === "function") eventGiftPicker.setPlaceholder(t("ui.selectGift"));
+      if (testEventGiftPicker && typeof testEventGiftPicker.setPlaceholder === "function") testEventGiftPicker.setPlaceholder(t("ui.selectGift"));
+      if (eventShortcutPicker && typeof eventShortcutPicker.setPlaceholder === "function") eventShortcutPicker.setPlaceholder(t("ui.selectShortcut"));
+      if (likeGoalModePicker && typeof likeGoalModePicker.setPlaceholder === "function") likeGoalModePicker.setPlaceholder(t("ui.selectMode"));
+      if (likeGoalTriggerPicker && typeof likeGoalTriggerPicker.setPlaceholder === "function") likeGoalTriggerPicker.setPlaceholder(t("ui.likeGoalSelectTrigger"));
+      if (likeGoalModePicker && typeof likeGoalModePicker.setOptions === "function") {
+        likeGoalModePicker.setOptions([
+          { value: "increase", label: currentLang === "id" ? "naik" : "increase" },
+          { value: "double", label: currentLang === "id" ? "lipat dua" : "double" }
+        ]);
+        if (likeGoalModeEl && likeGoalState) {
+          const modeID = Math.max(0, Number(likeGoalState.mode_id || 0));
+          const mode = modeID === 2 ? "double" : (String(likeGoalState.mode || "increase").toLowerCase() === "double" ? "double" : "increase");
+          likeGoalModeEl.value = mode;
+        }
+        likeGoalModePicker.syncFromSelect();
+      }
+      const setOpt = (selectEl, value, label) => {
+        if (!selectEl) return;
+        const opt = selectEl.querySelector("option[value=\"" + value + "\"]");
+        if (opt) opt.textContent = label;
+      };
+      setOpt(testEventTypeEl, "gift", currentLang === "id" ? "Event Gift" : "GiftEvent");
+      setOpt(testEventTypeEl, "chat", currentLang === "id" ? "Event Chat" : "ChatEvent");
+      setOpt(testEventTypeEl, "user_join", currentLang === "id" ? "Event User (Masuk)" : "UserEvent (Join)");
+      setOpt(testEventTypeEl, "user_follow", currentLang === "id" ? "Event User (Follow)" : "UserEvent (Follow)");
+      setOpt(testEventTypeEl, "user_share", currentLang === "id" ? "Event User (Share)" : "UserEvent (Share)");
+      setOpt(testEventTypeEl, "like", currentLang === "id" ? "Event Like" : "LikeEvent");
+      setOpt(eventTypeEl, "gift", currentLang === "id" ? "gift" : "gift");
+      setOpt(eventTypeEl, "join", currentLang === "id" ? "join" : "join");
+      setOpt(eventTypeEl, "follow", currentLang === "id" ? "follow" : "follow");
+      setOpt(eventTypeEl, "comment", currentLang === "id" ? "comment" : "comment");
+      setOpt(eventTypeEl, "like", currentLang === "id" ? "like" : "like");
+      setOpt(eventTypeEl, "share", currentLang === "id" ? "share" : "share");
+      setOpt(likeGoalModeEl, "increase", currentLang === "id" ? "naik" : "increase");
+      setOpt(likeGoalModeEl, "double", currentLang === "id" ? "lipat dua" : "double");
+      syncLabelHint();
+      syncTestEventFields();
+      renderEventRows(currentEventItems);
+    }
 
     // =========================
     // Toast Helpers
@@ -120,10 +565,10 @@ const statusEl = document.getElementById("status");
       }
       const msg = String(message || "").toLowerCase();
       if (!msg) return "info";
-      if (msg.includes("error") || msg.includes("failed") || msg.includes("required") || msg.includes("disconnect") || msg.includes("empty")) {
+      if (msg.includes("error") || msg.includes("failed") || msg.includes("required") || msg.includes("disconnect") || msg.includes("empty") || msg.includes("gagal") || msg.includes("wajib") || msg.includes("kosong") || msg.includes("terputus")) {
         return "error";
       }
-      if (msg.includes("success") || msg.includes("connected") || msg.includes("created") || msg.includes("updated") || msg.includes("loaded") || msg.includes("starting")) {
+      if (msg.includes("success") || msg.includes("connected") || msg.includes("created") || msg.includes("updated") || msg.includes("loaded") || msg.includes("starting") || msg.includes("berhasil") || msg.includes("terhubung") || msg.includes("memulai")) {
         return "success";
       }
       return "info";
@@ -164,9 +609,10 @@ const statusEl = document.getElementById("status");
         const btn = event.target.closest("button");
         if (!btn) return;
         if (btn.closest(".gift-picker")) return;
+        if (btn.id === "languageToggleBtn") return;
         if (btn.dataset.toastIgnore === "1") return;
         const buttonText = String(btn.textContent || "").trim() || "Button";
-        showFloatingToast("Tombol \"" + buttonText + "\" ditekan", "info", TOAST_DURATION_MS);
+        showFloatingToast(t("ui.pickButtonClicked", { button: buttonText }), "info", TOAST_DURATION_MS);
       });
     }
 
@@ -278,15 +724,16 @@ const statusEl = document.getElementById("status");
     const shortcutOptions = buildShortcutOptions();
 
     function setStatus(text, isOK, options = {}) {
+      const localized = translateKnownMessage(text);
       if (statusEl) {
-        statusEl.textContent = text;
+        statusEl.textContent = localized;
         if (isOK) statusEl.classList.add("ok");
         else statusEl.classList.remove("ok");
       }
 
       if (options.toast === false) return;
-      const toastType = isOK ? "success" : detectToastType(text);
-      showFloatingToast(text, toastType, TOAST_DURATION_MS);
+      const toastType = isOK ? "success" : detectToastType(localized);
+      showFloatingToast(localized, toastType, TOAST_DURATION_MS);
     }
 
     function addEvent(payload) {
@@ -347,14 +794,14 @@ const statusEl = document.getElementById("status");
         body: formData
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed to upload sound");
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal mengunggah suara" : "failed to upload sound"));
       return data;
     }
 
     async function exportEventsJSON() {
       const res = await fetch("/api/events/export");
       if (!res.ok) {
-        let errText = "failed to export events";
+        let errText = currentLang === "id" ? "gagal mengekspor event" : "failed to export events";
         try {
           const data = await res.json();
           errText = data.error || errText;
@@ -386,21 +833,28 @@ const statusEl = document.getElementById("status");
         body: formData
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed to load events");
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat event" : "failed to load events"));
       return data;
     }
 
-    function resolveGiftImageSrc(gift) {
+    function resolveGiftImageLocal(gift) {
       if (!gift) return "";
       const imagePath = String(gift.image_path || "").trim();
-      if (imagePath) {
-        const cleanPath = "/" + imagePath.replace(/^[/\\]+/, "").replaceAll("\\", "/");
-        return cleanPath + (cleanPath.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(giftImageVersion));
-      }
+      if (!imagePath) return "";
+      const cleanPath = "/" + imagePath.replace(/^[/\\]+/, "").replaceAll("\\", "/");
+      return cleanPath + (cleanPath.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(giftImageVersion));
+    }
+
+    function resolveGiftImageRemote(gift) {
+      if (!gift) return "";
       return String(gift.image_url || "").trim();
     }
 
-    function createGiftThumb(src, alt) {
+    function resolveGiftImageSrc(gift) {
+      return resolveGiftImageLocal(gift) || resolveGiftImageRemote(gift);
+    }
+
+    function createGiftThumb(src, alt, fallbackSrc) {
       if (!src) {
         const fallback = document.createElement("span");
         fallback.className = "gift-picker-thumb-placeholder";
@@ -413,8 +867,14 @@ const statusEl = document.getElementById("status");
       img.alt = alt;
       img.loading = "lazy";
       img.addEventListener("error", () => {
+        const nextSrc = String(fallbackSrc || "").trim();
+        if (nextSrc && img.dataset.fallbackTried !== "1") {
+          img.dataset.fallbackTried = "1";
+          img.src = nextSrc;
+          return;
+        }
         img.replaceWith(createGiftThumb("", alt));
-      }, { once: true });
+      });
       return img;
     }
 
@@ -423,42 +883,13 @@ const statusEl = document.getElementById("status");
       return !!gift.is_exclusive || Number(gift.type || 0) >= 2;
     }
 
-    function giftTierLabel(gift) {
-      return isExclusiveGift(gift) ? "Exclusive" : "Regular";
-    }
-
     function fillGiftSelect(selectEl, items) {
-      selectEl.innerHTML = "<option value=\"\">Select Gift</option>";
-      const regular = [];
-      const exclusive = [];
+      selectEl.innerHTML = "<option value=\"\">" + esc(t("ui.selectGift")) + "</option>";
       for (const g of items || []) {
-        if (isExclusiveGift(g)) {
-          exclusive.push(g);
-        } else {
-          regular.push(g);
-        }
-      }
-      const appendGroup = (label, list) => {
-        if (!list.length) return;
-        const group = document.createElement("optgroup");
-        group.label = label;
-        for (const g of list) {
-          const opt = document.createElement("option");
-          opt.value = String(g.id);
-          opt.textContent = g.nama_gift + " (" + g.diamond + ")";
-          group.appendChild(opt);
-        }
-        selectEl.appendChild(group);
-      };
-      appendGroup("Regular", regular);
-      appendGroup("Exclusive", exclusive);
-      if (!regular.length && !exclusive.length) {
-        for (const g of items || []) {
-          const opt = document.createElement("option");
-          opt.value = String(g.id);
-          opt.textContent = g.nama_gift + " (" + g.diamond + ")";
-          selectEl.appendChild(opt);
-        }
+        const opt = document.createElement("option");
+        opt.value = String(g.id);
+        opt.textContent = g.nama_gift + " (" + g.diamond + ")";
+        selectEl.appendChild(opt);
       }
     }
 
@@ -518,10 +949,6 @@ const statusEl = document.getElementById("status");
         if (currentItem && Number(currentItem.gift_id || 0) > 0) {
           eventGiftEl.value = String(currentItem.gift_id);
         }
-      }
-
-      if (eventTypeEl.value === "gift" && !eventGiftEl.value && filtered.length > 0) {
-        eventGiftEl.value = String(filtered[0].id);
       }
 
       eventGiftPicker.syncFromSelect();
@@ -626,23 +1053,23 @@ const statusEl = document.getElementById("status");
 
     async function exportEventBoxSlidesAsPNG() {
       if (!window.html2canvas) {
-        setStatus("html2canvas failed to load", false);
+        setStatus(currentLang === "id" ? "html2canvas gagal dimuat" : "html2canvas failed to load", false);
         return;
       }
       if (!eventBoxRowsEl || !eventExportStageEl) {
-        setStatus("event export is not available", false);
+        setStatus(currentLang === "id" ? "ekspor event tidak tersedia" : "event export is not available", false);
         return;
       }
       const slides = Array.from(eventBoxRowsEl.querySelectorAll(".event-box-slide"));
       if (slides.length === 0) {
-        setStatus("no event slides to export", false);
+        setStatus(currentLang === "id" ? "tidak ada slide event untuk diekspor" : "no event slides to export", false);
         return;
       }
 
       stopEventSlider();
       if (exportEventBoxBtn) {
         exportEventBoxBtn.disabled = true;
-        exportEventBoxBtn.textContent = "Saving...";
+        exportEventBoxBtn.textContent = currentLang === "id" ? "Menyimpan..." : "Saving...";
       }
 
       try {
@@ -688,14 +1115,14 @@ const statusEl = document.getElementById("status");
         }
 
         eventExportStageEl.replaceChildren();
-        setStatus("event slides saved as PNG successfully", true);
+        setStatus(currentLang === "id" ? "slide event berhasil disimpan sebagai PNG" : "event slides saved as PNG successfully", true);
       } catch (err) {
-        setStatus((err && err.message) || "failed to save event slides", false);
+        setStatus((err && err.message) || (currentLang === "id" ? "gagal menyimpan slide event" : "failed to save event slides"), false);
       } finally {
         eventExportStageEl.replaceChildren();
         if (exportEventBoxBtn) {
           exportEventBoxBtn.disabled = false;
-          exportEventBoxBtn.textContent = "Save PNG Slides";
+          exportEventBoxBtn.textContent = t("ui.savePngSlides");
         }
         const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
         startEventSlider(pageCount);
@@ -820,10 +1247,11 @@ const statusEl = document.getElementById("status");
       menu.className = "gift-picker-menu";
       menu.hidden = true;
 
+      let currentPlaceholder = placeholder;
       const search = document.createElement("input");
       search.type = "search";
       search.className = "gift-picker-search";
-      search.placeholder = "Search gift...";
+      search.placeholder = t("ui.searchGift");
 
       const list = document.createElement("div");
       list.className = "gift-picker-list";
@@ -844,7 +1272,7 @@ const statusEl = document.getElementById("status");
         if (!selected) {
           const copy = document.createElement("span");
           copy.className = "gift-picker-copy";
-          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(placeholder) + "</span>";
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(currentPlaceholder) + "</span>";
           selectedWrap.appendChild(createGiftThumb("", ""));
           selectedWrap.appendChild(copy);
           return;
@@ -852,8 +1280,10 @@ const statusEl = document.getElementById("status");
 
         const copy = document.createElement("span");
         copy.className = "gift-picker-copy";
-        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(giftTierLabel(selected)) + "</span>";
-        selectedWrap.appendChild(createGiftThumb(resolveGiftImageSrc(selected), selected.nama_gift || "Gift"));
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selected.nama_gift) + "</span>";
+        const localImage = resolveGiftImageLocal(selected);
+        const remoteImage = resolveGiftImageRemote(selected);
+        selectedWrap.appendChild(createGiftThumb(localImage || remoteImage, selected.nama_gift || "Gift", localImage ? remoteImage : ""));
         selectedWrap.appendChild(copy);
       }
 
@@ -870,7 +1300,7 @@ const statusEl = document.getElementById("status");
         if (filtered.length === 0) {
           const empty = document.createElement("div");
           empty.className = "gift-picker-empty";
-          empty.textContent = "Gift not found.";
+          empty.textContent = t("ui.giftNotFound");
           list.appendChild(empty);
           return;
         }
@@ -885,8 +1315,10 @@ const statusEl = document.getElementById("status");
 
           const copy = document.createElement("span");
           copy.className = "gift-picker-option-copy";
-          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(g.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(giftTierLabel(g)) + " - " + esc(g.diamond) + " diamonds - ID " + esc(g.id) + "</span>";
-          option.appendChild(createGiftThumb(resolveGiftImageSrc(g), g.nama_gift || "Gift"));
+          copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(g.nama_gift) + "</span><span class=\"gift-picker-meta\">" + esc(g.diamond) + " diamonds - ID " + esc(g.id) + "</span>";
+          const localImage = resolveGiftImageLocal(g);
+          const remoteImage = resolveGiftImageRemote(g);
+          option.appendChild(createGiftThumb(localImage || remoteImage, g.nama_gift || "Gift", localImage ? remoteImage : ""));
           option.appendChild(copy);
           option.addEventListener("click", () => {
             selectEl.value = String(g.id);
@@ -945,8 +1377,14 @@ const statusEl = document.getElementById("status");
         setOptions(items) {
           options = Array.isArray(items) ? items : [];
           search.value = "";
+          search.placeholder = t("ui.searchGift");
           renderSelected();
           renderList();
+        },
+        setPlaceholder(value) {
+          currentPlaceholder = String(value || "");
+          search.placeholder = t("ui.searchGift");
+          renderSelected();
         },
         setDisabled(disabled) {
           toggle.disabled = !!disabled;
@@ -963,6 +1401,7 @@ const statusEl = document.getElementById("status");
 
     function createShortcutPicker(selectEl, hostEl, placeholder, cfg = {}) {
       const withSearch = cfg.withSearch !== false;
+      let currentPlaceholder = placeholder;
       const root = document.createElement("div");
       root.className = "gift-picker";
       root.classList.add("shortcut-picker");
@@ -983,7 +1422,7 @@ const statusEl = document.getElementById("status");
       const search = document.createElement("input");
       search.type = "search";
       search.className = "gift-picker-search";
-      search.placeholder = "Search shortcut...";
+      search.placeholder = t("ui.searchShortcut");
 
       const list = document.createElement("div");
       list.className = "gift-picker-list";
@@ -1020,7 +1459,7 @@ const statusEl = document.getElementById("status");
         const copy = document.createElement("span");
         copy.className = "gift-picker-copy";
         const selectedLabel = selectedOption ? selectedOption.label : selected;
-        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selectedLabel || placeholder) + "</span>";
+        copy.innerHTML = "<span class=\"gift-picker-name\">" + esc(selectedLabel || currentPlaceholder) + "</span>";
         selectedWrap.appendChild(copy);
       }
 
@@ -1036,7 +1475,7 @@ const statusEl = document.getElementById("status");
         if (filtered.length === 0) {
           const empty = document.createElement("div");
           empty.className = "gift-picker-empty";
-          empty.textContent = "Shortcut not found.";
+          empty.textContent = t("ui.shortcutNotFound");
           list.appendChild(empty);
           return;
         }
@@ -1093,6 +1532,7 @@ const statusEl = document.getElementById("status");
 
       return {
         setOptions(items) {
+          const prevValue = String(selectEl.value || "").trim();
           options = (Array.isArray(items) ? items : []).map(normalizeOption).filter((item) => String(item.value || "").trim() !== "");
           selectEl.innerHTML = "<option value=\"\"></option>";
           for (const item of options) {
@@ -1101,14 +1541,22 @@ const statusEl = document.getElementById("status");
             opt.textContent = String(item.label || item.value);
             selectEl.appendChild(opt);
           }
-          if (selectEl.value && !options.some((item) => String(item.value) === String(selectEl.value))) {
+          if (prevValue && options.some((item) => String(item.value) === prevValue)) {
+            selectEl.value = prevValue;
+          } else if (selectEl.value && !options.some((item) => String(item.value) === String(selectEl.value))) {
             selectEl.value = "";
           }
           if (withSearch) {
             search.value = "";
+            search.placeholder = t("ui.searchShortcut");
           }
           renderSelected();
           renderList();
+        },
+        setPlaceholder(value) {
+          currentPlaceholder = String(value || "");
+          if (withSearch) search.placeholder = t("ui.searchShortcut");
+          renderSelected();
         },
         setDisabled(disabled) {
           toggle.disabled = !!disabled;
@@ -1122,17 +1570,27 @@ const statusEl = document.getElementById("status");
       };
     }
 
-    const eventGiftPicker = createGiftPicker(eventGiftEl, eventGiftPickerHostEl, "Select Gift");
-    const testEventGiftPicker = createGiftPicker(testEventGiftEl, testEventGiftPickerHostEl, "Select Gift");
-    const eventShortcutPicker = createShortcutPicker(eventShortcutKeysEl, eventShortcutPickerHostEl, "Pilih shortcut");
-    const likeGoalModePicker = createShortcutPicker(likeGoalModeEl, likeGoalModePickerHostEl, "Select mode", { withSearch: false });
-    const likeGoalTriggerPicker = createShortcutPicker(likeGoalTriggerEventEl, likeGoalTriggerEventPickerHostEl, "Select event trigger");
+    const eventGiftPicker = createGiftPicker(eventGiftEl, eventGiftPickerHostEl, t("ui.selectGift"));
+    const testEventGiftPicker = createGiftPicker(testEventGiftEl, testEventGiftPickerHostEl, t("ui.selectGift"));
+    const eventShortcutPicker = createShortcutPicker(eventShortcutKeysEl, eventShortcutPickerHostEl, t("ui.selectShortcut"));
+    const likeGoalModePicker = createShortcutPicker(likeGoalModeEl, likeGoalModePickerHostEl, t("ui.selectMode"), { withSearch: false });
+    const likeGoalTriggerPicker = createShortcutPicker(likeGoalTriggerEventEl, likeGoalTriggerEventPickerHostEl, t("ui.likeGoalSelectTrigger"));
     eventShortcutPicker.setOptions(shortcutOptions);
     likeGoalModePicker.setOptions([
       { value: "increase", label: "increase" },
       { value: "double", label: "double" }
     ]);
     likeGoalModePicker.syncFromSelect();
+
+    function initLanguageMode() {
+      const saved = String(localStorage.getItem(I18N_STORAGE_KEY) || "").toLowerCase();
+      if (saved === "id" || saved === "en") {
+        currentLang = saved;
+      } else {
+        currentLang = String(navigator.language || "").toLowerCase().startsWith("id") ? "id" : "en";
+      }
+      applyLanguageUI();
+    }
 
     function ensureTriggerAudioContext() {
       if (triggerAudioCtx) return triggerAudioCtx;
@@ -1242,25 +1700,25 @@ const statusEl = document.getElementById("status");
     }
 
     function followBadgeHTML(state) {
-      if (state === true) return "<span class=\"ev-badge follow\">FOLLOW</span>";
-      if (state === false) return "<span class=\"ev-badge nofollow\">NOT FOLLOWING</span>";
+      if (state === true) return "<span class=\"ev-badge follow\">" + esc(currentLang === "id" ? "MENGIKUTI" : "FOLLOW") + "</span>";
+      if (state === false) return "<span class=\"ev-badge nofollow\">" + esc(currentLang === "id" ? "BELUM FOLLOW" : "NOT FOLLOWING") + "</span>";
       return "";
     }
 
     function formatHistoryItem(payload) {
       if (!payload) {
-        return { html: "<span class=\"ev-badge system\">SYSTEM</span><span class=\"ev-text\">Empty event</span>" };
+        return { html: "<span class=\"ev-badge system\">SYSTEM</span><span class=\"ev-text\">" + esc(currentLang === "id" ? "Event kosong" : "Empty event") + "</span>" };
       }
 
       if (payload.type === "error") {
         return {
-          html: "<span class=\"ev-badge error\">ERROR</span><span class=\"ev-text\">" + esc(payload.error || "unknown error") + "</span>"
+          html: "<span class=\"ev-badge error\">ERROR</span><span class=\"ev-text\">" + esc(translateKnownMessage(payload.error || (currentLang === "id" ? "error tidak diketahui" : "unknown error"))) + "</span>"
         };
       }
 
       if (payload.type === "status") {
         return {
-          html: "<span class=\"ev-badge system\">SYSTEM</span><span class=\"ev-text\">" + esc(payload.message || "") + "</span>"
+          html: "<span class=\"ev-badge system\">SYSTEM</span><span class=\"ev-text\">" + esc(translateKnownMessage(payload.message || "")) + "</span>"
         };
       }
 
@@ -1270,12 +1728,12 @@ const statusEl = document.getElementById("status");
         const ruleId = payload.event_id ?? "?";
         const giftName = payload.gift_name || "Gift";
         const repeatCount = Math.max(1, Number(payload.repeat_count || 1));
-        let detail = "event #" + esc(ruleId);
+        let detail = (currentLang === "id" ? "event #" : "event #") + esc(ruleId);
 
         if (eventType === "gift") {
-          detail = "gift trigger " + esc(giftName) + " x" + esc(repeatCount) + " -> event #" + esc(ruleId);
+          detail = (currentLang === "id" ? "trigger gift " : "gift trigger ") + esc(giftName) + " x" + esc(repeatCount) + " -> event #" + esc(ruleId);
         } else if (eventType) {
-          detail = esc(eventType) + " trigger -> event #" + esc(ruleId);
+          detail = esc(eventType) + (currentLang === "id" ? " trigger -> event #" : " trigger -> event #") + esc(ruleId);
         }
 
         return {
@@ -1303,7 +1761,7 @@ const statusEl = document.getElementById("status");
           const tag = String(data.event || data.Event || "").toUpperCase();
           if (tag.includes("JOIN")) {
             return {
-              html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge join\">JOIN LIVE</span>" + followBadge
+              html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge join\">" + esc(currentLang === "id" ? "MASUK LIVE" : "JOIN LIVE") + "</span>" + followBadge
             };
           }
           if (tag.includes("FOLLOW")) {
@@ -1313,7 +1771,7 @@ const statusEl = document.getElementById("status");
           }
           if (tag.includes("SHARE")) {
             return {
-              html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge share\">SHARE LIVE</span>" + followBadge
+              html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge share\">" + esc(currentLang === "id" ? "BAGIKAN LIVE" : "SHARE LIVE") + "</span>" + followBadge
             };
           }
           return {
@@ -1331,7 +1789,7 @@ const statusEl = document.getElementById("status");
         if (eventType.includes("LikeEvent")) {
           const likes = data.likes ?? data.Likes ?? 0;
           return {
-            html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge like\">LIKE</span>" + followBadge + "<span class=\"ev-meta\">" + esc(likes) + " likes</span>"
+            html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge like\">LIKE</span>" + followBadge + "<span class=\"ev-meta\">" + esc(likes) + (currentLang === "id" ? " like" : " likes") + "</span>"
           };
         }
 
@@ -1341,7 +1799,7 @@ const statusEl = document.getElementById("status");
           const repeatCount = Math.max(1, Number(data.repeatCount ?? data.RepeatCount ?? 1));
           const totalDiamonds = Number(diamond) * repeatCount;
           return {
-            html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge gift\">GIFT</span>" + followBadge + "<span class=\"ev-text\">" + esc(giftName) + "</span><span class=\"ev-meta\">x" + esc(repeatCount) + " | " + esc(diamond) + " diamonds each | total " + esc(totalDiamonds) + "</span>"
+            html: "<span class=\"ev-user\">" + esc(username) + "</span><span class=\"ev-badge gift\">GIFT</span>" + followBadge + "<span class=\"ev-text\">" + esc(giftName) + "</span><span class=\"ev-meta\">x" + esc(repeatCount) + " | " + esc(diamond) + (currentLang === "id" ? " diamond per gift | total " : " diamonds each | total ") + esc(totalDiamonds) + "</span>"
           };
         }
 
@@ -1355,7 +1813,7 @@ const statusEl = document.getElementById("status");
         if (eventType.includes("ViewersEvent")) {
           const viewers = data.viewers ?? data.Viewers ?? 0;
           return {
-            html: "<span class=\"ev-badge viewers\">VIEWERS</span><span class=\"ev-meta\">" + esc(viewers) + " watching</span>"
+            html: "<span class=\"ev-badge viewers\">VIEWERS</span><span class=\"ev-meta\">" + esc(viewers) + (currentLang === "id" ? " menonton" : " watching") + "</span>"
           };
         }
 
@@ -1376,7 +1834,7 @@ const statusEl = document.getElementById("status");
         if (eventType.includes("MicBattleEvent")) {
           const count = (data.users || data.Users || []).length || 0;
           return {
-            html: "<span class=\"ev-badge battle\">MIC BATTLE</span><span class=\"ev-meta\">" + esc(count) + " users</span>"
+            html: "<span class=\"ev-badge battle\">MIC BATTLE</span><span class=\"ev-meta\">" + esc(count) + (currentLang === "id" ? " user" : " users") + "</span>"
           };
         }
 
@@ -1390,7 +1848,7 @@ const statusEl = document.getElementById("status");
 
         if (eventType.includes("RoomBannerEvent")) {
           return {
-            html: "<span class=\"ev-badge banner\">ROOM BANNER</span><span class=\"ev-text\">Banner update</span>"
+            html: "<span class=\"ev-badge banner\">ROOM BANNER</span><span class=\"ev-text\">" + esc(currentLang === "id" ? "Pembaruan banner" : "Banner update") + "</span>"
           };
         }
 
@@ -1409,7 +1867,7 @@ const statusEl = document.getElementById("status");
     }
 
     function setMCOutput(text) {
-      const message = text || "";
+      const message = translateKnownMessage(text || "");
       mcOutputEl.textContent = message;
       showFloatingToast(message, detectToastType(message), TOAST_DURATION_MS);
     }
@@ -1425,7 +1883,7 @@ const statusEl = document.getElementById("status");
       eventShortcutKeysEl.value = "";
       eventShortcutHoldMsEl.value = "0";
       eventShortcutPicker.syncFromSelect();
-      eventModalTitleEl.textContent = "Add Event";
+      eventModalTitleEl.textContent = t("ui.eventModalAdd");
       refreshEventGiftOptions();
       refreshShortcutOptions();
       syncGiftFields();
@@ -1435,7 +1893,7 @@ const statusEl = document.getElementById("status");
     }
 
     function openEventModal(isEdit) {
-      eventModalTitleEl.textContent = isEdit ? "Edit Event" : "Add Event";
+      eventModalTitleEl.textContent = isEdit ? t("ui.eventModalEdit") : t("ui.eventModalAdd");
       eventModalEl.classList.add("show");
       eventModalEl.setAttribute("aria-hidden", "false");
     }
@@ -1490,9 +1948,6 @@ const statusEl = document.getElementById("status");
         eventGiftPicker.syncFromSelect();
         return;
       }
-      if (!eventGiftEl.value && giftOptions.length > 0) {
-        eventGiftEl.value = String(giftOptions[0].id);
-      }
       eventGiftPicker.syncFromSelect();
     }
 
@@ -1513,25 +1968,25 @@ const statusEl = document.getElementById("status");
     }
 
     function syncLabelHint() {
-      const t = eventTypeEl.value;
-      const allowLabel = t === "comment" || t === "like";
+      const eventType = eventTypeEl.value;
+      const allowLabel = eventType === "comment" || eventType === "like";
       eventLabelEl.hidden = !allowLabel;
       if (!allowLabel) {
         eventLabelEl.value = "";
       }
-      if (t === "like") {
-        eventLabelEl.placeholder = "Like count (number, e.g. 10)";
+      if (eventType === "like") {
+        eventLabelEl.placeholder = currentLang === "id" ? "Jumlah like (angka, contoh 10)" : "Like count (number, e.g. 10)";
         return;
       }
-      if (t === "comment") {
-        eventLabelEl.placeholder = "Comment text to match (e.g. hello)";
+      if (eventType === "comment") {
+        eventLabelEl.placeholder = currentLang === "id" ? "Teks komentar yang dicocokkan (contoh halo)" : "Comment text to match (e.g. hello)";
         return;
       }
-      if (t === "gift") {
-        eventLabelEl.placeholder = "Optional label (e.g. gift trigger)";
+      if (eventType === "gift") {
+        eventLabelEl.placeholder = currentLang === "id" ? "Label opsional (contoh trigger gift)" : "Optional label (e.g. gift trigger)";
         return;
       }
-      eventLabelEl.placeholder = "Event label (optional)";
+      eventLabelEl.placeholder = currentLang === "id" ? "Label event (opsional)" : "Event label (optional)";
     }
 
     async function loadGiftOptions() {
@@ -1555,7 +2010,7 @@ const statusEl = document.getElementById("status");
         syncTestEventFields();
         renderEventBoxes(currentEventItems);
       } catch (err) {
-        setStatus(err.message || "failed to load gift-list.json", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal memuat gift-list.json" : "failed to load gift-list.json"), false);
       }
     }
 
@@ -1563,7 +2018,7 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"10\">No events yet.</td>";
+        tr.innerHTML = "<td colspan=\"10\">" + esc(t("ui.noEventsYet")) + "</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
@@ -1572,7 +2027,7 @@ const statusEl = document.getElementById("status");
       for (const item of sortedItems) {
         const runMC = item.run_mc_command !== false;
         const runShortcut = !!item.run_shortcut;
-        const modeText = runMC && runShortcut ? "MC + Shortcut" : (runMC ? "MC" : "Shortcut");
+        const modeText = runMC && runShortcut ? t("ui.mcAndShortcut") : (runMC ? t("ui.mcOnly") : t("ui.shortcut"));
         const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
         const shortcutLabel = normalizeShortcutSymbols(item.shortcut_keys);
         const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
@@ -1588,10 +2043,10 @@ const statusEl = document.getElementById("status");
           "<td>" + esc(shortcutView) + "</td>" +
           "<td>" + modeText + "</td>" +
           "<td>" +
-            "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">Run</button>" +
-            "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">Edit</button>" +
-            "<button type=\"button\" class=\"edit\" data-act=\"duplicate\" data-id=\"" + item.id + "\">Duplicate</button>" +
-            "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">Delete</button>" +
+            "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">" + esc(t("ui.run")) + "</button>" +
+            "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">" + esc(t("ui.edit")) + "</button>" +
+            "<button type=\"button\" class=\"edit\" data-act=\"duplicate\" data-id=\"" + item.id + "\">" + esc(t("ui.duplicate")) + "</button>" +
+            "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">" + esc(t("ui.delete")) + "</button>" +
           "</td>";
         eventRowsEl.appendChild(tr);
       }
@@ -1611,7 +2066,7 @@ const statusEl = document.getElementById("status");
       if (giftItems.length === 0) {
         const empty = document.createElement("div");
         empty.className = "event-empty-state";
-        empty.textContent = "No gift events yet.";
+        empty.textContent = t("ui.noGiftEventsYet");
         eventBoxRowsEl.appendChild(empty);
         resetEventLoopPosition(eventBoxRowsEl);
         syncEventSlideButtons(0);
@@ -1634,7 +2089,7 @@ const statusEl = document.getElementById("status");
           const gift = findGiftByEventItem(item);
           const title = String(item.title || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
           const localGiftImage = buildGiftImagePathFromEvent(item);
-          const remoteGiftImage = resolveGiftImageSrc(gift);
+          const remoteGiftImage = resolveGiftImageRemote(gift);
           const giftImage = localGiftImage || remoteGiftImage;
           const subtitle = buildGiftBoxCaption(item);
 
@@ -1651,11 +2106,16 @@ const statusEl = document.getElementById("status");
             img.alt = title;
             img.loading = "lazy";
             img.addEventListener("error", () => {
+              if (remoteGiftImage && img.dataset.fallbackTried !== "1" && img.src !== remoteGiftImage) {
+                img.dataset.fallbackTried = "1";
+                img.src = remoteGiftImage;
+                return;
+              }
               const fallback = document.createElement("div");
               fallback.className = "event-card-gift-fallback";
               fallback.innerHTML = "Gift<br>Image";
               frame.replaceChildren(fallback);
-            }, { once: true });
+            });
             frame.appendChild(img);
           } else {
             const fallback = document.createElement("div");
@@ -1691,13 +2151,13 @@ const statusEl = document.getElementById("status");
       if (!likeGoalTriggerEventEl) return;
       const selected = Number(selectedId || likeGoalTriggerEventEl.value || 0);
       const rows = [...(currentEventItems || [])].sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
-      const options = [];
+      const options = [{ value: "", label: t("ui.likeGoalSelectTrigger") }];
       for (const item of rows) {
         const labelTitle = String(item.title || "").trim();
         const label = labelTitle || String(item.type || "event");
         options.push({
           value: String(item.id),
-          label: label
+          label: "#" + String(item.id) + " - " + label
         });
       }
       likeGoalTriggerPicker.setOptions(options);
@@ -1716,7 +2176,8 @@ const statusEl = document.getElementById("status");
       const goal = Math.max(1, Number(state.goal || 1));
       const currentGoal = Math.max(1, Number(state.current_goal || goal));
       const currentLikes = Math.max(0, Number(state.current_likes || 0));
-      const mode = String(state.mode || "increase").toLowerCase() === "double" ? "double" : "increase";
+      const modeID = Math.max(0, Number(state.mode_id || 0));
+      const mode = modeID === 2 ? "double" : (String(state.mode || "increase").toLowerCase() === "double" ? "double" : "increase");
       const triggerEventId = Math.max(0, Number(state.trigger_event_id || 0));
       const enabled = !!state.enabled;
       const percent = Math.max(0, Math.min(100, Math.round((currentLikes / currentGoal) * 100)));
@@ -1744,7 +2205,7 @@ const statusEl = document.getElementById("status");
         renderLikeGoalState(data.state || {});
       } catch (err) {
         if (!silent) {
-          setStatus(err.message || "failed to load like goal", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal memuat target like" : "failed to load like goal"), false);
         }
       }
     }
@@ -1755,12 +2216,12 @@ const statusEl = document.getElementById("status");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed to reset like goal progress");
       renderLikeGoalState(data.state || {});
-      setStatus("like goal progress reset", true);
+      setStatus(t("msg.likeGoalReset"), true);
     }
 
     async function testLikeGoalNow() {
       if (!likeGoalState) {
-        throw new Error("like goal state is not ready");
+        throw new Error(currentLang === "id" ? "state target like belum siap" : "like goal state is not ready");
       }
       const res = await fetch("/api/like-goal/test", { method: "POST" });
       const data = await res.json();
@@ -1768,7 +2229,7 @@ const statusEl = document.getElementById("status");
       if (data.state) {
         renderLikeGoalState(data.state);
       }
-      setStatus("like goal test sent (progress unchanged)", true);
+      setStatus(t("msg.likeGoalTestSent"), true);
     }
 
     function collectSettingsPayload() {
@@ -1778,7 +2239,7 @@ const statusEl = document.getElementById("status");
       const mcPassword = String(mcPasswordEl && mcPasswordEl.value ? mcPasswordEl.value : "");
       const likeGoalTitle = String(likeGoalTitleEl && likeGoalTitleEl.value ? likeGoalTitleEl.value : "").trim();
       const likeGoalGoal = Math.max(1, Number(likeGoalValueEl && likeGoalValueEl.value ? likeGoalValueEl.value : 1) || 1);
-      const likeGoalMode = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? "double" : "increase";
+      const likeGoalModeID = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? 2 : 1;
       const likeGoalTriggerEventID = Math.max(0, Number(likeGoalTriggerEventEl && likeGoalTriggerEventEl.value ? likeGoalTriggerEventEl.value : 0) || 0);
       const likeGoalEnabled = !!(likeGoalEnabledEl && likeGoalEnabledEl.checked);
       return {
@@ -1791,7 +2252,7 @@ const statusEl = document.getElementById("status");
         like_goal: {
           title: likeGoalTitle,
           goal: likeGoalGoal,
-          mode: likeGoalMode,
+          mode_id: likeGoalModeID,
           trigger_event_id: likeGoalTriggerEventID,
           enabled: likeGoalEnabled
         }
@@ -1811,7 +2272,7 @@ const statusEl = document.getElementById("status");
       if (mcPortEl && Number(mc.port) > 0) mcPortEl.value = String(Math.max(1, Math.min(65535, Number(mc.port))));
       if (mcPasswordEl && typeof mc.password === "string") mcPasswordEl.value = mc.password;
 
-      const goalState = settings.like_goal_state || settings.like_goal || {};
+      const goalState = settings.like_goal || {};
       if (goalState && typeof goalState === "object" && Object.keys(goalState).length > 0) {
         renderLikeGoalState(goalState);
       }
@@ -1825,25 +2286,25 @@ const statusEl = document.getElementById("status");
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed to save settings");
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal menyimpan pengaturan" : "failed to save settings"));
       applyLoadedSettings(data.settings || payload);
       if (data.like_goal_state) {
         renderLikeGoalState(data.like_goal_state);
       }
-      setStatus("settings saved", true);
+      setStatus(t("msg.settingsSaved"), true);
     }
 
     async function loadUnifiedSettings(options = {}) {
       const silent = !!options.silent;
       const res = await fetch("/api/settings");
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed to load settings");
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat pengaturan" : "failed to load settings"));
       applyLoadedSettings(data.settings || {});
       if (data.like_goal_state) {
         renderLikeGoalState(data.like_goal_state);
       }
       if (!silent) {
-        setStatus("settings loaded", true);
+        setStatus(t("msg.settingsLoaded"), true);
       }
     }
 
@@ -1851,7 +2312,7 @@ const statusEl = document.getElementById("status");
       try {
         const res = await fetch("/api/events");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to load events");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat event" : "failed to load events"));
         currentEventItems = data.items || [];
         renderEventRows(currentEventItems);
         refreshEventGiftOptions();
@@ -1859,7 +2320,7 @@ const statusEl = document.getElementById("status");
         renderEventBoxes(currentEventItems);
         refreshLikeGoalTriggerOptions(likeGoalState && likeGoalState.trigger_event_id);
       } catch (err) {
-        setStatus(err.message || "failed to load events", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal memuat event" : "failed to load events"), false);
       }
     }
 
@@ -1872,12 +2333,12 @@ const statusEl = document.getElementById("status");
         }
         if (state.running) {
           hasConnectedTikTok = true;
-          setStatus("tracking @" + (state.username || "-"), true);
+          setStatus(t("msg.tracking", { username: state.username || "-" }), true);
         } else {
-          setStatus("idle (not connected)", false);
+          setStatus(t("msg.idle"), false);
         }
       } catch (_) {
-        setStatus("failed to fetch state", false);
+        setStatus(t("msg.fetchStateFailed"), false);
       }
     }
 
@@ -1893,7 +2354,7 @@ const statusEl = document.getElementById("status");
           body: JSON.stringify({ username })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to refresh gift list");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memperbarui daftar gift" : "failed to refresh gift list"));
 
         await loadGiftOptions();
         if (!silent) {
@@ -1901,11 +2362,11 @@ const statusEl = document.getElementById("status");
           const source = String(data.source || "").trim();
           const regionLabel = region ? (" (" + region + ")") : "";
           const sourceLabel = source ? (" [" + source + "]") : "";
-          setStatus("gift list refreshed for @" + username + regionLabel + sourceLabel, true);
+          setStatus(t("msg.giftRefreshed", { username, region: regionLabel, source: sourceLabel }), true);
         }
       } catch (err) {
         if (!silent) {
-          setStatus(err.message || "failed to refresh gift list", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal memperbarui daftar gift" : "failed to refresh gift list"), false);
         }
       }
     }
@@ -1916,7 +2377,7 @@ const statusEl = document.getElementById("status");
     startBtn.addEventListener("click", async () => {
       const username = usernameEl.value.trim();
       if (!username) {
-        setStatus("username is required", false);
+        setStatus(t("msg.requiredUsername"), false);
         return;
       }
       await refreshGiftsByUsername(username);
@@ -1925,7 +2386,7 @@ const statusEl = document.getElementById("status");
     connectBtn.addEventListener("click", async () => {
       const username = usernameEl.value.trim();
       if (!username) {
-        setStatus("username is required", false);
+        setStatus(t("msg.requiredUsername"), false);
         return;
       }
       try {
@@ -1935,11 +2396,11 @@ const statusEl = document.getElementById("status");
           body: JSON.stringify({ username })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "start failed");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memulai" : "start failed"));
         hasConnectedTikTok = true;
-        setStatus("starting @" + username + "...", true);
+        setStatus(t("msg.starting", { username }), true);
       } catch (err) {
-        setStatus(err.message || "start failed", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal memulai" : "start failed"), false);
       }
     });
 
@@ -1947,16 +2408,24 @@ const statusEl = document.getElementById("status");
       try {
         const res = await fetch("/stop", { method: "POST" });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "stop failed");
-        setStatus("stopped", false);
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal berhenti" : "stop failed"));
+        setStatus(t("msg.stopped"), false);
       } catch (err) {
-        setStatus(err.message || "stop failed", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal berhenti" : "stop failed"), false);
       }
     });
 
     usernameEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") connectBtn.click();
     });
+
+    if (languageToggleBtn) {
+      languageToggleBtn.addEventListener("click", () => {
+        currentLang = currentLang === "id" ? "en" : "id";
+        localStorage.setItem(I18N_STORAGE_KEY, currentLang);
+        applyLanguageUI();
+      });
+    }
 
     mcConnectBtn.addEventListener("click", async () => {
       const payload = {
@@ -1971,10 +2440,10 @@ const statusEl = document.getElementById("status");
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to connect RCON");
-        setMCOutput("RCON connected.");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal terhubung ke RCON" : "failed to connect RCON"));
+        setMCOutput(t("msg.rconConnected"));
       } catch (err) {
-        setMCOutput(err.message || "failed to connect RCON");
+        setMCOutput(err.message || (currentLang === "id" ? "gagal terhubung ke RCON" : "failed to connect RCON"));
       }
     });
 
@@ -1982,17 +2451,17 @@ const statusEl = document.getElementById("status");
       try {
         const res = await fetch("/api/minecraft/rcon/disconnect", { method: "POST" });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to disconnect RCON");
-        setMCOutput("RCON disconnected.");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memutuskan RCON" : "failed to disconnect RCON"));
+        setMCOutput(t("msg.rconDisconnected"));
       } catch (err) {
-        setMCOutput(err.message || "failed to disconnect RCON");
+        setMCOutput(err.message || (currentLang === "id" ? "gagal memutuskan RCON" : "failed to disconnect RCON"));
       }
     });
 
     mcSendBtn.addEventListener("click", async () => {
       const command = mcCommandEl.value.trim();
       if (!command) {
-        setMCOutput("Command is empty.");
+        setMCOutput(t("msg.emptyCommand"));
         return;
       }
       try {
@@ -2002,10 +2471,10 @@ const statusEl = document.getElementById("status");
           body: JSON.stringify({ command })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to send command");
-        setMCOutput(data.output || "(no output)");
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal mengirim perintah" : "failed to send command"));
+        setMCOutput(data.output || t("msg.noOutput"));
       } catch (err) {
-        setMCOutput(err.message || "failed to send command");
+        setMCOutput(err.message || (currentLang === "id" ? "gagal mengirim perintah" : "failed to send command"));
       }
     });
 
@@ -2067,7 +2536,7 @@ const statusEl = document.getElementById("status");
       const text = (testEventTextEl.value || "").trim();
 
       if (type === "gift" && !giftId) {
-        setStatus("select a gift for simulation", false);
+        setStatus(currentLang === "id" ? "pilih gift untuk simulasi" : "select a gift for simulation", false);
         return;
       }
       simulateCountdownBusy = true;
@@ -2075,11 +2544,11 @@ const statusEl = document.getElementById("status");
       testEventBtn.disabled = true;
       try {
         for (let sec = 3; sec >= 1; sec -= 1) {
-          setStatus("simulate event dalam " + sec + " detik...", false);
-          testEventBtn.textContent = "Simulate (" + sec + ")";
+          setStatus(t("msg.simulateCountdown", { sec }), false);
+          testEventBtn.textContent = t("ui.simulate") + " (" + sec + ")";
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        testEventBtn.textContent = "Simulating...";
+        testEventBtn.textContent = currentLang === "id" ? "Mensimulasikan..." : "Simulating...";
         const res = await fetch("/api/test/event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2092,12 +2561,12 @@ const statusEl = document.getElementById("status");
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to simulate event");
-        setStatus("event simulated: " + (data.type || type) + " @" + username, true);
-        setMCOutput("Simulated " + (data.type || type) + " - " + (data.message || data.gift_name || "ok"));
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal simulasi event" : "failed to simulate event"));
+        setStatus(t("msg.eventSimulated", { type: data.type || type, username }), true);
+        setMCOutput(t("msg.simulatedOutput", { type: data.type || type, message: data.message || data.gift_name || "ok" }));
       } catch (err) {
-        setStatus(err.message || "failed to simulate event", false);
-        setMCOutput(err.message || "failed to simulate event");
+        setStatus(err.message || (currentLang === "id" ? "gagal simulasi event" : "failed to simulate event"), false);
+        setMCOutput(err.message || (currentLang === "id" ? "gagal simulasi event" : "failed to simulate event"));
       } finally {
         testEventBtn.disabled = false;
         testEventBtn.textContent = originalBtnText;
@@ -2109,7 +2578,6 @@ const statusEl = document.getElementById("status");
       e.preventDefault();
       const type = eventTypeEl.value;
       const giftId = Number(eventGiftEl.value || 0);
-      const gift = giftOptions.find((g) => g.id === giftId);
       const runMCCommand = !!eventRunMCCommandEl.checked;
       const runShortcut = !!eventRunShortcutEl.checked;
       const shortcutKeys = normalizeShortcutSymbols(eventShortcutKeysEl.value);
@@ -2127,26 +2595,21 @@ const statusEl = document.getElementById("status");
         shortcut_hold_ms: shortcutHoldMs
       };
       if (!payload.type) {
-        setStatus("event type is required", false);
+        setStatus(currentLang === "id" ? "tipe event wajib diisi" : "event type is required", false);
         return;
       }
       if (!runMCCommand && !runShortcut) {
-        setStatus("select at least one: MC Command or Keyboard Shortcut", false);
+        setStatus(currentLang === "id" ? "pilih minimal satu: Perintah MC atau Shortcut Keyboard" : "select at least one: MC Command or Keyboard Shortcut", false);
         return;
       }
       if (runMCCommand && !payload.mc_command) {
-        setStatus("minecraft command is required", false);
+        setStatus(currentLang === "id" ? "perintah minecraft wajib diisi" : "minecraft command is required", false);
         return;
       }
       if (runShortcut && !shortcutKeys) {
-        setStatus("keyboard shortcut is required", false);
+        setStatus(currentLang === "id" ? "shortcut keyboard wajib diisi" : "keyboard shortcut is required", false);
         return;
       }
-      if (type === "gift" && (!gift || giftId <= 0)) {
-        setStatus("select a gift from gift-list.json", false);
-        return;
-      }
-
       try {
         const isUpdate = editingEventId !== null;
         const url = isUpdate ? "/api/events/" + editingEventId : "/api/events";
@@ -2157,13 +2620,13 @@ const statusEl = document.getElementById("status");
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "failed to save");
-        setStatus(isUpdate ? "event updated successfully" : "event created successfully", true);
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal menyimpan" : "failed to save"));
+        setStatus(isUpdate ? t("msg.eventUpdated") : t("msg.eventCreated"), true);
         resetEventForm();
         closeEventModal();
         await loadEventsTable();
       } catch (err) {
-        setStatus(err.message || "failed to save event", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal menyimpan event" : "failed to save event"), false);
       }
     });
 
@@ -2180,9 +2643,9 @@ const statusEl = document.getElementById("status");
       exportEventsBtn.addEventListener("click", async () => {
         try {
           await exportEventsJSON();
-          setStatus("events exported successfully", true);
+          setStatus(t("msg.eventsExported"), true);
         } catch (err) {
-          setStatus(err.message || "failed to export events", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal mengekspor event" : "failed to export events"), false);
         }
       });
     }
@@ -2201,9 +2664,9 @@ const statusEl = document.getElementById("status");
           await loadEventsTable();
           resetEventForm();
           closeEventModal();
-          setStatus("loaded " + String(result.count || 0) + " event(s) from JSON", true);
+          setStatus(t("msg.loadedEventCount", { count: String(result.count || 0) }), true);
         } catch (err) {
-          setStatus(err.message || "failed to load events", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal memuat event" : "failed to load events"), false);
         } finally {
           eventsJsonFileEl.value = "";
         }
@@ -2212,17 +2675,17 @@ const statusEl = document.getElementById("status");
 
     if (resetEventsBtn) {
       resetEventsBtn.addEventListener("click", async () => {
-        if (!confirm("Reset all events from events.json?")) return;
+        if (!confirm(t("msg.resetEventsConfirm"))) return;
         try {
           const res = await fetch("/api/events/reset", { method: "POST" });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed to reset events");
+          if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal reset event" : "failed to reset events"));
           await loadEventsTable();
           resetEventForm();
           closeEventModal();
-          setStatus("events reset successfully", true);
+          setStatus(t("msg.eventsReset"), true);
         } catch (err) {
-          setStatus(err.message || "failed to reset events", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal reset event" : "failed to reset events"), false);
         }
       });
     }
@@ -2295,9 +2758,9 @@ const statusEl = document.getElementById("status");
         try {
           const res = await fetch("/api/events");
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed to load");
+          if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat" : "failed to load"));
           const item = (data.items || []).find((x) => Number(x.id) === id);
-          if (!item) throw new Error("event not found");
+          if (!item) throw new Error(currentLang === "id" ? "event tidak ditemukan" : "event not found");
           editingEventId = id;
           eventTypeEl.value = item.type || "join";
           eventTitleEl.value = item.title || "";
@@ -2321,9 +2784,9 @@ const statusEl = document.getElementById("status");
           syncExecutionModeFields();
           eventTypeEl.focus();
           openEventModal(true);
-          setStatus("editing event #" + id, true);
+          setStatus(t("msg.editingEvent", { id }), true);
         } catch (err) {
-          setStatus(err.message || "failed to edit event", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal edit event" : "failed to edit event"), false);
         }
         return;
       }
@@ -2332,12 +2795,12 @@ const statusEl = document.getElementById("status");
         try {
           const res = await fetch("/api/events/test/" + id, { method: "POST" });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed to test command");
-          setStatus("event test #" + id + " succeeded", true);
-          setMCOutput(data.output || "(no output)");
+          if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal tes perintah" : "failed to test command"));
+          setStatus(t("msg.eventTestSucceeded", { id }), true);
+          setMCOutput(data.output || t("msg.noOutput"));
         } catch (err) {
-          setStatus(err.message || "failed to test event", false);
-          setMCOutput(err.message || "failed to test event");
+          setStatus(err.message || (currentLang === "id" ? "gagal tes event" : "failed to test event"), false);
+          setMCOutput(err.message || (currentLang === "id" ? "gagal tes event" : "failed to test event"));
         }
         return;
       }
@@ -2346,9 +2809,9 @@ const statusEl = document.getElementById("status");
         try {
           const res = await fetch("/api/events");
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed to load");
+          if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat" : "failed to load"));
           const item = (data.items || []).find((x) => Number(x.id) === id);
-          if (!item) throw new Error("event not found");
+          if (!item) throw new Error(currentLang === "id" ? "event tidak ditemukan" : "event not found");
 
           const duplicatePayload = {
             type: item.type || "join",
@@ -2369,27 +2832,27 @@ const statusEl = document.getElementById("status");
             body: JSON.stringify(duplicatePayload)
           });
           const createData = await createRes.json();
-          if (!createRes.ok) throw new Error(createData.error || "failed to duplicate");
+          if (!createRes.ok) throw new Error(createData.error || (currentLang === "id" ? "gagal duplikasi" : "failed to duplicate"));
 
-          setStatus("event duplicated successfully", true);
+          setStatus(t("msg.eventDuplicated"), true);
           await loadEventsTable();
         } catch (err) {
-          setStatus(err.message || "failed to duplicate event", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal duplikasi event" : "failed to duplicate event"), false);
         }
         return;
       }
 
       if (action === "delete") {
-        if (!confirm("Delete event #" + id + "?")) return;
+        if (!confirm(t("msg.deleteEventConfirm", { id }))) return;
         try {
           const res = await fetch("/api/events/" + id, { method: "DELETE" });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed to delete");
+          if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal menghapus" : "failed to delete"));
           if (editingEventId === id) resetEventForm();
-          setStatus("event deleted successfully", true);
+          setStatus(t("msg.eventDeleted"), true);
           await loadEventsTable();
         } catch (err) {
-          setStatus(err.message || "failed to delete event", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal menghapus event" : "failed to delete event"), false);
         }
       }
     }
@@ -2407,13 +2870,13 @@ const statusEl = document.getElementById("status");
       const fallbackPath = buildStaticSoundPath(file.name);
       const originalLabel = pickEventSoundBtn.textContent;
       pickEventSoundBtn.setAttribute("aria-disabled", "true");
-      pickEventSoundBtn.textContent = "Uploading...";
+      pickEventSoundBtn.textContent = t("msg.uploading");
       try {
         const data = await uploadSoundFile(file);
         eventSoundEl.value = data.sound_url || fallbackPath;
-        setStatus("Sound uploaded successfully.", true);
+        setStatus(currentLang === "id" ? "suara berhasil diunggah." : "Sound uploaded successfully.", true);
       } catch (err) {
-        setStatus(err.message || "failed to upload sound", false);
+        setStatus(err.message || (currentLang === "id" ? "gagal mengunggah suara" : "failed to upload sound"), false);
       } finally {
         pickEventSoundBtn.removeAttribute("aria-disabled");
         pickEventSoundBtn.textContent = originalLabel;
@@ -2440,9 +2903,9 @@ const statusEl = document.getElementById("status");
         try {
           const fullURL = window.location.origin + "/overlay/like-goal";
           await navigator.clipboard.writeText(fullURL);
-          setStatus("overlay link copied", true);
+          setStatus(t("msg.overlayCopied"), true);
         } catch (_) {
-          setStatus("failed to copy overlay link", false);
+          setStatus(t("msg.overlayCopyFailed"), false);
         }
       });
     }
@@ -2452,7 +2915,7 @@ const statusEl = document.getElementById("status");
         try {
           await testLikeGoalNow();
         } catch (err) {
-          setStatus(err.message || "failed to test like goal", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal tes target like" : "failed to test like goal"), false);
         }
       });
     }
@@ -2462,7 +2925,7 @@ const statusEl = document.getElementById("status");
         try {
           await resetLikeGoalProgress();
         } catch (err) {
-          setStatus(err.message || "failed to reset like goal progress", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal reset progres target like" : "failed to reset like goal progress"), false);
         }
       });
     }
@@ -2472,7 +2935,7 @@ const statusEl = document.getElementById("status");
         try {
           await saveUnifiedSettings();
         } catch (err) {
-          setStatus(err.message || "failed to save settings", false);
+          setStatus(err.message || (currentLang === "id" ? "gagal menyimpan pengaturan" : "failed to save settings"), false);
         }
       });
     }
@@ -2498,10 +2961,10 @@ const statusEl = document.getElementById("status");
     };
     source.onerror = () => {
       if (hasConnectedTikTok) {
-        setStatus("server disconnected (retrying...)", false);
+        setStatus(t("msg.serverDisconnectedRetry"), false);
         return;
       }
-      setStatus("idle (not connected)", false);
+      setStatus(t("msg.idle"), false);
     };
     source.onmessage = (event) => {
       try {
@@ -2528,6 +2991,7 @@ const statusEl = document.getElementById("status");
     // =========================
     // Initial Bootstrap
     // =========================
+    initLanguageMode();
     refreshState();
     syncExecutionModeFields();
     syncLabelHint();

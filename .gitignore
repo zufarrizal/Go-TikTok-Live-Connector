@@ -6,6 +6,9 @@
 
 # Always allow Skript files anywhere
 !*.sk
+!*.html
+!*.css
+!*.js
 
 # Allow all files that currently exist in this repository
 !.gitignore
@@ -25,4 +28,6 @@
 !web/static/app.js
 !web/static/overlay-like-goal.js
 !web/static/styles.css
+!web/static/flags/
+!web/static/flags/*.svg
 !web/static/vendor/html2canvas.min.js

@@ -82,6 +82,33 @@ body {
   color: #ffffff;
 }
 
+#languageToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: #0f172a;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+#languageFlagIcon {
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+#languageCodeLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 #howToUseBtn {
   min-height: 32px;
   height: 32px;

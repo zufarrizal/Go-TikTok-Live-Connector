@@ -923,19 +923,17 @@ func (m *likeGoalManager) load() error {
 	next := defaultLikeGoalState()
 	next.Title = settings.LikeGoal.Title
 	next.Goal = settings.LikeGoal.Goal
-	next.CurrentGoal = settings.LikeGoal.Goal
+	next.CurrentGoal = settings.LikeGoal.CurrentGoal
+	if next.CurrentGoal <= 0 {
+		next.CurrentGoal = settings.LikeGoal.Goal
+	}
+	next.CurrentLikes = settings.LikeGoal.CurrentLikes
 	next.Mode = settings.LikeGoal.Mode
 	next.TriggerEventID = settings.LikeGoal.TriggerEventID
 	next.Enabled = settings.LikeGoal.Enabled
-	if settings.LikeGoalState != nil {
-		if settings.LikeGoalState.CurrentGoal > 0 {
-			next.CurrentGoal = settings.LikeGoalState.CurrentGoal
-		}
-		next.CurrentLikes = settings.LikeGoalState.CurrentLikes
-		next.TriggerCount = settings.LikeGoalState.TriggerCount
-		next.LastTriggeredAt = settings.LikeGoalState.LastTriggeredAt
-		next.UpdatedAt = settings.LikeGoalState.UpdatedAt
-	}
+	next.TriggerCount = settings.LikeGoal.TriggerCount
+	next.LastTriggeredAt = settings.LikeGoal.LastTriggeredAt
+	next.UpdatedAt = settings.LikeGoal.UpdatedAt
 	normalizeLikeGoalState(&next)
 	m.state = next
 	return m.saveLocked()
@@ -947,15 +945,19 @@ func (m *likeGoalManager) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	stateCopy := m.state
 	settings.LikeGoal = unifiedSettingsLikeGoal{
-		Title:          m.state.Title,
-		Goal:           m.state.Goal,
-		Mode:           m.state.Mode,
-		TriggerEventID: m.state.TriggerEventID,
-		Enabled:        m.state.Enabled,
+		Title:           m.state.Title,
+		Goal:            m.state.Goal,
+		CurrentGoal:     m.state.CurrentGoal,
+		CurrentLikes:    m.state.CurrentLikes,
+		Mode:            m.state.Mode,
+		ModeID:          likeGoalModeToID(m.state.Mode),
+		TriggerEventID:  m.state.TriggerEventID,
+		Enabled:         m.state.Enabled,
+		TriggerCount:    m.state.TriggerCount,
+		LastTriggeredAt: m.state.LastTriggeredAt,
+		UpdatedAt:       m.state.UpdatedAt,
 	}
-	settings.LikeGoalState = &stateCopy
 	return saveUnifiedSettings(m.settingsPath, settings)
 }
 
@@ -2322,8 +2324,6 @@ func main() {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 				return
 			}
-			stateCopy := likeState
-			req.LikeGoalState = &stateCopy
 			if err := saveUnifiedSettings(appSettings, req); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save settings"})
 				return
@@ -2496,7 +2496,7 @@ func main() {
 			giftID := 0
 			giftName := ""
 			diamond := 0
-			if req.Type == "gift" {
+			if req.Type == "gift" && req.GiftID > 0 {
 				gifts, err := loadGiftListJSON(appGiftList)
 				if err != nil {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
@@ -2592,7 +2592,7 @@ func main() {
 			giftID := 0
 			giftName := ""
 			diamond := 0
-			if req.Type == "gift" {
+			if req.Type == "gift" && req.GiftID > 0 {
 				gifts, err := loadGiftListJSON(appGiftList)
 				if err != nil {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
@@ -3260,18 +3260,14 @@ func main() {
 
 func listenAutoPort() (net.Listener, string, error) {
 	const host = "127.0.0.1"
-	const preferredPort = 8080
+	const fixedPort = 8080
 
-	primaryAddr := net.JoinHostPort(host, strconv.Itoa(preferredPort))
-	ln, err := net.Listen("tcp", primaryAddr)
+	addr := net.JoinHostPort(host, strconv.Itoa(fixedPort))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		ln, err = net.Listen("tcp", net.JoinHostPort(host, "0"))
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to bind web listener: %w", err)
-		}
+		return nil, "", fmt.Errorf("failed to bind web listener at %s (is port %d already in use?): %w", addr, fixedPort, err)
 	}
-	actualAddr := ln.Addr().String()
-	return ln, "http://" + actualAddr, nil
+	return ln, "http://" + addr, nil
 }
 
 func openBrowser(targetURL string) error {
@@ -3304,19 +3300,24 @@ type unifiedSettingsMinecraft struct {
 }
 
 type unifiedSettingsLikeGoal struct {
-	Title          string `json:"title"`
-	Goal           int    `json:"goal"`
-	Mode           string `json:"mode"`
-	TriggerEventID int    `json:"trigger_event_id"`
-	Enabled        bool   `json:"enabled"`
+	Title           string `json:"title"`
+	Goal            int    `json:"goal"`
+	CurrentGoal     int    `json:"current_goal,omitempty"`
+	CurrentLikes    int    `json:"current_likes,omitempty"`
+	Mode            string `json:"mode,omitempty"`
+	ModeID          int    `json:"mode_id,omitempty"`
+	TriggerEventID  int    `json:"trigger_event_id"`
+	Enabled         bool   `json:"enabled"`
+	TriggerCount    int    `json:"trigger_count,omitempty"`
+	LastTriggeredAt string `json:"last_triggered_at,omitempty"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
 type unifiedSettingsJSON struct {
-	Username      string                   `json:"username"`
-	Minecraft     unifiedSettingsMinecraft `json:"minecraft"`
-	LikeGoal      unifiedSettingsLikeGoal  `json:"like_goal"`
-	LikeGoalState *likeGoalState           `json:"like_goal_state,omitempty"`
-	UpdatedAt     string                   `json:"updated_at,omitempty"`
+	Username  string                   `json:"username"`
+	Minecraft unifiedSettingsMinecraft `json:"minecraft"`
+	LikeGoal  unifiedSettingsLikeGoal  `json:"like_goal"`
+	UpdatedAt string                   `json:"updated_at,omitempty"`
 }
 
 func defaultUnifiedSettings() unifiedSettingsJSON {
@@ -3330,12 +3331,31 @@ func defaultUnifiedSettings() unifiedSettingsJSON {
 		LikeGoal: unifiedSettingsLikeGoal{
 			Title:          "Like Goal",
 			Goal:           1000,
+			CurrentGoal:    1000,
+			CurrentLikes:   0,
 			Mode:           "increase",
+			ModeID:         1,
 			TriggerEventID: 0,
 			Enabled:        true,
+			TriggerCount:   0,
 		},
 		UpdatedAt: time.Now().Format(time.RFC3339),
 	}
+}
+
+func likeGoalModeToID(mode string) int {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "double" {
+		return 2
+	}
+	return 1
+}
+
+func likeGoalModeFromID(modeID int) string {
+	if modeID == 2 {
+		return "double"
+	}
+	return "increase"
 }
 
 func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
@@ -3357,20 +3377,24 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 	if s.LikeGoal.Goal <= 0 {
 		s.LikeGoal.Goal = 1000
 	}
+	if s.LikeGoal.CurrentGoal <= 0 {
+		s.LikeGoal.CurrentGoal = s.LikeGoal.Goal
+	}
+	if s.LikeGoal.CurrentLikes < 0 {
+		s.LikeGoal.CurrentLikes = 0
+	}
 	s.LikeGoal.Mode = strings.ToLower(strings.TrimSpace(s.LikeGoal.Mode))
-	if s.LikeGoal.Mode != "double" {
-		s.LikeGoal.Mode = "increase"
+	if s.LikeGoal.ModeID > 0 {
+		s.LikeGoal.Mode = likeGoalModeFromID(s.LikeGoal.ModeID)
+	} else {
+		s.LikeGoal.ModeID = likeGoalModeToID(s.LikeGoal.Mode)
+		s.LikeGoal.Mode = likeGoalModeFromID(s.LikeGoal.ModeID)
 	}
 	if s.LikeGoal.TriggerEventID < 0 {
 		s.LikeGoal.TriggerEventID = 0
 	}
-	if s.LikeGoalState != nil {
-		normalizeLikeGoalState(s.LikeGoalState)
-		s.LikeGoalState.Title = s.LikeGoal.Title
-		s.LikeGoalState.Goal = s.LikeGoal.Goal
-		s.LikeGoalState.Mode = s.LikeGoal.Mode
-		s.LikeGoalState.TriggerEventID = s.LikeGoal.TriggerEventID
-		s.LikeGoalState.Enabled = s.LikeGoal.Enabled
+	if s.LikeGoal.TriggerCount < 0 {
+		s.LikeGoal.TriggerCount = 0
 	}
 }
 
@@ -3396,6 +3420,28 @@ func loadUnifiedSettings(path string) (unifiedSettingsJSON, error) {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return unifiedSettingsJSON{}, err
 	}
+	// Backward compatibility: migrate legacy like_goal_state into like_goal when present.
+	var legacy struct {
+		LikeGoalState *likeGoalState `json:"like_goal_state"`
+	}
+	if err := json.Unmarshal(b, &legacy); err == nil && legacy.LikeGoalState != nil {
+		normalizeLikeGoalState(legacy.LikeGoalState)
+		if cfg.LikeGoal.CurrentGoal <= 0 {
+			cfg.LikeGoal.CurrentGoal = legacy.LikeGoalState.CurrentGoal
+		}
+		if cfg.LikeGoal.CurrentLikes <= 0 {
+			cfg.LikeGoal.CurrentLikes = legacy.LikeGoalState.CurrentLikes
+		}
+		if cfg.LikeGoal.TriggerCount <= 0 {
+			cfg.LikeGoal.TriggerCount = legacy.LikeGoalState.TriggerCount
+		}
+		if strings.TrimSpace(cfg.LikeGoal.LastTriggeredAt) == "" {
+			cfg.LikeGoal.LastTriggeredAt = legacy.LikeGoalState.LastTriggeredAt
+		}
+		if strings.TrimSpace(cfg.LikeGoal.UpdatedAt) == "" {
+			cfg.LikeGoal.UpdatedAt = legacy.LikeGoalState.UpdatedAt
+		}
+	}
 	normalizeUnifiedSettings(&cfg)
 	return cfg, nil
 }
@@ -3406,6 +3452,7 @@ func saveUnifiedSettings(path string, cfg unifiedSettingsJSON) error {
 		return nil
 	}
 	normalizeUnifiedSettings(&cfg)
+	cfg.LikeGoal.Mode = ""
 	cfg.UpdatedAt = time.Now().Format(time.RFC3339)
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -3566,15 +3613,18 @@ func normalizeImportedEvents(items []eventRecord) ([]eventRecord, error) {
 		}
 
 		if item.Type == "gift" {
-			if item.GiftID <= 0 {
-				return nil, fmt.Errorf("item #%d is gift but gift_id is empty", i+1)
+			if item.GiftID > 0 {
+				gift, ok := findGiftByID(gifts, item.GiftID)
+				if !ok {
+					return nil, fmt.Errorf("item #%d gift_id %d not found in gift list", i+1, item.GiftID)
+				}
+				item.GiftName = gift.NamaGift
+				item.Diamond = gift.Diamond
+			} else {
+				item.GiftID = 0
+				item.GiftName = ""
+				item.Diamond = 0
 			}
-			gift, ok := findGiftByID(gifts, item.GiftID)
-			if !ok {
-				return nil, fmt.Errorf("item #%d gift_id %d not found in gift list", i+1, item.GiftID)
-			}
-			item.GiftName = gift.NamaGift
-			item.Diamond = gift.Diamond
 		} else {
 			item.GiftID = 0
 			item.GiftName = ""

@@ -4038,29 +4038,7 @@ type giftListJSONItem struct {
 }
 
 func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username string) ([]giftCatalogItem, error) {
-	if tiktok != nil {
-		if info, err := tiktok.GetGiftInfo(roomID); err == nil && info != nil && len(info.Gifts) > 0 {
-			seen := make(map[int]giftCatalogItem, len(info.Gifts))
-			for _, g := range info.Gifts {
-				if g.ID == 0 {
-					continue
-				}
-				seen[g.ID] = giftCatalogItem{
-					ID:       g.ID,
-					Name:     g.Name,
-					Describe: g.Describe,
-					Diamonds: g.DiamondCount,
-					Type:     g.Type,
-					Region:   strings.TrimSpace(g.Region),
-					ImageURL: firstNonEmptyString(g.Image.URLList),
-				}
-			}
-			out := sortGiftCatalogItems(seen)
-			if len(out) > 0 {
-				return out, nil
-			}
-		}
-	}
+	_ = tiktok
 
 	if strings.TrimSpace(roomID) == "" {
 		return nil, fmt.Errorf("room_id is empty")

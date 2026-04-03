@@ -243,7 +243,7 @@ Response juga mengembalikan metadata `source`, `region`, `room_id`.
 
 ## RCON dan Keyboard Shortcut
 
-- RCON config default dibaca dari `Server/server.properties`.
+- RCON config default dibaca dari `server/server.properties`.
 - Bisa override manual dari dashboard (`host`, `port`, `password`) saat connect.
 - `mc_command` bisa multi-line, backend eksekusi per baris non-kosong.
 - Keyboard shortcut hanya didukung di Windows (`runtime.GOOS == windows`).
@@ -287,3 +287,9 @@ Saran:
 - backup berkala file konfigurasi penting
 - jika event gift gagal dibuat, pastikan `gift-list.json` sudah ter-refresh
 - jika aksi command gagal, cek status RCON di dashboard
+
+## Dependency Management
+
+- Project ini memakai Go Modules (`go.mod` + `go.sum`).
+- Folder `vendor/` tidak wajib ada di root untuk penggunaan normal.
+- Gunakan `go mod vendor` hanya jika memang butuh mode vendor (misalnya build offline atau kebijakan CI tertentu).

@@ -3131,25 +3131,32 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("Web ready at %s", webURL)
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		if err := openBrowser(webURL); err != nil {
-			log.Printf("failed to open browser: %v", err)
-		}
-	}()
+	if !isServerlessRuntime() {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			if err := openBrowser(webURL); err != nil {
+				log.Printf("failed to open browser: %v", err)
+			}
+		}()
+	}
 	if err := http.Serve(listener, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func listenAutoPort() (net.Listener, string, error) {
-	const host = "127.0.0.1"
-	const fixedPort = 8080
-
-	addr := net.JoinHostPort(host, strconv.Itoa(fixedPort))
+	host := "127.0.0.1"
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "8080"
+	}
+	if isServerlessRuntime() {
+		host = "0.0.0.0"
+	}
+	addr := net.JoinHostPort(host, port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to bind web listener at %s (is port %d already in use?): %w", addr, fixedPort, err)
+		return nil, "", fmt.Errorf("failed to bind web listener at %s: %w", addr, err)
 	}
 	return ln, "http://" + addr, nil
 }
@@ -3354,11 +3361,19 @@ func initAppPaths() {
 		exeDir = strings.TrimSpace(filepath.Dir(base))
 	}
 
-	appEventsPath = resolveAppPath("events.json", false, cwd, exeDir)
-	appGiftList = resolveAppPath("gift-list.json", false, cwd, exeDir)
-	appGiftImage = resolveAppPath("giftimage", true, cwd, exeDir)
-	appSoundsDir = resolveAppPath("sounds", true, cwd, exeDir)
-	appSettings = resolveAppPath("settings.json", false, cwd, exeDir)
+	if root := writableDataRoot(); root != "" {
+		appEventsPath = filepath.Join(root, "events.json")
+		appGiftList = filepath.Join(root, "gift-list.json")
+		appGiftImage = filepath.Join(root, "giftimage")
+		appSoundsDir = filepath.Join(root, "sounds")
+		appSettings = filepath.Join(root, "settings.json")
+	} else {
+		appEventsPath = resolveAppPath("events.json", false, cwd, exeDir)
+		appGiftList = resolveAppPath("gift-list.json", false, cwd, exeDir)
+		appGiftImage = resolveAppPath("giftimage", true, cwd, exeDir)
+		appSoundsDir = resolveAppPath("sounds", true, cwd, exeDir)
+		appSettings = resolveAppPath("settings.json", false, cwd, exeDir)
+	}
 
 	appBaseDir = strings.TrimSpace(filepath.Dir(appEventsPath))
 	if appBaseDir == "" || appBaseDir == "." {
@@ -3370,6 +3385,24 @@ func initAppPaths() {
 			appBaseDir = "."
 		}
 	}
+}
+
+func isServerlessRuntime() bool {
+	return strings.TrimSpace(os.Getenv("VERCEL")) != "" ||
+		strings.TrimSpace(os.Getenv("AWS_LAMBDA_FUNCTION_NAME")) != ""
+}
+
+func writableDataRoot() string {
+	if v := strings.TrimSpace(os.Getenv("APP_DATA_DIR")); v != "" {
+		_ = os.MkdirAll(v, 0755)
+		return v
+	}
+	if isServerlessRuntime() {
+		root := filepath.Join(os.TempDir(), "go-tiktok-live-connector")
+		_ = os.MkdirAll(root, 0755)
+		return root
+	}
+	return ""
 }
 
 func resolveAppPath(name string, wantDir bool, roots ...string) string {

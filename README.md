@@ -63,24 +63,36 @@ Project ini berisi:
   - `plugins/ServerTap-0.6.1.jar`
   - `plugins/Skript/` untuk script `.sk` dan konfigurasi Skript
 
-## File Commit vs Runtime
+## Aturan Commit (`.gitignore`)
 
-Sesuai `.gitignore`, file yang **di-ignore** (runtime/hasil jalan aplikasi) saat ini:
+Saat ini `.gitignore` memakai mode whitelist:
 
-- `events.json`
-- `gift-list.json`
-- `settings.json`
-- `giftimage/`
-- `sounds/`
-- `stdout`
-- `*.exe`
-- `server/usercache.json`
-- `server/version_history.json`
-- `server/whitelist.json`
-- `server/permissions.yml`
-- `server/plugins/Skript/variables.csv`
+- Default semua file di-ignore (`*`)
+- Semua folder boleh ditelusuri (`!*/`)
+- Semua file berekstensi `.sk` selalu boleh di-commit (`!*.sk`)
 
-File source, web, dan file server inti tetap bisa di-commit seperti biasa.
+Selain aturan `.sk`, file yang diizinkan untuk di-commit adalah:
+
+- `.gitignore`
+- `LICENSE`
+- `README.md`
+- `go.mod`
+- `go.sum`
+- `main.go`
+- `server/eula.txt`
+- `server/paper.jar`
+- `server/plugins/ServerTap-0.6.1.jar`
+- `server/plugins/Skript-2.14.3.jar`
+- `server/server.properties`
+- `server/start-server.bat`
+- `web/index.html`
+- `web/overlay-like-goal.html`
+- `web/static/app.js`
+- `web/static/overlay-like-goal.js`
+- `web/static/styles.css`
+- `web/static/vendor/html2canvas.min.js`
+
+File baru selain daftar di atas hanya akan ikut commit jika berekstensi `.sk`.
 
 ## Menjalankan Aplikasi
 
@@ -288,16 +300,7 @@ Test tanpa live TikTok:
 
 ## Catatan Data Runtime
 
-File/folder berikut akan sering berubah saat aplikasi berjalan:
-
-- `events.json`
-- `gift-list.json`
-- `giftimage/`
-- `sounds/`
-- `server/usercache.json`
-- `server/version_history.json`
-- `server/whitelist.json`
-- `server/permissions.yml`
+File runtime seperti `events.json`, `gift-list.json`, `settings.json`, `giftimage/`, `sounds/`, dan file data server lain tidak akan ikut commit kecuali ditambahkan ke whitelist `.gitignore` atau berformat `.sk`.
 
 Saran:
 

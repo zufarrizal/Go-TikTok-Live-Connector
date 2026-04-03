@@ -1,24 +1,28 @@
-# Build artifacts
-*.exe
-*.out
-*.log
-stdout
+# Default: ignore everything
+*
 
-# Editor/OS
-.vscode/
-.DS_Store
-Thumbs.db
+# Allow traversing directories so specific files can be re-included
+!*/
 
-# App runtime data
-events.json
-gift-list.json
-settings.json
-giftimage/
-sounds/
+# Always allow Skript files anywhere
+!*.sk
 
-# Minecraft server runtime data
-server/usercache.json
-server/version_history.json
-server/whitelist.json
-server/permissions.yml
-server/plugins/Skript/variables.csv
+# Allow all files that currently exist in this repository
+!.gitignore
+!LICENSE
+!README.md
+!go.mod
+!go.sum
+!main.go
+!server/eula.txt
+!server/paper.jar
+!server/plugins/ServerTap-0.6.1.jar
+!server/plugins/Skript-2.14.3.jar
+!server/server.properties
+!server/start-server.bat
+!web/index.html
+!web/overlay-like-goal.html
+!web/static/app.js
+!web/static/overlay-like-goal.js
+!web/static/styles.css
+!web/static/vendor/html2canvas.min.js

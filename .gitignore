@@ -17,6 +17,8 @@
 !go.mod
 !go.sum
 !main.go
+!shortcut_windows.go
+!shortcut_nonwindows.go
 !server/eula.txt
 !server/paper.jar
 !server/plugins/ServerTap-0.6.1.jar

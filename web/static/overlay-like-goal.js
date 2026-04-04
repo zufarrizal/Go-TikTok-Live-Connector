@@ -25,7 +25,7 @@
     const percent = clampPercent((safeLikes / safeGoal) * 100);
 
     titleEl.textContent = title || shownTitle;
-    valueEl.textContent = formatNumber(safeLikes) + " / " + formatNumber(safeGoal);
+    valueEl.textContent = formatNumber(safeLikes) + " / " + formatNumber(safeGoal) + " Likes";
     fillEl.style.width = percent.toFixed(2) + "%";
     percentEl.textContent = Math.round(percent) + "%";
   }

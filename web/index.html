@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Go-TikTok-Live-Connector</title>
+  <title>TikStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <main class="wrap">
     <header class="head">
-      <h1 class="title">Go-TikTok-Live-Connector</h1>
+      <h1 class="title">TikStream</h1>
       <div class="head-actions">
         <button id="languageToggleBtn" type="button" aria-label="Toggle language" title="Switch language">
           <img id="languageFlagIcon" src="/static/flags/id.svg" alt="Indonesia flag">
@@ -125,13 +128,11 @@
               <tr>
                 <th id="thType">Type</th>
                 <th id="thTitle">Title</th>
-                <th id="thLabel">Label</th>
                 <th id="thGiftName">Gift Name</th>
                 <th id="thDiamond">Diamond</th>
                 <th id="thSound">Sound</th>
                 <th id="thMCCommand">MC Command</th>
                 <th id="thShortcut">Shortcut</th>
-                <th id="thMode">Mode</th>
                 <th id="thActions">Actions</th>
               </tr>
             </thead>
@@ -180,6 +181,7 @@
             <option value="comment">comment</option>
             <option value="like">like</option>
             <option value="share">share</option>
+            <option value="other">other</option>
           </select>
           <input id="eventTitle" type="text" placeholder="Title for Event List Box" autocomplete="off" aria-label="Event title">
           <input id="eventLabel" type="text" placeholder="Rule label/filter (optional)" autocomplete="off" aria-label="Rule label">
@@ -241,19 +243,25 @@
         </div>
         <div class="howto-content">
           <ol>
-            <li id="howtoStep1">Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start</li>
-            <li id="howtoStep2">Jika server minecraft sudah jalan bisa tekan tombol connect rcon</li>
-            <li id="howtoStep3">Jika live tiktok sudah berjalan bisa tekan connect</li>
+            <li id="howtoStep1">When opening the app for the first time, enter your TikTok username and press Start</li>
+            <li id="howtoStep2">If your Minecraft server is already running, press Connect RCON</li>
+            <li id="howtoStep3">If your TikTok live has started, press Connect</li>
           </ol>
-          <p id="howtoStep4">Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator</p>
+          <p id="howtoStep4">To test events, press Run or use Event Simulator</p>
         </div>
         <div id="howtoFooter" class="howto-footer">
-          Jika belum membeli lisensi bisa melalui WhatsApp : +62851 5656 0055
+          If you have not purchased a license, contact WhatsApp:
+          <a href="https://wa.me/6285156560055" target="_blank" rel="noopener noreferrer">+62 851 5656 0055</a>
         </div>
       </div>
     </div>
 
     <div id="eventExportStage" class="event-export-stage" aria-hidden="true"></div>
+
+    <footer class="app-footer" aria-label="Application footer">
+      <span id="appFooterText">Dibuat oleh</span>
+      <a class="app-footer-link" href="https://www.tiktok.com/@masjup88" target="_blank" rel="noopener noreferrer">MASJUP</a>
+    </footer>
   </main>
 
   <script src="/static/vendor/html2canvas.min.js"></script>

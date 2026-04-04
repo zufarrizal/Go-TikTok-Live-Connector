@@ -100,7 +100,7 @@ func (a *githubUsernameAllowlist) refresh() error {
 	}
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Pragma", "no-cache")
-	req.Header.Set("User-Agent", "Go-TikTok-Live-Connector/1.0")
+	req.Header.Set("User-Agent", "TikStream/1.0")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -804,8 +804,10 @@ func (s *eventStore) rulesForTrigger(eventType string, giftID int) []eventRecord
 		if strings.TrimSpace(strings.ToLower(it.Type)) != eventType {
 			continue
 		}
-		if eventType == "gift" && it.GiftID > 0 && giftID > 0 && it.GiftID != giftID {
-			continue
+		if eventType == "gift" {
+			if it.GiftID <= 0 || giftID <= 0 || it.GiftID != giftID {
+				continue
+			}
 		}
 		out = append(out, it)
 	}
@@ -1234,6 +1236,7 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 		return
 	}
 
+	prevLikes := m.state.CurrentLikes
 	if m.state.CurrentLikes < likeEvent.TotalLikes {
 		m.state.CurrentLikes = likeEvent.TotalLikes
 	} else if likeEvent.TotalLikes <= 0 && likeEvent.Likes > 0 {
@@ -1241,6 +1244,20 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 	}
 	if m.state.CurrentLikes < 0 {
 		m.state.CurrentLikes = 0
+	}
+	if m.state.CurrentGoal <= 0 {
+		m.state.CurrentGoal = m.state.Goal
+	}
+	// If persisted progress is already beyond the current goal (for example after app restart),
+	// advance to the next goal first so we only trigger on a newly crossed threshold.
+	if prevLikes >= m.state.CurrentGoal {
+		for m.state.CurrentGoal > 0 && m.state.CurrentGoal <= m.state.CurrentLikes {
+			nextGoal := nextLikeGoalThreshold(m.state.CurrentGoal, m.state.Goal, m.state.Mode)
+			if nextGoal <= m.state.CurrentGoal {
+				break
+			}
+			m.state.CurrentGoal = nextGoal
+		}
 	}
 
 	triggerCount := 0
@@ -1710,18 +1727,40 @@ func historyUsernameFromEvent(ev any, fallbackUser *gotiktoklive.User) string {
 		var payload map[string]any
 		if err := json.Unmarshal(b, &payload); err == nil {
 			if rawUser, ok := payload["user"].(map[string]any); ok {
-				if name := firstStringValue(rawUser["username"], rawUser["Username"]); name != "" {
+				if name := firstEventUsername(rawUser); name != "" {
 					return name
 				}
 			}
 			if rawUser, ok := payload["User"].(map[string]any); ok {
-				if name := firstStringValue(rawUser["username"], rawUser["Username"]); name != "" {
+				if name := firstEventUsername(rawUser); name != "" {
 					return name
 				}
 			}
 		}
 	}
 	return safeUsernameFromUser(fallbackUser)
+}
+
+func firstEventUsername(rawUser map[string]any) string {
+	if rawUser == nil {
+		return ""
+	}
+	candidates := []string{
+		firstStringValue(rawUser["unique_id"], rawUser["uniqueId"], rawUser["UniqueID"], rawUser["UniqueId"]),
+		firstStringValue(rawUser["display_id"], rawUser["displayId"], rawUser["DisplayID"], rawUser["DisplayId"]),
+		firstStringValue(rawUser["username"], rawUser["Username"]),
+	}
+	for _, candidate := range candidates {
+		candidate = normalizeUsernameCandidate(candidate)
+		if candidate == "" {
+			continue
+		}
+		if isLikelyNumericUserID(candidate) {
+			continue
+		}
+		return candidate
+	}
+	return normalizeUsernameCandidate(firstStringValue(rawUser["nickname"], rawUser["Nickname"]))
 }
 
 func firstStringValue(values ...any) string {
@@ -1740,9 +1779,12 @@ func safeUsernameFromUser(u *gotiktoklive.User) string {
 	if u == nil {
 		return "TestPlayer"
 	}
-	name := strings.TrimSpace(u.Username)
+	name := normalizeUsernameCandidate(u.Username)
+	if name == "" || isLikelyNumericUserID(name) {
+		name = normalizeUsernameCandidate(u.Nickname)
+	}
 	if name == "" {
-		return "TestPlayer"
+		name = "TestPlayer"
 	}
 	return name
 }
@@ -1759,6 +1801,24 @@ func safeNicknameFromUser(u *gotiktoklive.User) string {
 		return "TestPlayer"
 	}
 	return name
+}
+
+func normalizeUsernameCandidate(name string) string {
+	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
+	return name
+}
+
+func isLikelyNumericUserID(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func applyCommandTemplate(command string, vars map[string]string) string {
@@ -2336,7 +2396,7 @@ func main() {
 			}
 			req.Type = strings.TrimSpace(strings.ToLower(req.Type))
 			if !isAllowedEventType(req.Type) {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share"})
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share/follow/other"})
 				return
 			}
 			req.Title = strings.TrimSpace(req.Title)
@@ -2432,7 +2492,7 @@ func main() {
 			}
 			req.Type = strings.TrimSpace(strings.ToLower(req.Type))
 			if !isAllowedEventType(req.Type) {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share"})
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share/follow/other"})
 				return
 			}
 			req.Title = strings.TrimSpace(req.Title)
@@ -3398,7 +3458,7 @@ func writableDataRoot() string {
 		return v
 	}
 	if isServerlessRuntime() {
-		root := filepath.Join(os.TempDir(), "go-tiktok-live-connector")
+		root := filepath.Join(os.TempDir(), "tikstream")
 		_ = os.MkdirAll(root, 0755)
 		return root
 	}
@@ -3467,7 +3527,7 @@ func normalizeUsername(v string) string {
 
 func isAllowedEventType(v string) bool {
 	switch v {
-	case "join", "comment", "like", "gift", "share", "follow":
+	case "join", "comment", "like", "gift", "share", "follow", "other":
 		return true
 	default:
 		return false

@@ -1,4 +1,4 @@
-module gotik
+module tikstream
 
 go 1.25.0
 

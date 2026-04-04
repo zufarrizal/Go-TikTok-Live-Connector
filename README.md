@@ -1,4 +1,4 @@
-# Go-TikTok-Live-Connector
+# TikStream
 
 Bridge event TikTok Live ke aksi Minecraft (RCON + keyboard shortcut) dengan backend Go dan dashboard web.
 

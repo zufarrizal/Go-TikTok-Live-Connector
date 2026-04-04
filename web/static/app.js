@@ -105,6 +105,7 @@ const statusEl = document.getElementById("status");
     const howtoStep3El = document.getElementById("howtoStep3");
     const howtoStep4El = document.getElementById("howtoStep4");
     const howtoFooterEl = document.getElementById("howtoFooter");
+    const appFooterTextEl = document.getElementById("appFooterText");
     let editingEventId = null;
     let giftOptions = [];
     const MAX_EVENT_HISTORY = 10;
@@ -151,6 +152,7 @@ const statusEl = document.getElementById("status");
         "ui.prev": "Sebelumnya",
         "ui.next": "Berikutnya",
         "ui.history": "Riwayat",
+        "ui.footerBy": "Dibuat oleh",
         "ui.close": "Tutup",
         "ui.uploadSound": "Unggah Suara",
         "ui.runShortcut": "Jalankan Shortcut Keyboard",
@@ -193,11 +195,11 @@ const statusEl = document.getElementById("status");
         "ui.eventModalAdd": "Tambah Event",
         "ui.eventModalEdit": "Edit Event",
         "ui.pickButtonClicked": "Tombol \"{button}\" ditekan",
-        "howto.step1": "Jika pertama kali membuka aplikasi wajib memasukan username dan tekan tombol start",
-        "howto.step2": "Jika server minecraft sudah jalan bisa tekan tombol connect rcon",
-        "howto.step3": "Jika live tiktok sudah berjalan bisa tekan connect",
-        "howto.step4": "Jika ingin melakukan testing event bisa tekan tombol run / melalui event simulator",
-        "howto.footer": "Jika belum membeli lisensi bisa melalui WhatsApp : +62851 5656 0055",
+        "howto.step1": "Saat pertama kali membuka aplikasi, masukkan username TikTok lalu tekan Mulai",
+        "howto.step2": "Jika server Minecraft sudah berjalan, tekan Hubungkan RCON",
+        "howto.step3": "Jika siaran langsung TikTok sudah dimulai, tekan Hubungkan",
+        "howto.step4": "Untuk menguji event, tekan Jalankan atau gunakan Simulator Event",
+        "howto.footer": "Jika belum membeli lisensi bisa melalui WhatsApp",
         "msg.requiredUsername": "username wajib diisi",
         "msg.tracking": "melacak @{username}",
         "msg.idle": "idle (belum terhubung)",
@@ -254,6 +256,7 @@ const statusEl = document.getElementById("status");
         "ui.prev": "Prev",
         "ui.next": "Next",
         "ui.history": "History",
+        "ui.footerBy": "Built by",
         "ui.close": "Close",
         "ui.uploadSound": "Upload Sound",
         "ui.runShortcut": "Run Keyboard Shortcut",
@@ -300,7 +303,7 @@ const statusEl = document.getElementById("status");
         "howto.step2": "If your Minecraft server is already running, you can press Connect RCON",
         "howto.step3": "If the TikTok live has started, you can press Connect",
         "howto.step4": "If you want to test events, you can press Run or use Event Simulator",
-        "howto.footer": "If you have not purchased a license, contact WhatsApp: +62851 5656 0055",
+        "howto.footer": "If you have not purchased a license, contact WhatsApp",
         "msg.requiredUsername": "username is required",
         "msg.tracking": "tracking @{username}",
         "msg.idle": "idle (not connected)",
@@ -383,6 +386,16 @@ const statusEl = document.getElementById("status");
       if (m) return t("msg.tracking", { username: m[1] });
       m = text.match(/^starting @(.+)\.\.\.$/i) || text.match(/^memulai @(.+)\.\.\.$/i);
       if (m) return t("msg.starting", { username: m[1] });
+      m = text.match(/^connected to @(.+)$/i) || text.match(/^terhubung ke @(.+)$/i);
+      if (m) return currentLang === "id" ? ("terhubung ke @" + m[1]) : ("connected to @" + m[1]);
+      m = text.match(/^disconnected from @(.+)\. reconnecting in (\d+)s\.\.\.$/i) || text.match(/^terputus dari @(.+)\. mencoba lagi dalam (\d+) detik\.\.\.$/i);
+      if (m) return currentLang === "id"
+        ? ("terputus dari @" + m[1] + ". mencoba lagi dalam " + m[2] + " detik...")
+        : ("disconnected from @" + m[1] + ". reconnecting in " + m[2] + "s...");
+      m = text.match(/^@(.+) is not live yet\. rechecking in (\d+)s\.\.\.$/i) || text.match(/^@(.+) belum live\. cek ulang dalam (\d+) detik\.\.\.$/i);
+      if (m) return currentLang === "id"
+        ? ("@" + m[1] + " belum live. cek ulang dalam " + m[2] + " detik...")
+        : ("@" + m[1] + " is not live yet. rechecking in " + m[2] + "s...");
       m = text.match(/^simulate event in (\d+)s\.\.\.$/i) || text.match(/^simulasi event dalam (\d+) detik\.\.\.$/i);
       if (m) return t("msg.simulateCountdown", { sec: m[1] });
       m = text.match(/^event simulated: (.+) @(.+)$/i) || text.match(/^event disimulasikan: (.+) @(.+)$/i);
@@ -403,22 +416,72 @@ const statusEl = document.getElementById("status");
           source: suffix.includes("[") ? " " + suffix.slice(suffix.indexOf("[")).trim() : ""
         });
       }
+      m = text.match(/^gift list saved to (.+) and downloaded (\d+) gift image\(s\) to (.+)$/i) || text.match(/^daftar gift tersimpan di (.+) dan (\d+) gambar gift terunduh ke (.+)$/i);
+      if (m) {
+        return currentLang === "id"
+          ? ("daftar gift tersimpan di " + m[1] + " dan " + m[2] + " gambar gift terunduh ke " + m[3])
+          : ("gift list saved to " + m[1] + " and downloaded " + m[2] + " gift image(s) to " + m[3]);
+      }
       m = text.match(/^Simulated (.+) - (.+)$/i) || text.match(/^Simulasi (.+) - (.+)$/i);
       if (m) return t("msg.simulatedOutput", { type: m[1], message: m[2] });
-      if (currentLang === "id") {
-        return text
-          .replace(/failed to/ig, "gagal")
-          .replace(/is required/ig, "wajib diisi")
-          .replace(/not found/ig, "tidak ditemukan")
-          .replace(/invalid request body/ig, "body request tidak valid")
-          .replace(/method not allowed/ig, "metode tidak diizinkan");
+      m = text.match(/^like goal test sent \(no trigger event configured\)$/i) || text.match(/^tes target like terkirim \(event trigger belum diatur\)$/i);
+      if (m) return currentLang === "id" ? "tes target like terkirim (event trigger belum diatur)" : "like goal test sent (no trigger event configured)";
+      m = text.match(/^events\.json has been reset$/i) || text.match(/^events\.json berhasil direset$/i);
+      if (m) return currentLang === "id" ? "events.json berhasil direset" : "events.json has been reset";
+      m = text.match(/^you have not purchased a license\. contact \+?(\d+)$/i) || text.match(/^anda belum membeli lisensi\. hubungi \+?(\d+)$/i);
+      if (m) return currentLang === "id" ? ("anda belum membeli lisensi. hubungi +" + m[1]) : ("you have not purchased a license. contact +" + m[1]);
+
+      const phrasePairs = [
+        ["invalid upload payload", "payload unggah tidak valid"],
+        ["invalid request body", "body request tidak valid"],
+        ["method not allowed", "metode tidak diizinkan"],
+        ["failed to fetch gift catalog", "gagal mengambil katalog gift"],
+        ["failed to save gift list json", "gagal menyimpan json daftar gift"],
+        ["failed to read gift list", "gagal membaca daftar gift"],
+        ["gift image download completed", "unduh gambar gift selesai"],
+        ["failed to create sound directory", "gagal membuat folder suara"],
+        ["failed to save sound file", "gagal menyimpan file suara"],
+        ["failed to write sound file", "gagal menulis file suara"],
+        ["unsupported sound format", "format suara tidak didukung"],
+        ["sound file is required", "file suara wajib diisi"],
+        ["event json file is required", "file json event wajib diisi"],
+        ["failed to read event file", "gagal membaca file event"],
+        ["failed to save imported events", "gagal menyimpan event impor"],
+        ["failed to reset like goal progress", "gagal reset progres target like"],
+        ["failed to reset events", "gagal reset event"],
+        ["failed to save settings", "gagal menyimpan pengaturan"],
+        ["failed to load settings", "gagal memuat pengaturan"],
+        ["failed to build export json", "gagal membuat json ekspor"],
+        ["unsupported test event type", "tipe event simulasi tidak didukung"],
+        ["trigger event not found", "event trigger tidak ditemukan"],
+        ["event not found", "event tidak ditemukan"],
+        ["gift_id not found in gift list", "gift_id tidak ditemukan di daftar gift"],
+        ["is not live yet", "belum live"],
+        ["rechecking in", "cek ulang dalam"],
+        ["disconnected from", "terputus dari"],
+        ["reconnecting in", "mencoba lagi dalam"],
+        ["connected to", "terhubung ke"],
+        ["tracking", "melacak"],
+        ["starting", "memulai"],
+        ["stopped", "berhenti"],
+        ["failed to", "gagal"],
+        ["failed", "gagal"],
+        ["is required", "wajib diisi"],
+        ["required", "wajib diisi"],
+        ["not found", "tidak ditemukan"],
+        ["unsupported", "tidak didukung"]
+      ];
+
+      const fromIndex = currentLang === "id" ? 0 : 1;
+      const toIndex = currentLang === "id" ? 1 : 0;
+      let out = text;
+      for (const pair of phrasePairs) {
+        const from = pair[fromIndex];
+        const to = pair[toIndex];
+        if (!from || !to) continue;
+        out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), to);
       }
-      return text
-        .replace(/gagal/ig, "failed")
-        .replace(/wajib diisi/ig, "is required")
-        .replace(/tidak ditemukan/ig, "not found")
-        .replace(/body request tidak valid/ig, "invalid request body")
-        .replace(/metode tidak diizinkan/ig, "method not allowed");
+      return out;
     }
 
     function applyLanguageUI() {
@@ -435,7 +498,7 @@ const statusEl = document.getElementById("status");
         languageToggleBtn.setAttribute("aria-label", isID ? "Switch to English" : "Ganti ke Bahasa Indonesia");
         languageToggleBtn.title = isID ? "Switch to English" : "Ganti ke Bahasa Indonesia";
       }
-      document.title = "Go-TikTok-Live-Connector";
+      document.title = "TikStream";
       if (howToUseBtn) howToUseBtn.textContent = t("ui.howToUse");
       if (appSettingsSaveBtn) appSettingsSaveBtn.textContent = t("ui.save");
       if (connectTikTokTitleEl) connectTikTokTitleEl.textContent = t("ui.connectTikTok");
@@ -445,6 +508,7 @@ const statusEl = document.getElementById("status");
       if (eventPanelTitleEl) eventPanelTitleEl.textContent = t("ui.eventPanel");
       if (eventListBoxTitleEl) eventListBoxTitleEl.textContent = t("ui.eventListBox");
       if (historyTitleEl) historyTitleEl.textContent = t("ui.history");
+      if (appFooterTextEl) appFooterTextEl.textContent = t("ui.footerBy");
       if (thTypeEl) thTypeEl.textContent = t("ui.type");
       if (thTitleEl) thTitleEl.textContent = t("ui.title");
       if (thLabelEl) thLabelEl.textContent = t("ui.label");
@@ -503,7 +567,10 @@ const statusEl = document.getElementById("status");
       if (howtoStep2El) howtoStep2El.textContent = t("howto.step2");
       if (howtoStep3El) howtoStep3El.textContent = t("howto.step3");
       if (howtoStep4El) howtoStep4El.textContent = t("howto.step4");
-      if (howtoFooterEl) howtoFooterEl.textContent = t("howto.footer");
+      if (howtoFooterEl) {
+        howtoFooterEl.innerHTML = esc(t("howto.footer")) + ": " +
+          "<a href=\"https://wa.me/6285156560055\" target=\"_blank\" rel=\"noopener noreferrer\">+62 851 5656 0055</a>";
+      }
       if (eventGiftPicker && typeof eventGiftPicker.setPlaceholder === "function") eventGiftPicker.setPlaceholder(t("ui.selectGift"));
       if (testEventGiftPicker && typeof testEventGiftPicker.setPlaceholder === "function") testEventGiftPicker.setPlaceholder(t("ui.selectGift"));
       if (eventShortcutPicker && typeof eventShortcutPicker.setPlaceholder === "function") eventShortcutPicker.setPlaceholder(t("ui.selectShortcut"));
@@ -538,6 +605,7 @@ const statusEl = document.getElementById("status");
       setOpt(eventTypeEl, "comment", currentLang === "id" ? "comment" : "comment");
       setOpt(eventTypeEl, "like", currentLang === "id" ? "like" : "like");
       setOpt(eventTypeEl, "share", currentLang === "id" ? "share" : "share");
+      setOpt(eventTypeEl, "other", currentLang === "id" ? "other" : "other");
       setOpt(likeGoalModeEl, "increase", currentLang === "id" ? "naik" : "increase");
       setOpt(likeGoalModeEl, "double", currentLang === "id" ? "lipat dua" : "double");
       syncLabelHint();
@@ -2018,36 +2086,60 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"10\">" + esc(t("ui.noEventsYet")) + "</td>";
+        tr.innerHTML = "<td colspan=\"8\">" + esc(t("ui.noEventsYet")) + "</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
 
       const sortedItems = sortEventItems(items);
       for (const item of sortedItems) {
-        const runMC = item.run_mc_command !== false;
-        const runShortcut = !!item.run_shortcut;
-        const modeText = runMC && runShortcut ? t("ui.mcAndShortcut") : (runMC ? t("ui.mcOnly") : t("ui.shortcut"));
         const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
         const shortcutLabel = normalizeShortcutSymbols(item.shortcut_keys);
         const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
+        const gift = findGiftByEventItem(item);
+        const localGiftImage = buildGiftImagePathFromEvent(item);
+        const remoteGiftImage = resolveGiftImageRemote(gift);
+        const giftImage = localGiftImage || remoteGiftImage;
+        const giftName = String(item.gift_name || "").trim();
+        const giftNameText = giftName || "-";
+        const giftThumbHTML = giftImage
+          ? "<img class=\"event-table-gift-thumb\" src=\"" + esc(giftImage) + "\" alt=\"" + esc(giftNameText) + "\" loading=\"lazy\"" +
+            (remoteGiftImage ? " data-fallback-src=\"" + esc(remoteGiftImage) + "\"" : "") + ">"
+          : "<span class=\"event-table-gift-thumb-fallback\">IMG</span>";
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + (item.type || "") + "</td>" +
           "<td>" + esc(item.title || "") + "</td>" +
-          "<td>" + (item.label || "") + "</td>" +
-          "<td>" + (item.gift_name || "") + "</td>" +
+          "<td><div class=\"event-table-gift-cell\">" +
+            giftThumbHTML +
+            "<span class=\"event-table-gift-name\">" + esc(giftNameText) + "</span>" +
+          "</div></td>" +
           "<td>" + (item.diamond ?? 0) + "</td>" +
           "<td>" + esc(getSoundFileName(item.sound_url)) + "</td>" +
           "<td>" + (item.mc_command || "") + "</td>" +
           "<td>" + esc(shortcutView) + "</td>" +
-          "<td>" + modeText + "</td>" +
-          "<td>" +
+          "<td><div class=\"event-actions\">" +
             "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">" + esc(t("ui.run")) + "</button>" +
             "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">" + esc(t("ui.edit")) + "</button>" +
             "<button type=\"button\" class=\"edit\" data-act=\"duplicate\" data-id=\"" + item.id + "\">" + esc(t("ui.duplicate")) + "</button>" +
             "<button type=\"button\" class=\"delete\" data-act=\"delete\" data-id=\"" + item.id + "\">" + esc(t("ui.delete")) + "</button>" +
+          "</div>" +
           "</td>";
+        const giftThumbEl = tr.querySelector(".event-table-gift-thumb");
+        if (giftThumbEl) {
+          giftThumbEl.addEventListener("error", () => {
+            const fallback = String(giftThumbEl.dataset.fallbackSrc || "").trim();
+            if (fallback && giftThumbEl.dataset.fallbackTried !== "1") {
+              giftThumbEl.dataset.fallbackTried = "1";
+              giftThumbEl.src = fallback;
+              return;
+            }
+            const replacement = document.createElement("span");
+            replacement.className = "event-table-gift-thumb-fallback";
+            replacement.textContent = "IMG";
+            giftThumbEl.replaceWith(replacement);
+          });
+        }
         eventRowsEl.appendChild(tr);
       }
     }
@@ -2157,7 +2249,7 @@ const statusEl = document.getElementById("status");
         const label = labelTitle || String(item.type || "event");
         options.push({
           value: String(item.id),
-          label: "#" + String(item.id) + " - " + label
+          label: label
         });
       }
       likeGoalTriggerPicker.setOptions(options);
@@ -2978,8 +3070,10 @@ const statusEl = document.getElementById("status");
         }
         if (payload.type === "status") {
           const message = String(payload.message || "");
-          const ok = !message.toLowerCase().includes("error") && !message.toLowerCase().includes("stopped");
-          setStatus(message, ok);
+          const localized = translateKnownMessage(message);
+          const lc = localized.toLowerCase();
+          const ok = !lc.includes("error") && !lc.includes("gagal") && !lc.includes("failed") && !lc.includes("stopped") && !lc.includes("berhenti") && !lc.includes("terputus") && !lc.includes("disconnect");
+          setStatus(localized, ok);
         }
         if (payload.type === "error") {
           setStatus(payload.error || "error", false);

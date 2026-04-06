@@ -1337,6 +1337,8 @@ type mcEventAutomation struct {
 	giftCombo map[int64]giftComboProgress
 	// Tracks cumulative like counts per username for this runtime session.
 	likeTotals map[string]int
+	// Tracks follow events already processed in the current live session.
+	followSeen map[string]struct{}
 	queue      chan queuedMCTrigger
 }
 
@@ -1367,6 +1369,7 @@ func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub)
 		hub:        hub,
 		giftCombo:  make(map[int64]giftComboProgress),
 		likeTotals: make(map[string]int),
+		followSeen: make(map[string]struct{}),
 		queue:      make(chan queuedMCTrigger, 512),
 	}
 	go a.processQueue()
@@ -1455,6 +1458,9 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	if eventType == "" {
 		return
 	}
+	if eventType == "follow" && !a.markFollowSeen(vars["username"], vars["nickname"]) {
+		return
+	}
 	if eventType == "like" {
 		username := strings.TrimSpace(vars["username"])
 		delta, err := strconv.Atoi(strings.TrimSpace(vars["likes"]))
@@ -1526,6 +1532,32 @@ func (a *mcEventAutomation) addLikeTotal(username string, delta int) (int, int) 
 	}
 	a.likeTotals[key] = next
 	return prev, next
+}
+
+func (a *mcEventAutomation) markFollowSeen(username string, nickname string) bool {
+	key := normalizeUsername(username)
+	if key == "" {
+		key = normalizeUsername(nickname)
+	}
+	// If sender identity is unavailable, allow the event to avoid false negatives.
+	if key == "" {
+		return true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, exists := a.followSeen[key]; exists {
+		return false
+	}
+	a.followSeen[key] = struct{}{}
+	return true
+}
+
+func (a *mcEventAutomation) resetSessionState() {
+	a.mu.Lock()
+	a.giftCombo = make(map[int64]giftComboProgress)
+	a.likeTotals = make(map[string]int)
+	a.followSeen = make(map[string]struct{})
+	a.mu.Unlock()
 }
 
 func ruleLabelMatches(rule eventRecord, vars map[string]string) bool {
@@ -2308,6 +2340,7 @@ func main() {
 			})
 			return
 		}
+		autoMC.resetSessionState()
 		if err := ctrl.Start(req.Username); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return

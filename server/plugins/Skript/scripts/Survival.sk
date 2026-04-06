@@ -13,7 +13,7 @@ command /DMplus <number> <text> <number> :
 command /join <text>:
     trigger:
         set {_username} to arg-1
-        broadcast "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live"
+        send "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live" to all players
         play sound "entity.experience_orb.pickup" to players
 
 # follow {username}
@@ -21,17 +21,17 @@ command /join <text>:
 command /follow <text>:
     trigger:
         set {_username} to arg-1
-        broadcast "&8[&aFollow&8] &f@&e%{_username}% &ahas followed the live &8| &2+1 FOLLOWER"
+        send "&8[&aFollow&8] &f@&e%{_username}% &ahas followed the live" to all players
         loop all players:
             play sound "entity.player.levelup" to loop-player
 
-# ttchat {username} : {comment}
+# ttchat {username} {comment}
 # Broadcast comment TikTok ke chat Minecraft.
-command /ttchat <text> : <text>:
+command /ttchat <text> <text>:
     trigger:
         set {_username} to arg-1
         set {_comment} to arg-2
-        broadcast "&8[&dComment&8] &f@&b%{_username}% &8> &f%{_comment}%"
+        send "&8[&dComment&8] &f@&b%{_username}% : &f%{_comment}%" to all players
         loop all players:
             play sound "entity.experience_orb.pickup" to loop-player
 
@@ -43,20 +43,6 @@ command /ega <number> <text> <number> :
         loop all players:
             play sound "entity.experience_orb.pickup" to loop-player
             give {_total} of enchanted golden apple to loop-player
-
-# summon commands: {value} {username} {repeat}
-# Setiap command di bawah menghitung total spawn lalu memunculkan mob di dekat semua pemain.
-command /chicken <number> <text> <number>:
-    trigger:
-        set {_total} to arg-1 * arg-3
-        loop all players:
-            set {_loc} to location of loop-player
-            add 1 to y-coordinate of {_loc}
-            send title "&6&l%arg-2%" with subtitle "&a&lSUMMON &fChicken &ex%{_total}%" to loop-player
-            loop {_total} times:
-                play sound "entity.experience_orb.pickup" to loop-player
-                spawn 1 chicken at {_loc}
-                wait 2 ticks
 
 # Summon zombie di dekat setiap pemain.
 command /zombie <number> <text> <number>:
@@ -108,19 +94,6 @@ command /creeper <number> <text> <number>:
             loop {_total} times:
                 play sound "entity.experience_orb.pickup" to loop-player
                 spawn 1 creeper at {_loc}
-                wait 2 ticks
-
-# Summon cave spider di dekat setiap pemain.
-command /cavespider <number> <text> <number>:
-    trigger:
-        set {_total} to arg-1 * arg-3
-        loop all players:
-            set {_loc} to location of loop-player
-            add 1 to y-coordinate of {_loc}
-            send title "&6&l%arg-2%" with subtitle "&3&lSUMMON &bCave Spider &ex%{_total}%" to loop-player
-            loop {_total} times:
-                play sound "entity.experience_orb.pickup" to loop-player
-                spawn 1 cave spider at {_loc}
                 wait 2 ticks
 
 # Membuat jebakan jaring laba-laba 15x15 setinggi 2 block di sekitar kaki pemain.
@@ -566,3 +539,22 @@ command /zombievillager <number> <text> <number>:
                 play sound "entity.experience_orb.pickup" to loop-player
                 execute console command "execute at %{_p}% run summon minecraft:zombie_villager ~ ~1 ~"
                 wait 2 ticks
+
+# Efek firework visual saat TNT meledak (tanpa suara firework).
+on explode:
+    if event-entity is not set:
+        stop
+
+    set {_etype} to "%type of event-entity%"
+    if {_etype} does not contain "tnt":
+        stop
+
+    set {_loc} to location of event-entity
+    set {_x} to x-coordinate of {_loc}
+    set {_y} to y-coordinate of {_loc}
+    set {_z} to z-coordinate of {_loc}
+
+    execute console command "execute positioned %{_x}% %{_y}% %{_z}% run particle firework ~ ~1 ~ 0.35 0.35 0.35 0.1 80 force @a"
+    execute console command "execute positioned %{_x}% %{_y}% %{_z}% run particle dust{color:[1.0,0.0,0.0],scale:1.3} ~ ~1 ~ 0.5 0.5 0.5 0 25 force @a"
+    execute console command "execute positioned %{_x}% %{_y}% %{_z}% run particle dust{color:[1.0,1.0,0.0],scale:1.3} ~ ~1 ~ 0.5 0.5 0.5 0 25 force @a"
+    execute console command "execute positioned %{_x}% %{_y}% %{_z}% run particle dust{color:[1.0,1.0,1.0],scale:1.3} ~ ~1 ~ 0.5 0.5 0.5 0 25 force @a"

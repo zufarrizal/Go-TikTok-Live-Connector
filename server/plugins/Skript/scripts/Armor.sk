@@ -60,6 +60,19 @@ on respawn:
     wait 5 ticks
     give_armor(player)
 
+# Cegah semua armor ikut drop saat pemain mati.
+on death of player:
+    loop drops:
+        set {_type} to "%type of loop-item%"
+        if {_type} contains "helmet":
+            remove loop-item from drops
+        else if {_type} contains "chestplate":
+            remove loop-item from drops
+        else if {_type} contains "leggings":
+            remove loop-item from drops
+        else if {_type} contains "boots":
+            remove loop-item from drops
+
 # Cek periodik supaya armor wajib selalu ada.
 #every 10 ticks:
 #   loop all players:

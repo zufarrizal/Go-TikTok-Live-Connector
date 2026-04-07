@@ -73,6 +73,22 @@ on death of player:
         else if {_type} contains "boots":
             remove loop-item from drops
 
+# Cegah armor dibuang manual ke ground.
+on drop:
+    set {_type} to "%type of event-item%"
+    if {_type} contains "helmet":
+        cancel event
+        stop
+    if {_type} contains "chestplate":
+        cancel event
+        stop
+    if {_type} contains "leggings":
+        cancel event
+        stop
+    if {_type} contains "boots":
+        cancel event
+        stop
+
 # Cek periodik supaya armor wajib selalu ada.
 #every 10 ticks:
 #   loop all players:

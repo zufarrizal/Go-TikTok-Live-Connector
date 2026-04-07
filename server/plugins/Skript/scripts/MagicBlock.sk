@@ -11,7 +11,7 @@ function play_magic_fireworks(p: player):
         execute console command "execute at %{_p}% run playsound entity.firework_rocket.large_blast master @a ~ ~ ~ 1 1"
         wait 6 ticks
 
-command /magicblock <text>:
+command /magicblock <text> <number>:
     trigger:
         if player is set:
             set {_target} to player
@@ -21,15 +21,23 @@ command /magicblock <text>:
                 stop
             set {_target} to a random player out of all players
 
-        set {_loc} to location of block 2 meters in front of {_target}
-        add 1 to y-coordinate of {_loc}
+        set {_loopCount} to arg-2
+        if {_loopCount} < 1:
+            set {_loopCount} to 1
 
-        if {random_diamond_block::%{_loc}%} is set:
-            delete {random_diamond_block::%{_loc}%}
-        remove {_loc} from {random_diamond_block_locations::*}
-        set block at {_loc} to gold block
-        set {random_diamond_block::%{_loc}%} to true
-        add {_loc} to {random_diamond_block_locations::*}
+        loop {_loopCount} times:
+            set {_distance} to loop-number + 1
+            set {_loc} to location of block {_distance} meters in front of {_target}
+            add 1 to y-coordinate of {_loc}
+
+            if {random_diamond_block::%{_loc}%} is set:
+                delete {random_diamond_block::%{_loc}%}
+            delete {random_diamond_block_breaking::%{_loc}%}
+            remove {_loc} from {random_diamond_block_locations::*}
+            set block at {_loc} to gold block
+            set {random_diamond_block::%{_loc}%} to true
+            add {_loc} to {random_diamond_block_locations::*}
+
         send title "&6&l%arg-1%" with subtitle "&aSent MAGIC BLOCK" to players
 
 every 5 ticks:
@@ -38,8 +46,13 @@ every 5 ticks:
 
         # Jika block sudah hilang (air), bersihkan data.
         if block at {_loc} is air:
-            delete {random_diamond_block::%{_loc}%}
-            remove {_loc} from {random_diamond_block_locations::*}
+            if {random_diamond_block_breaking::%{_loc}%} is set:
+                delete {random_diamond_block_breaking::%{_loc}%}
+                delete {random_diamond_block::%{_loc}%}
+                remove {_loc} from {random_diamond_block_locations::*}
+            else:
+                # Tidak dihancurkan langsung player, jadi pulihkan block.
+                set block at {_loc} to gold block
         else:
             set {_roll} to random integer between 1 and 5
             if {_roll} is 1:
@@ -55,7 +68,14 @@ every 5 ticks:
 
 on block damage:
     if {random_diamond_block::%location of event-block%} is set:
+        set {_toolType} to "%type of player's tool%"
+        if {_toolType} is not "golden pickaxe":
+            cancel event
+            send "&cMagic block hanya bisa dihancurkan dengan golden pickaxe." to player
+            stop
+
         cancel event
+        set {random_diamond_block_breaking::%location of event-block%} to true
         delete {random_diamond_block::%location of event-block%}
         remove location of event-block from {random_diamond_block_locations::*}
         set block at location of event-block to air
@@ -67,13 +87,4 @@ on block damage:
 
 on break:
     if {random_diamond_block::%location of event-block%} is set:
-        delete {random_diamond_block::%location of event-block%}
-        remove location of event-block from {random_diamond_block_locations::*}
-        clear drops
-
-        set {_dropAmount} to random integer between 1 and 20
-        drop {_dropAmount} of diamond at location of event-block
-
-        if player is set:
-            send "&bKamu mendapatkan %{_dropAmount}% diamond." to player
-            play_magic_fireworks(player)
+        cancel event

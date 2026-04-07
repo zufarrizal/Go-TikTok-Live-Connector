@@ -28,12 +28,19 @@ on block damage:
                         if {_block} is not air:
                             # Magic block: jangan drop block aslinya, langsung ganti diamond random.
                             if {random_diamond_block::%{_loc}%} is set:
-                                delete {random_diamond_block::%{_loc}%}
-                                remove {_loc} from {random_diamond_block_locations::*}
-                                set block at {_loc} to air
-                                set {_dropAmount} to random integer between 1 and 20
-                                play sound "block.stone.break" with volume 1 and pitch 1 to player
-                                drop {_dropAmount} of diamond at {_loc}
+                                # Hanya boleh dihancurkan jika block yang dipukul langsung
+                                # dan tool adalah golden pickaxe.
+                                if {_loc} is location of event-block:
+                                    if {_toolName} is "golden pickaxe":
+                                        set {random_diamond_block_breaking::%{_loc}%} to true
+                                        delete {random_diamond_block::%{_loc}%}
+                                        remove {_loc} from {random_diamond_block_locations::*}
+                                        set block at {_loc} to air
+                                        set {_dropAmount} to random integer between 1 and 20
+                                        play sound "block.stone.break" with volume 1 and pitch 1 to player
+                                        drop {_dropAmount} of diamond at {_loc}
+                                    else:
+                                        send "&cMagic block hanya bisa dihancurkan dengan golden pickaxe." to player
                             else:
                                 # Ambil drop asli blok, lalu hancurkan blok tersebut.
                                 set {_drops::*} to drops of {_block}

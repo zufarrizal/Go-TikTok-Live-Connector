@@ -1,11 +1,12 @@
 # Memberikan set tools utama ke pemain.
 function give_tools(p: player):
-    # Slot 1-4 hotbar (index Skript: 0-3)
+    # Slot 1-5 hotbar (index Skript: 0-4)
     set slot 0 of {_p}'s inventory to netherite pickaxe
     set slot 1 of {_p}'s inventory to netherite sword
     set slot 2 of {_p}'s inventory to bow
     # Infinity tetap butuh minimal 1 arrow di inventory.
     set slot 3 of {_p}'s inventory to 1 arrow
+    set slot 4 of {_p}'s inventory to golden pickaxe
     set offhand tool of {_p} to shield
 
     # Pickaxe full upgrade
@@ -13,6 +14,11 @@ function give_tools(p: player):
     enchant slot 0 of {_p}'s inventory with fortune 3
     enchant slot 0 of {_p}'s inventory with unbreaking 3
     enchant slot 0 of {_p}'s inventory with mending 1
+
+    # Golden pickaxe untuk magic block
+    enchant slot 4 of {_p}'s inventory with efficiency 5
+    enchant slot 4 of {_p}'s inventory with unbreaking 3
+    enchant slot 4 of {_p}'s inventory with mending 1
 
     # Sword full upgrade
     enchant slot 1 of {_p}'s inventory with sharpness 5
@@ -59,6 +65,12 @@ function ensure_tools(p: player):
     if "%type of slot 3 of {_p}'s inventory%" does not contain "arrow":
         set slot 3 of {_p}'s inventory to 1 arrow
 
+    if slot 4 of {_p}'s inventory is not golden pickaxe:
+        set slot 4 of {_p}'s inventory to golden pickaxe
+        enchant slot 4 of {_p}'s inventory with efficiency 5
+        enchant slot 4 of {_p}'s inventory with unbreaking 3
+        enchant slot 4 of {_p}'s inventory with mending 1
+
     if offhand tool of {_p} is not shield:
         set offhand tool of {_p} to shield
 
@@ -77,6 +89,15 @@ every 10 ticks:
     loop all players:
         ensure_tools(loop-player)
 
+# Cegah tools inti ikut drop saat pemain mati.
+on death of player:
+    remove all netherite pickaxe from drops
+    remove all netherite sword from drops
+    remove all bow from drops
+    remove all arrow from drops
+    remove all golden pickaxe from drops
+    remove all shield from drops
+
 # Cegah tools inti dibuang ke ground.
 on drop:
     if event-item is netherite pickaxe:
@@ -89,6 +110,9 @@ on drop:
         cancel event
         stop
     if event-item is arrow:
+        cancel event
+        stop
+    if event-item is golden pickaxe:
         cancel event
         stop
     if event-item is shield:

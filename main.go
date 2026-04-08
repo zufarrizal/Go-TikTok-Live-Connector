@@ -176,6 +176,7 @@ type streamController struct {
 	mu       sync.Mutex
 	hub      *eventHub
 	onEvent  func(any)
+	rcon     *mcRCONManager
 	running  bool
 	username string
 	session  uint64
@@ -183,10 +184,11 @@ type streamController struct {
 	live     *gotiktoklive.Live
 }
 
-const streamReconnectDelay = 5 * time.Second
+const streamReconnectDelay = 3 * time.Second
+const rconReconnectDelayOnTikTokConnect = 2 * time.Second
 
-func newStreamController(hub *eventHub, onEvent func(any)) *streamController {
-	return &streamController{hub: hub, onEvent: onEvent}
+func newStreamController(hub *eventHub, onEvent func(any), rcon *mcRCONManager) *streamController {
+	return &streamController{hub: hub, onEvent: onEvent, rcon: rcon}
 }
 
 func (c *streamController) Start(username string) error {
@@ -263,11 +265,51 @@ func (c *streamController) setLive(session uint64, live *gotiktoklive.Live) {
 }
 
 func (c *streamController) broadcastReconnect(username string) {
+	if c.rcon != nil {
+		c.rcon.Disconnect()
+	}
 	c.hub.broadcast(mustJSON(map[string]any{
 		"type":    "status",
 		"message": fmt.Sprintf("Disconnected from @%s. Reconnecting in %ds...", username, int(streamReconnectDelay/time.Second)),
 		"time":    time.Now().Format(time.RFC3339),
 	}))
+}
+
+func (c *streamController) broadcastRCONStatus(username string) {
+	if c.rcon == nil {
+		return
+	}
+	status := c.rcon.Status()
+	connected, _ := status["connected"].(bool)
+	host, _ := status["host"].(string)
+	c.hub.broadcast(mustJSON(map[string]any{
+		"type":    "status",
+		"message": fmt.Sprintf("RCON status after TikTok reconnect @%s: connected=%t (%s:%v)", username, connected, host, status["port"]),
+		"rcon":    status,
+		"time":    time.Now().Format(time.RFC3339),
+	}))
+}
+
+func (c *streamController) restartRCONForTikTokConnect(username string) {
+	if c.rcon == nil {
+		return
+	}
+	restarted, err := c.rcon.RestartAfterDelay(rconReconnectDelayOnTikTokConnect)
+	if err != nil {
+		c.hub.broadcast(mustJSON(map[string]any{
+			"type":  "error",
+			"error": fmt.Sprintf("failed to reconnect RCON before connecting @%s: %v", username, err),
+			"time":  time.Now().Format(time.RFC3339),
+		}))
+		return
+	}
+	if restarted {
+		c.hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": fmt.Sprintf("RCON disconnected for %ds and reconnected before connecting @%s", int(rconReconnectDelayOnTikTokConnect/time.Second), username),
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+	}
 }
 
 func (c *streamController) run(ctx context.Context, session uint64, username string) {
@@ -347,6 +389,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			}
 			continue
 		}
+		c.restartRCONForTikTokConnect(username)
 		c.setLive(session, live)
 
 		c.hub.broadcast(mustJSON(map[string]any{
@@ -354,6 +397,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			"message": "Connected to @" + username,
 			"time":    time.Now().Format(time.RFC3339),
 		}))
+		c.broadcastRCONStatus(username)
 		if gifts, err := fetchGiftCatalog(tiktok, live.ID, username); err != nil {
 			c.hub.broadcast(mustJSON(map[string]any{
 				"type":  "error",
@@ -589,6 +633,37 @@ func (m *mcRCONManager) Disconnect() {
 		m.conn = nil
 	}
 	m.connected = false
+}
+
+func (m *mcRCONManager) RestartAfterDelay(delay time.Duration) (bool, error) {
+	m.mu.Lock()
+	host := strings.TrimSpace(m.cfg.Host)
+	port := m.cfg.Port
+	password := strings.TrimSpace(m.cfg.Password)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if port <= 0 || port > 65535 {
+		port = 25575
+	}
+	if m.conn != nil {
+		_ = m.conn.Close()
+		m.conn = nil
+	}
+	m.connected = false
+	m.mu.Unlock()
+
+	if password == "" {
+		return false, nil
+	}
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
+	if err := m.Connect(host, port, password); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func (m *mcRCONManager) Execute(command string) (string, error) {
@@ -1778,9 +1853,9 @@ func firstEventUsername(rawUser map[string]any) string {
 		return ""
 	}
 	candidates := []string{
-		firstStringValue(rawUser["unique_id"], rawUser["uniqueId"], rawUser["UniqueID"], rawUser["UniqueId"]),
-		firstStringValue(rawUser["display_id"], rawUser["displayId"], rawUser["DisplayID"], rawUser["DisplayId"]),
 		firstStringValue(rawUser["username"], rawUser["Username"]),
+		firstStringValue(rawUser["display_id"], rawUser["displayId"], rawUser["DisplayID"], rawUser["DisplayId"]),
+		firstStringValue(rawUser["unique_id"], rawUser["uniqueId"], rawUser["UniqueID"], rawUser["UniqueId"]),
 	}
 	for _, candidate := range candidates {
 		candidate = normalizeUsernameCandidate(candidate)
@@ -1837,6 +1912,10 @@ func safeNicknameFromUser(u *gotiktoklive.User) string {
 
 func normalizeUsernameCandidate(name string) string {
 	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
+	if idx := strings.LastIndex(name, ":"); idx >= 0 && idx < len(name)-1 {
+		name = strings.TrimSpace(name[idx+1:])
+	}
+	name = strings.TrimPrefix(name, "@")
 	return name
 }
 
@@ -2145,7 +2224,7 @@ func main() {
 	ctrl := newStreamController(hub, func(ev any) {
 		autoMC.HandleLiveEvent(ev)
 		likeGoal.HandleLiveEvent(ev)
-	})
+	}, mcRCON)
 	if settings, err := loadUnifiedSettings(appSettings); err == nil && strings.TrimSpace(settings.Username) != "" {
 		go func(username string) {
 			if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {

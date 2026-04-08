@@ -392,6 +392,10 @@ const statusEl = document.getElementById("status");
       if (m) return currentLang === "id"
         ? ("terputus dari @" + m[1] + ". mencoba lagi dalam " + m[2] + " detik...")
         : ("disconnected from @" + m[1] + ". reconnecting in " + m[2] + "s...");
+      m = text.match(/^RCON disconnected for (\d+)s and reconnected before connecting @(.+)$/i) || text.match(/^RCON diputus selama (\d+) detik lalu tersambung lagi sebelum terhubung ke @(.+)$/i);
+      if (m) return currentLang === "id"
+        ? ("RCON diputus selama " + m[1] + " detik lalu tersambung lagi sebelum terhubung ke @" + m[2])
+        : ("RCON disconnected for " + m[1] + "s and reconnected before connecting @" + m[2]);
       m = text.match(/^@(.+) is not live yet\. rechecking in (\d+)s\.\.\.$/i) || text.match(/^@(.+) belum live\. cek ulang dalam (\d+) detik\.\.\.$/i);
       if (m) return currentLang === "id"
         ? ("@" + m[1] + " belum live. cek ulang dalam " + m[2] + " detik...")
@@ -430,15 +434,37 @@ const statusEl = document.getElementById("status");
       if (m) return currentLang === "id" ? "events.json berhasil direset" : "events.json has been reset";
       m = text.match(/^you have not purchased a license\. contact \+?(\d+)$/i) || text.match(/^anda belum membeli lisensi\. hubungi \+?(\d+)$/i);
       if (m) return currentLang === "id" ? ("anda belum membeli lisensi. hubungi +" + m[1]) : ("you have not purchased a license. contact +" + m[1]);
+      m = text.match(/^failed to reconnect RCON before connecting @(.+): (.+)$/i) || text.match(/^gagal reconnect RCON sebelum terhubung ke @(.+): (.+)$/i);
+      if (m) return currentLang === "id"
+        ? ("gagal reconnect RCON sebelum terhubung ke @" + m[1] + ": " + m[2])
+        : ("failed to reconnect RCON before connecting @" + m[1] + ": " + m[2]);
+      m = text.match(/^tracker panic for @(.+): (.+)$/i) || text.match(/^panic tracker untuk @(.+): (.+)$/i);
+      if (m) return currentLang === "id"
+        ? ("panic tracker untuk @" + m[1] + ": " + m[2])
+        : ("tracker panic for @" + m[1] + ": " + m[2]);
 
       const phrasePairs = [
         ["invalid upload payload", "payload unggah tidak valid"],
         ["invalid request body", "body request tidak valid"],
         ["method not allowed", "metode tidak diizinkan"],
+        ["failed to reconnect rcon before connecting", "gagal reconnect rcon sebelum terhubung ke"],
+        ["rcon disconnected for", "rcon diputus selama"],
+        ["and reconnected before connecting", "dan tersambung lagi sebelum terhubung ke"],
+        ["tracker panic for", "panic tracker untuk"],
+        ["failed to sync like goal on startup", "gagal sinkron target like saat startup"],
+        ["failed load properties", "gagal memuat properti"],
+        ["failed to load page", "gagal memuat halaman"],
+        ["json marshal failed", "gagal memproses json"],
         ["failed to fetch gift catalog", "gagal mengambil katalog gift"],
         ["failed to save gift list json", "gagal menyimpan json daftar gift"],
         ["failed to read gift list", "gagal membaca daftar gift"],
         ["gift image download completed", "unduh gambar gift selesai"],
+        ["rcon password is required for manual connect", "password rcon wajib diisi untuk koneksi manual"],
+        ["rcon.password is empty", "rcon.password kosong"],
+        ["enable-rcon=false in server/server.properties", "enable-rcon=false di server/server.properties"],
+        ["rcon is not connected", "rcon belum terhubung"],
+        ["command is empty", "perintah kosong"],
+        ["username is required", "username wajib diisi"],
         ["failed to create sound directory", "gagal membuat folder suara"],
         ["failed to save sound file", "gagal menyimpan file suara"],
         ["failed to write sound file", "gagal menulis file suara"],

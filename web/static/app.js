@@ -1121,11 +1121,41 @@ const statusEl = document.getElementById("status");
       return line1 + "\n" + line2;
     }
 
+    function getGiftSubtitleFontSize(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      const minSize = 30;
+      const maxSize = 48;
+      const ratio = (safeColumns - 5) / 5;
+      return minSize + ((maxSize - minSize) * (1 - ratio));
+    }
+
+    function getGiftSubtitleLayoutScale(el) {
+      const slideEl = el && el.closest ? el.closest(".event-box-slide") : null;
+      if (!slideEl) return 1;
+      const rect = slideEl.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return 1;
+
+      const EXPORT_SLIDE_WIDTH = 1816;
+      const EXPORT_SLIDE_HEIGHT = 976;
+      const widthScale = rect.width / EXPORT_SLIDE_WIDTH;
+      const heightScale = rect.height / EXPORT_SLIDE_HEIGHT;
+      return Math.max(0.45, Math.min(1, Math.min(widthScale, heightScale)));
+    }
+
+    function getEventBoxColumnsFromElement(el) {
+      if (!el) return getDefaultEventBoxColumns();
+      const rawColumns = getComputedStyle(el).getPropertyValue("--event-box-columns").trim();
+      return normalizeEventBoxColumns(rawColumns);
+    }
+
     function fitGiftSubtitle(el) {
       if (!el) return;
-      const isExportSubtitle = !!el.closest(".event-export-grid");
-      el.style.fontSize = isExportSubtitle ? "32px" : "20px";
-      el.style.letterSpacing = "0";
+      const columns = getEventBoxColumnsFromElement(el);
+      const baseFontSize = getGiftSubtitleFontSize(columns);
+      const layoutScale = getGiftSubtitleLayoutScale(el);
+      const fontSize = baseFontSize * layoutScale;
+      el.style.fontSize = fontSize.toFixed(1) + "px";
+      el.style.letterSpacing = (0.25 * layoutScale).toFixed(3) + "px";
       el.title = "";
     }
 

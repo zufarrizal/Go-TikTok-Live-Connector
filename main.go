@@ -1268,6 +1268,14 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 	return state, nil
 }
 
+func (m *likeGoalManager) PrepareForConnect() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Align first/manual connect behavior with reconnect flow:
+	// wait for a fresh live baseline before processing incremental like events.
+	m.awaitingLiveBaseline = true
+}
+
 func (m *likeGoalManager) HandleLiveEvent(ev any) {
 	if syncEvent, ok := ev.(likeGoalSyncEvent); ok {
 		if !syncEvent.Live {
@@ -2419,6 +2427,7 @@ func main() {
 			})
 			return
 		}
+		likeGoal.PrepareForConnect()
 		autoMC.resetSessionState()
 		if err := ctrl.Start(req.Username); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})

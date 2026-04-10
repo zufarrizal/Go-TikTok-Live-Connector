@@ -88,6 +88,8 @@ const statusEl = document.getElementById("status");
     const likeGoalEnabledLabelEl = document.getElementById("likeGoalEnabledLabel");
     const eventPanelTitleEl = document.getElementById("eventPanelTitle");
     const eventListBoxTitleEl = document.getElementById("eventListBoxTitle");
+    const eventBoxPerRowLabelEl = document.getElementById("eventBoxPerRowLabel");
+    const eventBoxPerRowEl = document.getElementById("eventBoxPerRow");
     const historyTitleEl = document.getElementById("historyTitle");
     const thTypeEl = document.getElementById("thType");
     const thTitleEl = document.getElementById("thTitle");
@@ -128,6 +130,7 @@ const statusEl = document.getElementById("status");
     let lastToastAt = 0;
     let likeGoalState = null;
     const I18N_STORAGE_KEY = "gtlc_lang";
+    const EVENT_BOX_PER_ROW_STORAGE_KEY = "gtlc_event_box_per_row";
     let currentLang = "id";
     const I18N = {
       id: {
@@ -148,6 +151,7 @@ const statusEl = document.getElementById("status");
         "ui.resetEvents": "Reset Event",
         "ui.addEvent": "Tambah Event",
         "ui.eventListBox": "Kotak Daftar Event",
+        "ui.itemsPerRow": "Isi per baris",
         "ui.savePngSlides": "Simpan PNG Slides",
         "ui.prev": "Sebelumnya",
         "ui.next": "Berikutnya",
@@ -252,6 +256,7 @@ const statusEl = document.getElementById("status");
         "ui.resetEvents": "Reset Events",
         "ui.addEvent": "Add Event",
         "ui.eventListBox": "Event List Box",
+        "ui.itemsPerRow": "Items/Row",
         "ui.savePngSlides": "Save PNG Slides",
         "ui.prev": "Prev",
         "ui.next": "Next",
@@ -533,6 +538,15 @@ const statusEl = document.getElementById("status");
       if (likeGoalSectionTitleEl) likeGoalSectionTitleEl.textContent = t("ui.likeGoal");
       if (eventPanelTitleEl) eventPanelTitleEl.textContent = t("ui.eventPanel");
       if (eventListBoxTitleEl) eventListBoxTitleEl.textContent = t("ui.eventListBox");
+      if (eventBoxPerRowLabelEl) {
+        const input = eventBoxPerRowLabelEl.querySelector("select");
+        eventBoxPerRowLabelEl.textContent = t("ui.itemsPerRow");
+        if (input) eventBoxPerRowLabelEl.appendChild(input);
+      }
+      if (eventBoxPerRowEl) {
+        eventBoxPerRowEl.setAttribute("aria-label", t("ui.itemsPerRow"));
+        eventBoxPerRowEl.title = t("ui.itemsPerRow");
+      }
       if (historyTitleEl) historyTitleEl.textContent = t("ui.history");
       if (appFooterTextEl) appFooterTextEl.textContent = t("ui.footerBy");
       if (thTypeEl) thTypeEl.textContent = t("ui.type");
@@ -1077,36 +1091,42 @@ const statusEl = document.getElementById("status");
       return String(item && item.gift_name ? item.gift_name : "Gift");
     }
 
+    function splitGiftSubtitleFirstLine(text, firstLineMaxChars = 8) {
+      const src = String(text || "").trim();
+      if (!src) return "";
+
+      const words = src.split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        return src;
+      }
+
+      let line1 = "";
+      let usedWords = 0;
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const candidate = line1 ? (line1 + " " + word) : word;
+        if (candidate.length <= firstLineMaxChars || line1.length === 0) {
+          line1 = candidate;
+          usedWords = i + 1;
+          if (candidate.length >= firstLineMaxChars) break;
+          continue;
+        }
+        break;
+      }
+
+      if (usedWords >= words.length) {
+        return src;
+      }
+      const line2 = words.slice(usedWords).join(" ");
+      return line1 + "\n" + line2;
+    }
+
     function fitGiftSubtitle(el) {
       if (!el) return;
-      const isExport = !!el.closest(".event-export-canvas");
-      const maxSize = isExport ? 56 : 22;
-      const minSize = isExport ? 20 : 10;
-      let size = maxSize;
-      el.style.display = "block";
-      el.style.width = "100%";
-      el.style.fontSize = size + "px";
-      el.style.letterSpacing = "0.01em";
+      const isExportSubtitle = !!el.closest(".event-export-grid");
+      el.style.fontSize = isExportSubtitle ? "32px" : "20px";
+      el.style.letterSpacing = "0";
       el.title = "";
-
-      while (size > minSize && el.scrollWidth > el.clientWidth + 1) {
-        size -= 1;
-        el.style.fontSize = size + "px";
-      }
-
-      if (el.scrollWidth > el.clientWidth + 1) {
-        el.style.letterSpacing = "0";
-      }
-
-      while (size > minSize && el.scrollWidth > el.clientWidth + 1) {
-        size -= 0.5;
-        el.style.fontSize = size + "px";
-      }
-
-      if (el.scrollWidth > el.clientWidth + 1) {
-        el.style.fontSize = minSize + "px";
-        el.title = el.textContent || "";
-      }
     }
 
     function fitGiftSubtitles(rootEl) {
@@ -1172,6 +1192,10 @@ const statusEl = document.getElementById("status");
           const clone = slide.cloneNode(true);
           const canvasHost = document.createElement("div");
           canvasHost.className = "event-box-section event-export-canvas";
+          const eventBoxColumns = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim();
+          if (eventBoxColumns) {
+            canvasHost.style.setProperty("--event-box-columns", eventBoxColumns);
+          }
 
           const grid = document.createElement("div");
           grid.className = "event-export-grid";
@@ -1223,10 +1247,35 @@ const statusEl = document.getElementById("status");
       }
     }
 
-    function getEventBoxColumns() {
-      if (window.innerWidth <= 860) return 2;
-      if (window.innerWidth <= 1180) return 3;
+    function getDefaultEventBoxColumns() {
       return 5;
+    }
+
+    function normalizeEventBoxColumns(value, fallback = getDefaultEventBoxColumns()) {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return fallback;
+      return Math.max(5, Math.min(10, Math.round(parsed)));
+    }
+
+    function applyEventBoxColumns(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      if (eventBoxPerRowEl) {
+        eventBoxPerRowEl.value = String(safeColumns);
+      }
+      if (eventBoxRowsEl) {
+        eventBoxRowsEl.style.setProperty("--event-box-columns", String(safeColumns));
+      }
+      if (eventBoxRowsPopupEl) {
+        eventBoxRowsPopupEl.style.setProperty("--event-box-columns", String(safeColumns));
+      }
+      return safeColumns;
+    }
+
+    function getEventBoxColumns() {
+      if (eventBoxPerRowEl) {
+        return normalizeEventBoxColumns(eventBoxPerRowEl.value);
+      }
+      return getDefaultEventBoxColumns();
     }
 
     function getEventBoxRows() {
@@ -2015,6 +2064,10 @@ const statusEl = document.getElementById("status");
       eventPaginationPopupEl.innerHTML = eventPaginationEl ? eventPaginationEl.innerHTML : "";
       eventBoxRowsPopupEl.dataset.repeatCount = eventBoxRowsEl ? eventBoxRowsEl.dataset.repeatCount || "1" : "1";
       eventBoxRowsPopupEl.style.transform = eventBoxRowsEl ? eventBoxRowsEl.style.transform || "translateX(0px)" : "translateX(0px)";
+      const eventBoxColumns = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim() : "";
+      if (eventBoxColumns) {
+        eventBoxRowsPopupEl.style.setProperty("--event-box-columns", eventBoxColumns);
+      }
       fitGiftSubtitles(eventBoxRowsPopupEl);
     }
 
@@ -2246,7 +2299,18 @@ const statusEl = document.getElementById("status");
 
           const subtitleEl = document.createElement("div");
           subtitleEl.className = "event-card-gift-subtitle";
-          subtitleEl.textContent = subtitle;
+          if (Array.from(subtitle).length > 8) {
+            subtitleEl.classList.add("is-wrap");
+            const wrappedSubtitle = splitGiftSubtitleFirstLine(subtitle, 8);
+            subtitleEl.textContent = wrappedSubtitle;
+            const subtitleLines = wrappedSubtitle.split("\n");
+            const secondLine = subtitleLines.length > 1 ? subtitleLines.slice(1).join(" ").trim() : "";
+            if (Array.from(secondLine).length > 7) {
+              subtitleEl.classList.add("is-second-long");
+            }
+          } else {
+            subtitleEl.textContent = subtitle;
+          }
 
           card.appendChild(subtitleEl);
           slide.appendChild(card);
@@ -3006,6 +3070,15 @@ const statusEl = document.getElementById("status");
     if (eventBoxRowsEl) {
       eventBoxRowsEl.addEventListener("click", handleEventActionClick);
     }
+    if (eventBoxPerRowEl) {
+      const handleEventBoxPerRowChange = () => {
+        const columns = applyEventBoxColumns(eventBoxPerRowEl.value);
+        localStorage.setItem(EVENT_BOX_PER_ROW_STORAGE_KEY, String(columns));
+        renderEventBoxes(currentEventItems);
+      };
+      eventBoxPerRowEl.addEventListener("input", handleEventBoxPerRowChange);
+      eventBoxPerRowEl.addEventListener("change", handleEventBoxPerRowChange);
+    }
     if (exportEventBoxBtn) {
       exportEventBoxBtn.addEventListener("click", () => {
         exportEventBoxSlidesAsPNG();
@@ -3112,6 +3185,14 @@ const statusEl = document.getElementById("status");
     // Initial Bootstrap
     // =========================
     initLanguageMode();
+    {
+      const savedEventBoxCols = Number(localStorage.getItem(EVENT_BOX_PER_ROW_STORAGE_KEY) || 0);
+      if (savedEventBoxCols > 0) {
+        applyEventBoxColumns(savedEventBoxCols);
+      } else {
+        applyEventBoxColumns(getDefaultEventBoxColumns());
+      }
+    }
     refreshState();
     syncExecutionModeFields();
     syncLabelHint();

@@ -676,6 +676,35 @@ button:hover {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.overlay-page.overlay-page--greenscreen {
+  background: #00ff00;
+}
+
+.overlay-page.overlay-page--greenscreen .like-goal-overlay {
+  border: 1px solid rgba(147, 197, 253, 0.4);
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(59, 130, 246, 0.3), rgba(15, 23, 42, 0.72) 52%, rgba(2, 6, 23, 0.9)),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.9));
+  backdrop-filter: none;
+}
+
+.overlay-page.overlay-page--greenscreen .like-goal-overlay::before {
+  background: linear-gradient(120deg, rgba(56, 189, 248, 0.5), rgba(99, 102, 241, 0.42), rgba(244, 114, 182, 0.5));
+}
+
+.overlay-page.overlay-page--greenscreen .like-goal-overlay-glow {
+  background:
+    radial-gradient(70% 80% at 15% 20%, rgba(59, 130, 246, 0.22), transparent 72%),
+    radial-gradient(60% 60% at 85% 18%, rgba(99, 102, 241, 0.2), transparent 70%);
+}
+
+.overlay-page.overlay-page--greenscreen .like-goal-overlay-fill {
+  background: linear-gradient(90deg, #f97316 0%, #fb7185 45%, #a78bfa 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 241, 242, 0.24),
+    0 0 24px rgba(251, 113, 133, 0.42);
+}
+
 .like-goal-overlay {
   position: relative;
   overflow: hidden;
@@ -800,14 +829,16 @@ button:hover {
 }
 
 .like-goal-overlay-fill {
-  width: 0%;
+  width: 100%;
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #22c55e 0%, #14b8a6 45%, #38bdf8 100%);
   box-shadow:
     inset 0 0 0 1px rgba(240, 253, 250, 0.24),
     0 0 24px rgba(20, 184, 166, 0.52);
-  transition: width 180ms linear;
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
   position: relative;
 }
 
@@ -854,11 +885,11 @@ button:hover {
 }
 
 .like-goal-overlay.is-boost .like-goal-overlay-track {
-  animation: overlay-track-boost 420ms ease;
+  animation: overlay-track-boost 320ms ease;
 }
 
 .like-goal-overlay.is-boost .like-goal-overlay-percent {
-  animation: overlay-percent-pop 420ms ease;
+  animation: overlay-percent-pop 320ms ease;
 }
 
 @keyframes overlay-float {
@@ -894,13 +925,13 @@ button:hover {
 
 @keyframes overlay-track-boost {
   0% { transform: scale(1); }
-  50% { transform: scale(1.012); }
+  50% { transform: scale(1.005); }
   100% { transform: scale(1); }
 }
 
 @keyframes overlay-percent-pop {
   0% { transform: scale(1); }
-  45% { transform: scale(1.12); }
+  45% { transform: scale(1.05); }
   100% { transform: scale(1); }
 }
 
@@ -1181,6 +1212,7 @@ button:hover {
 .event-box-section {
   display: grid;
   gap: 10px;
+  font-family: "Arial Black", Arial, sans-serif;
 }
 
 .event-box-head {
@@ -1199,6 +1231,24 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.event-box-per-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.event-box-per-row select {
+  width: 68px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 8px;
+  font-family: "Arial Black", Arial, sans-serif;
+  box-shadow: none;
+  outline: 0;
 }
 
 .event-slide-nav {
@@ -1225,7 +1275,7 @@ button:hover {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #0b1220;
-  padding: 12px;
+  padding: 8px;
 }
 
 .event-card-track {
@@ -1237,32 +1287,38 @@ button:hover {
 .event-box-slide {
   min-width: 100%;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--event-box-columns, 5), minmax(0, 1fr));
   grid-template-rows: repeat(4, minmax(150px, 150px));
-  gap: 10px;
-  padding: 20px 20px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .event-card {
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   background: #1e293b;
+  box-shadow: none;
+  outline: 0;
 }
 
 .event-card-gift {
   display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 8px;
+  grid-template-rows: 92px auto;
+  align-content: start;
+  gap: 6px;
 }
 
 .event-card-gift-frame {
   display: grid;
   place-items: center;
-  border: 1px solid #334155;
+  border: 0;
   border-radius: 8px;
+  height: 92px;
   min-height: 92px;
   background: #0f172a;
+  box-shadow: none;
+  outline: 0;
 }
 
 .event-card-gift-image {
@@ -1282,10 +1338,31 @@ button:hover {
   text-align: center;
   font-size: 20px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
+  min-height: 1.15em;
+  max-height: calc(2 * 1.15em);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+  paint-order: normal;
+}
+
+.event-card-gift-subtitle.is-wrap {
+  min-height: calc(2 * 1.15em);
+  max-height: none;
+  white-space: pre-wrap;
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: break-word;
+}
+
+.event-card-gift-subtitle.is-wrap.is-second-long {
+  font-size: 20px;
 }
 
 .event-card-empty {
@@ -1875,7 +1952,7 @@ button:hover {
   min-width: auto;
   width: 100%;
   height: 100%;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--event-box-columns, 5), minmax(0, 1fr));
   grid-template-rows: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
@@ -1895,24 +1972,12 @@ button:hover {
 }
 
 .event-export-grid .event-card-gift-subtitle {
-  font-size: 40px;
+  font-size: 32px;
   color: #ffffff;
-  -webkit-text-stroke: 6px rgba(15, 23, 42, 1);
-  paint-order: stroke fill;
-  text-shadow:
-    -2px -2px 0 rgba(15, 23, 42, 1),
-    2px -2px 0 rgba(15, 23, 42, 1),
-    -2px 2px 0 rgba(15, 23, 42, 1),
-    2px 2px 0 rgba(15, 23, 42, 1),
-    -4px 0 0 rgba(15, 23, 42, 1),
-    4px 0 0 rgba(15, 23, 42, 1),
-    0 -4px 0 rgba(15, 23, 42, 1),
-    0 4px 0 rgba(15, 23, 42, 1),
-    -6px 0 0 rgba(15, 23, 42, 0.98),
-    6px 0 0 rgba(15, 23, 42, 0.98),
-    0 -6px 0 rgba(15, 23, 42, 0.98),
-    0 6px 0 rgba(15, 23, 42, 0.98),
-    0 16px 24px rgba(15, 23, 42, 0.82);
+  line-height: 1.15;
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+  paint-order: normal;
 }
 
 .event-export-grid .event-card-gift {
@@ -2010,7 +2075,7 @@ input[type="number"] {
   }
 
   .event-box-slide {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--event-box-columns, 3), minmax(0, 1fr));
     grid-template-rows: repeat(4, minmax(154px, 154px));
   }
 }
@@ -2095,12 +2160,12 @@ input[type="number"] {
   }
 
   .event-box-slide {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--event-box-columns, 2), minmax(0, 1fr));
     grid-template-rows: repeat(4, minmax(150px, 150px));
   }
 
   .event-card-gift-subtitle {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .mc-rcon-row,

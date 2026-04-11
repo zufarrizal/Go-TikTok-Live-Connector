@@ -1224,11 +1224,36 @@ const statusEl = document.getElementById("status");
     function fitGiftSubtitle(el) {
       if (!el) return;
       const columns = getEventBoxColumnsFromElement(el);
-      const baseFontSize = getGiftSubtitleFontSize(columns);
-      const layoutScale = getGiftSubtitleLayoutScale(el);
-      const fontSize = baseFontSize * layoutScale;
-      el.style.fontSize = fontSize.toFixed(1) + "px";
-      el.style.letterSpacing = (0.25 * layoutScale).toFixed(3) + "px";
+      const originalInlineFontSize = el.style.fontSize;
+      const originalInlineLetterSpacing = el.style.letterSpacing;
+      if (originalInlineFontSize) {
+        el.style.fontSize = "";
+      }
+      if (originalInlineLetterSpacing) {
+        el.style.letterSpacing = "";
+      }
+      const cssFontSize = parseFloat(getComputedStyle(el).fontSize);
+      const cssLetterSpacing = parseFloat(getComputedStyle(el).letterSpacing);
+      if (originalInlineFontSize) {
+        el.style.fontSize = originalInlineFontSize;
+      }
+      if (originalInlineLetterSpacing) {
+        el.style.letterSpacing = originalInlineLetterSpacing;
+      }
+      const cssBaseFontSize = Number.isFinite(cssFontSize) && cssFontSize > 0
+        ? cssFontSize
+        : 28;
+      const baseProfileFont = getGiftSubtitleFontSize(getDefaultEventBoxColumns());
+      const currentProfileFont = getGiftSubtitleFontSize(columns);
+      const profileScale = (Number.isFinite(baseProfileFont) && baseProfileFont > 0)
+        ? (currentProfileFont / baseProfileFont)
+        : 1;
+      const baseFontSize = cssBaseFontSize * profileScale;
+      const baseLetterSpacing = Number.isFinite(cssLetterSpacing)
+        ? (cssLetterSpacing * profileScale)
+        : 0.25;
+      el.style.fontSize = baseFontSize.toFixed(1) + "px";
+      el.style.letterSpacing = baseLetterSpacing.toFixed(3) + "px";
       el.title = "";
     }
 
@@ -1276,7 +1301,7 @@ const statusEl = document.getElementById("status");
         setStatus(currentLang === "id" ? "html2canvas gagal dimuat" : "html2canvas failed to load", false);
         return;
       }
-      if (!eventBoxRowsEl || !eventExportStageEl) {
+      if (!eventBoxRowsEl) {
         setStatus(currentLang === "id" ? "ekspor event tidak tersedia" : "event export is not available", false);
         return;
       }
@@ -1285,120 +1310,71 @@ const statusEl = document.getElementById("status");
         setStatus(currentLang === "id" ? "tidak ada slide event untuk diekspor" : "no event slides to export", false);
         return;
       }
+      const previewWindowEl = eventBoxRowsEl.closest(".event-slider-window");
+      if (!previewWindowEl) {
+        setStatus(currentLang === "id" ? "preview event tidak ditemukan" : "event preview not found", false);
+        return;
+      }
 
       stopEventSlider();
       if (exportEventBoxBtn) {
         exportEventBoxBtn.disabled = true;
       }
+      const originalEventPage = currentEventPage;
 
       try {
+        previewWindowEl.classList.add("is-exporting-clean");
         await fitGiftSubtitles(eventBoxRowsEl);
         await new Promise((resolve) => requestAnimationFrame(() => resolve()));
         if (document.fonts && typeof document.fonts.ready === "object") {
           await document.fonts.ready;
         }
-        const previewWindowEl = eventBoxRowsEl.closest(".event-slider-window");
-        const previewRect = previewWindowEl ? previewWindowEl.getBoundingClientRect() : null;
-        const captureWidth = Math.max(1, Math.round(previewRect && previewRect.width ? previewRect.width : 1920));
-        const captureHeight = Math.max(1, Math.round(previewRect && previewRect.height ? previewRect.height : (captureWidth * 9 / 16)));
-        const captureScale = Math.max(1, Math.min(4, 1920 / captureWidth));
-
         for (let i = 0; i < slides.length; i++) {
-          const slide = slides[i];
-          const clone = slide.cloneNode(true);
-          clone.style.minWidth = "100%";
-          clone.style.width = "100%";
-          clone.style.height = "100%";
-          clone.style.background = "transparent";
-
-          const canvasHost = document.createElement("div");
-          canvasHost.className = "event-showcase event-export-canvas event-export-grid";
-          canvasHost.style.width = captureWidth + "px";
-          canvasHost.style.height = captureHeight + "px";
-          canvasHost.style.overflow = "hidden";
-          canvasHost.style.background = "transparent";
-          canvasHost.style.border = "0";
-
-          const sliderWindow = document.createElement("div");
-          sliderWindow.className = "event-slider-window";
-          sliderWindow.style.width = "100%";
-          sliderWindow.style.height = "100%";
-          sliderWindow.style.aspectRatio = "auto";
-          sliderWindow.style.background = "transparent";
-          sliderWindow.style.border = "0";
-
-          const track = document.createElement("div");
-          track.className = "event-card-track";
-          track.style.width = "100%";
-          track.style.height = "100%";
-          track.style.background = "transparent";
-
-          const eventBoxColumns = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim();
-          const eventBoxImageSize = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-image-size").trim();
-          const eventBoxSubtitleHeight = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height").trim();
-          const eventBoxSubtitleSingleHeight = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height-single").trim();
-          if (eventBoxColumns) {
-            track.style.setProperty("--event-box-columns", eventBoxColumns);
-          }
-          if (eventBoxImageSize) {
-            track.style.setProperty("--event-box-image-size", eventBoxImageSize);
-          }
-          if (eventBoxSubtitleHeight) {
-            track.style.setProperty("--event-box-subtitle-height", eventBoxSubtitleHeight);
-          }
-          if (eventBoxSubtitleSingleHeight) {
-            track.style.setProperty("--event-box-subtitle-height-single", eventBoxSubtitleSingleHeight);
-          }
-
-          track.appendChild(clone);
-          sliderWindow.appendChild(track);
-          canvasHost.appendChild(sliderWindow);
-
-          eventExportStageEl.replaceChildren(canvasHost);
-          await waitForImagesIn(canvasHost);
+          currentEventPage = i;
+          updateEventSliderPosition(slides.length);
+          await waitForImagesIn(previewWindowEl);
+          await fitGiftSubtitles(eventBoxRowsEl);
           if (document.fonts && typeof document.fonts.ready === "object") {
             await document.fonts.ready;
           }
           await new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-          const renderedCanvas = await window.html2canvas(canvasHost, {
+          const slideRect = slides[i].getBoundingClientRect();
+          const captureWidth = Math.max(
+            1,
+            Math.round(Math.max(slides[i].scrollWidth || 0, slides[i].clientWidth || 0, slideRect && slideRect.width ? slideRect.width : 0))
+          );
+          const captureHeight = Math.max(
+            1,
+            Math.round(Math.max(slides[i].scrollHeight || 0, slides[i].clientHeight || 0, slideRect && slideRect.height ? slideRect.height : 0))
+          );
+          const renderedCanvas = await window.html2canvas(previewWindowEl, {
             backgroundColor: null,
             width: captureWidth,
             height: captureHeight,
-            scale: captureScale,
+            scale: 2,
             useCORS: true,
             logging: false
           });
 
-          const canvas = document.createElement("canvas");
-          canvas.width = 1920;
-          canvas.height = 1080;
-          const ctx = canvas.getContext("2d", { alpha: true });
-          if (ctx) {
-            ctx.globalCompositeOperation = "copy";
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(renderedCanvas, 0, 0, canvas.width, canvas.height);
-          }
-
           const link = document.createElement("a");
-          link.href = canvas.toDataURL("image/png");
+          link.href = renderedCanvas.toDataURL("image/png");
           link.download = buildEventExportFileName(i + 1);
           document.body.appendChild(link);
           link.click();
           link.remove();
         }
-
-        eventExportStageEl.replaceChildren();
         setStatus(currentLang === "id" ? "slide event berhasil disimpan sebagai PNG" : "event slides saved as PNG successfully", true);
       } catch (err) {
         setStatus((err && err.message) || (currentLang === "id" ? "gagal menyimpan slide event" : "failed to save event slides"), false);
       } finally {
-        eventExportStageEl.replaceChildren();
+        previewWindowEl.classList.remove("is-exporting-clean");
+        currentEventPage = Math.max(0, Math.min(originalEventPage, Math.max(0, slides.length - 1)));
+        updateEventSliderPosition(slides.length);
         if (exportEventBoxBtn) {
           exportEventBoxBtn.disabled = false;
         }
-        const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
-        startEventSlider(pageCount);
+        startEventSlider(slides.length);
       }
     }
 

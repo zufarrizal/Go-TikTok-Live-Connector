@@ -12,8 +12,3 @@ on join:
 on respawn:
     wait 5 ticks
     apply_all_player_effects(player)
-
-# Backup periodik supaya efek tetap konsisten di semua pemain aktif.
-every 5 minutes:
-    loop all players:
-        apply_all_player_effects(loop-player)

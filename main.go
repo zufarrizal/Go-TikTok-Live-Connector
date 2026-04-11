@@ -2090,7 +2090,7 @@ func firstEventUsername(rawUser map[string]any) string {
 		}
 		return candidate
 	}
-	return normalizeUsernameCandidate(firstStringValue(rawUser["nickname"], rawUser["Nickname"]))
+	return ""
 }
 
 func firstStringValue(values ...any) string {
@@ -2110,9 +2110,6 @@ func safeUsernameFromUser(u *gotiktoklive.User) string {
 		return "TestPlayer"
 	}
 	name := normalizeUsernameCandidate(u.Username)
-	if name == "" || isLikelyNumericUserID(name) {
-		name = normalizeUsernameCandidate(u.Nickname)
-	}
 	if name == "" {
 		name = "TestPlayer"
 	}
@@ -2134,12 +2131,80 @@ func safeNicknameFromUser(u *gotiktoklive.User) string {
 }
 
 func normalizeUsernameCandidate(name string) string {
-	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
-	if idx := strings.LastIndex(name, ":"); idx >= 0 && idx < len(name)-1 {
-		name = strings.TrimSpace(name[idx+1:])
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
 	}
-	name = strings.TrimPrefix(name, "@")
+	if extracted := usernameFromTikTokProfileURL(name); extracted != "" {
+		return extracted
+	}
+	if strings.Contains(name, ":") && !strings.Contains(name, "://") {
+		if idx := strings.LastIndex(name, ":"); idx >= 0 && idx < len(name)-1 {
+			name = strings.TrimSpace(name[idx+1:])
+		}
+	}
+	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
+	if slash := strings.Index(name, "/"); slash >= 0 {
+		name = strings.TrimSpace(name[:slash])
+	}
+	if q := strings.Index(name, "?"); q >= 0 {
+		name = strings.TrimSpace(name[:q])
+	}
+	if h := strings.Index(name, "#"); h >= 0 {
+		name = strings.TrimSpace(name[:h])
+	}
+	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
 	return name
+}
+
+func usernameFromTikTokProfileURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	candidate := raw
+	if strings.HasPrefix(strings.ToLower(candidate), "www.") || strings.HasPrefix(strings.ToLower(candidate), "tiktok.com/") {
+		candidate = "https://" + candidate
+	}
+	u, err := url.Parse(candidate)
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	if !strings.HasSuffix(host, "tiktok.com") {
+		return ""
+	}
+	path := strings.TrimSpace(u.EscapedPath())
+	if path == "" || path == "/" {
+		return ""
+	}
+	segments := strings.Split(path, "/")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if !strings.HasPrefix(seg, "@") {
+			continue
+		}
+		seg = strings.TrimPrefix(seg, "@")
+		decoded, err := url.PathUnescape(seg)
+		if err == nil {
+			seg = decoded
+		}
+		seg = strings.TrimSpace(seg)
+		if seg != "" {
+			return seg
+		}
+	}
+	if idx := strings.Index(strings.ToLower(raw), "tiktok.com/@"); idx >= 0 {
+		rest := raw[idx+len("tiktok.com/@"):]
+		rest = strings.TrimSpace(rest)
+		for _, cut := range []string{"/", "?", "#", " "} {
+			if p := strings.Index(rest, cut); p >= 0 {
+				rest = rest[:p]
+			}
+		}
+		return strings.TrimSpace(strings.TrimPrefix(rest, "@"))
+	}
+	return ""
 }
 
 func isLikelyNumericUserID(value string) bool {

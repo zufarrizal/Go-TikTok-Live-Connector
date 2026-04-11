@@ -1121,25 +1121,67 @@ const statusEl = document.getElementById("status");
       return line1 + "\n" + line2;
     }
 
+    function splitGiftSubtitleToTwoBalancedLines(text) {
+      const src = String(text || "").trim();
+      if (!src) return "";
+      const words = src.split(/\s+/).filter(Boolean);
+      if (words.length <= 1) return src;
+
+      const totalChars = words.join(" ").length;
+      const target = Math.ceil(totalChars / 2);
+      let line1 = "";
+      let used = 0;
+
+      for (let i = 0; i < words.length; i++) {
+        const candidate = line1 ? (line1 + " " + words[i]) : words[i];
+        const remainingWords = words.length - (i + 1);
+        line1 = candidate;
+        used = i + 1;
+        if (candidate.length >= target && remainingWords > 0) break;
+      }
+
+      if (used >= words.length) return src;
+      const line2 = words.slice(used).join(" ");
+      return line1 + "\n" + line2;
+    }
+
     function getGiftSubtitleFontSize(columns) {
       const safeColumns = normalizeEventBoxColumns(columns);
-      const minSize = 30;
-      const maxSize = 48;
+      const minSize = 24;
+      const maxSize = 40;
       const ratio = (safeColumns - 5) / 5;
       return minSize + ((maxSize - minSize) * (1 - ratio));
     }
 
-    function getGiftSubtitleLayoutScale(el) {
-      const slideEl = el && el.closest ? el.closest(".event-box-slide") : null;
+    const EVENT_BOX_BASE_WIDTH = 1920;
+    const EVENT_BOX_BASE_HEIGHT = 1080;
+
+    function getEventBoxSlideLayoutScale(slideEl) {
       if (!slideEl) return 1;
       const rect = slideEl.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) return 1;
 
-      const EXPORT_SLIDE_WIDTH = 1816;
-      const EXPORT_SLIDE_HEIGHT = 976;
-      const widthScale = rect.width / EXPORT_SLIDE_WIDTH;
-      const heightScale = rect.height / EXPORT_SLIDE_HEIGHT;
+      const widthScale = rect.width / EVENT_BOX_BASE_WIDTH;
+      const heightScale = rect.height / EVENT_BOX_BASE_HEIGHT;
       return Math.max(0.45, Math.min(1, Math.min(widthScale, heightScale)));
+    }
+
+    function getGiftSubtitleLayoutScale(el) {
+      const exportCanvas = el && el.closest ? el.closest(".event-export-canvas") : null;
+      if (exportCanvas) {
+        const forcedPreviewScale = Number(getComputedStyle(exportCanvas).getPropertyValue("--event-box-preview-scale").trim());
+        if (Number.isFinite(forcedPreviewScale) && forcedPreviewScale > 0) {
+          return Math.max(0.45, Math.min(1, forcedPreviewScale));
+        }
+      }
+      const slideEl = el && el.closest ? el.closest(".event-box-slide") : null;
+      return getEventBoxSlideLayoutScale(slideEl);
+    }
+
+    function getEventBoxPreviewScale() {
+      if (!eventBoxRowsEl) return 1;
+      const slideEl = eventBoxRowsEl.querySelector(".event-box-slide");
+      return getEventBoxSlideLayoutScale(slideEl);
     }
 
     function getEventBoxColumnsFromElement(el) {
@@ -1160,11 +1202,14 @@ const statusEl = document.getElementById("status");
     }
 
     function fitGiftSubtitles(rootEl) {
-      if (!rootEl) return;
-      requestAnimationFrame(() => {
-        for (const el of rootEl.querySelectorAll(".event-card-gift-subtitle")) {
-          fitGiftSubtitle(el);
-        }
+      if (!rootEl) return Promise.resolve();
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          for (const el of rootEl.querySelectorAll(".event-card-gift-subtitle")) {
+            fitGiftSubtitle(el);
+          }
+          resolve();
+        });
       });
     }
 
@@ -1213,46 +1258,86 @@ const statusEl = document.getElementById("status");
       stopEventSlider();
       if (exportEventBoxBtn) {
         exportEventBoxBtn.disabled = true;
-        exportEventBoxBtn.textContent = currentLang === "id" ? "Menyimpan..." : "Saving...";
       }
 
       try {
+        await fitGiftSubtitles(eventBoxRowsEl);
+        await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        if (document.fonts && typeof document.fonts.ready === "object") {
+          await document.fonts.ready;
+        }
+        const previewWindowEl = eventBoxRowsEl.closest(".event-slider-window");
+        const previewRect = previewWindowEl ? previewWindowEl.getBoundingClientRect() : null;
+        const captureWidth = Math.max(1, Math.round(previewRect && previewRect.width ? previewRect.width : 1920));
+        const captureHeight = Math.max(1, Math.round(previewRect && previewRect.height ? previewRect.height : (captureWidth * 9 / 16)));
+        const captureScale = Math.max(1, Math.min(4, 1920 / captureWidth));
+
         for (let i = 0; i < slides.length; i++) {
           const slide = slides[i];
           const clone = slide.cloneNode(true);
+          clone.style.minWidth = "100%";
+          clone.style.width = "100%";
+          clone.style.height = "100%";
+
           const canvasHost = document.createElement("div");
-          canvasHost.className = "event-box-section event-export-canvas";
-          const eventBoxColumns = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim();
-          if (eventBoxColumns) {
-            canvasHost.style.setProperty("--event-box-columns", eventBoxColumns);
-          }
-
-          const grid = document.createElement("div");
-          grid.className = "event-export-grid";
-          grid.appendChild(clone);
-
-          const showcase = document.createElement("div");
-          showcase.className = "event-showcase";
+          canvasHost.className = "event-showcase";
+          canvasHost.style.width = captureWidth + "px";
+          canvasHost.style.height = captureHeight + "px";
+          canvasHost.style.overflow = "hidden";
+          canvasHost.style.background = "transparent";
 
           const sliderWindow = document.createElement("div");
           sliderWindow.className = "event-slider-window";
-          sliderWindow.appendChild(grid);
-          showcase.appendChild(sliderWindow);
-          canvasHost.appendChild(showcase);
+          sliderWindow.style.width = "100%";
+          sliderWindow.style.height = "100%";
+          sliderWindow.style.aspectRatio = "auto";
+
+          const track = document.createElement("div");
+          track.className = "event-card-track";
+          track.style.width = "100%";
+          track.style.height = "100%";
+
+          const eventBoxColumns = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim();
+          const eventBoxImageSize = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-image-size").trim();
+          const eventBoxSubtitleHeight = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height").trim();
+          if (eventBoxColumns) {
+            track.style.setProperty("--event-box-columns", eventBoxColumns);
+          }
+          if (eventBoxImageSize) {
+            track.style.setProperty("--event-box-image-size", eventBoxImageSize);
+          }
+          if (eventBoxSubtitleHeight) {
+            track.style.setProperty("--event-box-subtitle-height", eventBoxSubtitleHeight);
+          }
+
+          track.appendChild(clone);
+          sliderWindow.appendChild(track);
+          canvasHost.appendChild(sliderWindow);
 
           eventExportStageEl.replaceChildren(canvasHost);
-          fitGiftSubtitles(canvasHost);
           await waitForImagesIn(canvasHost);
+          if (document.fonts && typeof document.fonts.ready === "object") {
+            await document.fonts.ready;
+          }
           await new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-          const canvas = await window.html2canvas(canvasHost, {
+          const renderedCanvas = await window.html2canvas(canvasHost, {
             backgroundColor: null,
-            width: 1920,
-            height: 1080,
-            scale: 1,
+            width: captureWidth,
+            height: captureHeight,
+            scale: captureScale,
             useCORS: true,
             logging: false
           });
+
+          const canvas = document.createElement("canvas");
+          canvas.width = 1920;
+          canvas.height = 1080;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(renderedCanvas, 0, 0, canvas.width, canvas.height);
+          }
 
           const link = document.createElement("a");
           link.href = canvas.toDataURL("image/png");
@@ -1270,7 +1355,6 @@ const statusEl = document.getElementById("status");
         eventExportStageEl.replaceChildren();
         if (exportEventBoxBtn) {
           exportEventBoxBtn.disabled = false;
-          exportEventBoxBtn.textContent = t("ui.savePngSlides");
         }
         const pageCount = eventBoxRowsEl.querySelectorAll(".event-box-slide").length;
         startEventSlider(pageCount);
@@ -1287,16 +1371,27 @@ const statusEl = document.getElementById("status");
       return Math.max(5, Math.min(10, Math.round(parsed)));
     }
 
+    function getEventBoxImageSize(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      const minSize = 68;
+      const maxSize = 116;
+      const ratio = (safeColumns - 5) / 5;
+      return Math.round(maxSize - ((maxSize - minSize) * ratio));
+    }
+
     function applyEventBoxColumns(columns) {
       const safeColumns = normalizeEventBoxColumns(columns);
+      const imageSize = getEventBoxImageSize(safeColumns) + "px";
       if (eventBoxPerRowEl) {
         eventBoxPerRowEl.value = String(safeColumns);
       }
       if (eventBoxRowsEl) {
         eventBoxRowsEl.style.setProperty("--event-box-columns", String(safeColumns));
+        eventBoxRowsEl.style.setProperty("--event-box-image-size", imageSize);
       }
       if (eventBoxRowsPopupEl) {
         eventBoxRowsPopupEl.style.setProperty("--event-box-columns", String(safeColumns));
+        eventBoxRowsPopupEl.style.setProperty("--event-box-image-size", imageSize);
       }
       return safeColumns;
     }
@@ -2095,8 +2190,12 @@ const statusEl = document.getElementById("status");
       eventBoxRowsPopupEl.dataset.repeatCount = eventBoxRowsEl ? eventBoxRowsEl.dataset.repeatCount || "1" : "1";
       eventBoxRowsPopupEl.style.transform = eventBoxRowsEl ? eventBoxRowsEl.style.transform || "translateX(0px)" : "translateX(0px)";
       const eventBoxColumns = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim() : "";
+      const eventBoxImageSize = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-image-size").trim() : "";
       if (eventBoxColumns) {
         eventBoxRowsPopupEl.style.setProperty("--event-box-columns", eventBoxColumns);
+      }
+      if (eventBoxImageSize) {
+        eventBoxRowsPopupEl.style.setProperty("--event-box-image-size", eventBoxImageSize);
       }
       fitGiftSubtitles(eventBoxRowsPopupEl);
     }
@@ -2331,13 +2430,8 @@ const statusEl = document.getElementById("status");
           subtitleEl.className = "event-card-gift-subtitle";
           if (Array.from(subtitle).length > 8) {
             subtitleEl.classList.add("is-wrap");
-            const wrappedSubtitle = splitGiftSubtitleFirstLine(subtitle, 8);
+            const wrappedSubtitle = splitGiftSubtitleToTwoBalancedLines(subtitle);
             subtitleEl.textContent = wrappedSubtitle;
-            const subtitleLines = wrappedSubtitle.split("\n");
-            const secondLine = subtitleLines.length > 1 ? subtitleLines.slice(1).join(" ").trim() : "";
-            if (Array.from(secondLine).length > 7) {
-              subtitleEl.classList.add("is-second-long");
-            }
           } else {
             subtitleEl.textContent = subtitle;
           }

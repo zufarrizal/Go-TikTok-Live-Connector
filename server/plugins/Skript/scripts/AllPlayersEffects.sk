@@ -1,0 +1,13 @@
+# Efek permanen untuk semua player
+
+function apply_all_player_effects(p: player):
+    execute console command "effect give %name of {_p}% minecraft:speed infinite 0 true"
+    execute console command "effect give %name of {_p}% minecraft:strength infinite 5 true"
+
+on join:
+    wait 5 ticks
+    apply_all_player_effects(player)
+
+on respawn:
+    wait 5 ticks
+    apply_all_player_effects(player)

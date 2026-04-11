@@ -1,4 +1,4 @@
-# Membuat pickaxe menambang area 3x3x3 sekaligus.
+# Membuat pickaxe menambang area 7x7x7.
 on block damage:
     # Only active when the item in hand is a pickaxe
     set {_toolName} to "%type of player's tool%"
@@ -12,21 +12,55 @@ on block damage:
     cancel event
     set {_center} to location of event-block
 
-    # Break a 3x3x3 area (radius 1) around the hit block
-    # Tiga loop ini mengecek semua blok di sekitar blok pusat.
-    loop integers between -2 and 2:
-        loop integers between -2 and 2:
-            loop integers between -2 and 2:
+    # Tentukan arah horizontal player dari yaw.
+    set {_yaw} to yaw of player
+    set {_dx} to 0
+    set {_dz} to 1
+
+    # 0 = south, 90 = west, -90 = east, 180/-180 = north
+    if {_yaw} >= -45:
+        if {_yaw} < 45:
+            set {_dx} to 0
+            set {_dz} to 1
+        else if {_yaw} < 135:
+            set {_dx} to -1
+            set {_dz} to 0
+        else:
+            set {_dx} to 0
+            set {_dz} to -1
+    else if {_yaw} >= -135:
+        set {_dx} to 1
+        set {_dz} to 0
+    else:
+        set {_dx} to 0
+        set {_dz} to -1
+
+    # Hancurkan area 7x7x7 (radius 3) dari blok target.
+    loop integers between -3 and 3:
+        set {_forward} to loop-value-1
+        loop integers between -3 and 3:
+            set {_side} to loop-value-2
+            loop integers between -3 and 3:
+                set {_up} to loop-value-3
                 set {_loc} to {_center}
-                add loop-value-1 to x-coordinate of {_loc}
-                add loop-value-2 to y-coordinate of {_loc}
-                add loop-value-3 to z-coordinate of {_loc}
+
+                # Forward mengikuti arah pandang (negatif = belakang, positif = depan).
+                add ({_dx} * {_forward}) to x-coordinate of {_loc}
+                add ({_dz} * {_forward}) to z-coordinate of {_loc}
+
+                # Side selalu tegak lurus arah pandang.
+                if {_dx} is not 0:
+                    add {_side} to z-coordinate of {_loc}
+                else:
+                    add {_side} to x-coordinate of {_loc}
+
+                # Tinggi 7 blok.
+                add {_up} to y-coordinate of {_loc}
 
                 set {_block} to block at {_loc}
                 if {_block} is not bedrock:
                     if {_block} is not cobweb:
                         if {_block} is not air:
-                            # Ambil drop asli blok, lalu hancurkan blok tersebut.
                             set {_drops::*} to drops of {_block}
                             set block at {_loc} to air
                             play sound "block.stone.break" with volume 1 and pitch 1 to player

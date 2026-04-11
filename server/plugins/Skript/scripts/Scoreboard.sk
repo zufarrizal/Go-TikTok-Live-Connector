@@ -5,6 +5,12 @@ function normalize_win_total():
     if {win.total} is not set:
         set {win.total} to 0
 
+function normalize_win_target():
+    if {win.target} is not set:
+        set {win.target} to 10
+    if {win.target} <= 0:
+        set {win.target} to 1
+
 function format_three_digits(n: number) :: text:
     set {_num} to {_n}
     set {_abs} to {_num}
@@ -26,10 +32,11 @@ function format_three_digits(n: number) :: text:
 # Memperbarui baris scoreboard global untuk total kemenangan.
 function update_win_scoreboard():
     normalize_win_total()
+    normalize_win_target()
     if {scoreboard.win.line} is set:
         # Hapus entri lama agar sidebar tidak menumpuk baris usang.
         execute console command "scoreboard players reset %{scoreboard.win.line}% diamond_count"
-    set {_line} to "§6§lWIN:§e%{win.total}%"
+    set {_line} to "§6§lWIN:§f%{win.total}%§7/§e%{win.target}%"
     set {scoreboard.win.line} to {_line}
     execute console command "scoreboard players set %{_line}% diamond_count 1"
 
@@ -54,9 +61,11 @@ on load:
     if {diamond.target} is not set:
         set {diamond.target} to 256
     normalize_win_total()
+    normalize_win_target()
     delete {diamond.lastscore::*}
     delete {scoreboard.diamond.line}
     delete {scoreboard.win.line}
+    delete {win.firework.active}
     execute console command "scoreboard objectives remove diamond_count"
     execute console command "scoreboard objectives add diamond_count dummy SCOREBOARD"
     execute console command "scoreboard objectives modify diamond_count numberformat blank"
@@ -72,6 +81,7 @@ on join:
     if {diamond.target} is not set:
         set {diamond.target} to 256
     normalize_win_total()
+    normalize_win_target()
     execute console command "scoreboard objectives setdisplay sidebar diamond_count"
     update_win_scoreboard()
     set {diamond.balance::%uuid of player%} to (amount of diamond in player's inventory) - {diamond.debt::%uuid of player%}
@@ -166,6 +176,43 @@ every 1 second:
                         delete {win.countdown.slowticks::%uuid of loop-player%}
                         remove 1 from {win.countdown::%uuid of loop-player%}
 
+# Firework global saat WIN target terpenuhi.
+# Berjalan terus sampai win target lebih besar dari current win.
+# Efek muncul random di sekitar player setiap 5 tick.
+every 5 ticks:
+    normalize_win_total()
+    normalize_win_target()
+
+    if {win.total} >= {win.target}:
+        if {win.firework.active} is not set:
+            set {win.firework.active} to true
+            broadcast "&6WIN target reached! &eFirework celebration started."
+
+        loop all players:
+            set {_rx1} to random integer between -3 and 3
+            set {_ry1} to random integer between 1 and 4
+            set {_rz1} to random integer between -3 and 3
+            execute console command "execute at %loop-player% run particle dust{color:[1.0,0.1,0.1],scale:1.4} ~%{_rx1}% ~%{_ry1}% ~%{_rz1}% 0.35 0.35 0.35 0.08 45 force @a"
+
+            set {_rx2} to random integer between -3 and 3
+            set {_ry2} to random integer between 1 and 4
+            set {_rz2} to random integer between -3 and 3
+            execute console command "execute at %loop-player% run particle dust{color:[1.0,0.9,0.0],scale:1.4} ~%{_rx2}% ~%{_ry2}% ~%{_rz2}% 0.35 0.35 0.35 0.08 45 force @a"
+
+            set {_rx3} to random integer between -3 and 3
+            set {_ry3} to random integer between 1 and 4
+            set {_rz3} to random integer between -3 and 3
+            execute console command "execute at %loop-player% run particle dust{color:[0.1,1.0,0.1],scale:1.4} ~%{_rx3}% ~%{_ry3}% ~%{_rz3}% 0.35 0.35 0.35 0.08 45 force @a"
+
+            set {_rx4} to random integer between -3 and 3
+            set {_ry4} to random integer between 1 and 4
+            set {_rz4} to random integer between -3 and 3
+            execute console command "execute at %loop-player% run particle dust{color:[1.0,1.0,1.0],scale:1.4} ~%{_rx4}% ~%{_ry4}% ~%{_rz4}% 0.35 0.35 0.35 0.08 45 force @a"
+    else:
+        if {win.firework.active} is set:
+            delete {win.firework.active}
+            broadcast "&eWIN celebration stopped. Increase current win to reach target again."
+
 # Reduce diamond balance (can go negative)
 # Format disamakan dengan /diamondplus: value, username/label, repeat.
 command /DMmin <number> <text> <number>:
@@ -219,6 +266,43 @@ command /winreset:
         update_win_scoreboard()
         broadcast "&eWIN score has been reset to &a0&e."
 
+# Menetapkan target WIN global.
+command /setwintarget <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cWIN target must be greater than 0."
+            stop
+
+        set {win.target} to arg-1
+        update_win_scoreboard()
+        broadcast "&eWIN target has been set to &a%{win.target}%&e."
+
+# Menambahkan target WIN global.
+command /addwintarget <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cWIN target addition must be greater than 0."
+            stop
+
+        normalize_win_target()
+        add arg-1 to {win.target}
+        update_win_scoreboard()
+        broadcast "&eWIN target increased by &a%arg-1%&e. Target: &6%{win.target}%&e."
+
+# Mengurangi target WIN global.
+command /minwintarget <number>:
+    trigger:
+        if arg-1 <= 0:
+            send "&cWIN target reduction must be greater than 0."
+            stop
+
+        normalize_win_target()
+        remove arg-1 from {win.target}
+        if {win.target} <= 0:
+            set {win.target} to 1
+        update_win_scoreboard()
+        broadcast "&eWIN target reduced by &c%arg-1%&e. Target: &6%{win.target}%&e."
+
 # Menetapkan total kemenangan ke nilai tertentu.
 command /winset <number>:
     trigger:
@@ -262,3 +346,4 @@ command /reducewin <number>:
 command /winmin <number>:
     trigger:
         execute player command "minwin %arg-1%"
+

@@ -11,3 +11,9 @@ on join:
 on respawn:
     wait 4 tick
     apply_server_settings(player)
+
+on load:
+    loop all worlds:
+        set gamerule send_command_feedback of loop-world to false
+        set gamerule log_admin_commands of loop-world to false
+        set gamerule command_block_output of loop-world to false

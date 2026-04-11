@@ -60,10 +60,15 @@
       <section class="mc" aria-label="Minecraft Connector">
         <h2 id="minecraftConnectorTitle">Minecraft Connector</h2>
         <div class="mc-row mc-rcon-row">
+          <select id="mcMode" aria-label="Minecraft connector mode">
+            <option value="rcon" selected>RCON</option>
+            <option value="servertap">ServerTap</option>
+          </select>
           <input id="mcHost" type="text" value="127.0.0.1" placeholder="Host (e.g. 127.0.0.1)" autocomplete="off" aria-label="RCON host">
           <input id="mcPort" type="number" min="1" max="65535" value="25575" placeholder="Port (e.g. 25575)" aria-label="RCON port">
           <input id="mcPassword" type="text" value="123" placeholder="RCON password" autocomplete="off" aria-label="RCON password">
-          <button id="mcConnectBtn" type="button">Connect RCON</button>
+          <input id="mcServerTapPath" type="text" value="/v1/server/command" placeholder="ServerTap path (e.g. /v1/server/command)" autocomplete="off" aria-label="ServerTap command path">
+          <button id="mcConnectBtn" type="button">Connect Minecraft</button>
           <button id="mcDisconnectBtn" type="button">Disconnect</button>
         </div>
         <div class="mc-row mc-command-row">
@@ -255,7 +260,7 @@
         <div class="howto-content">
           <ol>
             <li id="howtoStep1">When opening the app for the first time, enter your TikTok username and press Start</li>
-            <li id="howtoStep2">If your Minecraft server is already running, press Connect RCON</li>
+            <li id="howtoStep2">If your Minecraft server is already running, press Connect Minecraft</li>
             <li id="howtoStep3">If your TikTok live has started, press Connect</li>
           </ol>
           <p id="howtoStep4">To test events, press Run or use Event Simulator</p>

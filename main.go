@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -282,9 +283,13 @@ func (c *streamController) broadcastRCONStatus(username string) {
 	status := c.rcon.Status()
 	connected, _ := status["connected"].(bool)
 	host, _ := status["host"].(string)
+	mode, _ := status["mode"].(string)
+	if strings.TrimSpace(mode) == "" {
+		mode = "rcon"
+	}
 	c.hub.broadcast(mustJSON(map[string]any{
 		"type":    "status",
-		"message": fmt.Sprintf("RCON status after TikTok reconnect @%s: connected=%t (%s:%v)", username, connected, host, status["port"]),
+		"message": fmt.Sprintf("Minecraft connector (%s) status after TikTok reconnect @%s: connected=%t (%s:%v)", mode, username, connected, host, status["port"]),
 		"rcon":    status,
 		"time":    time.Now().Format(time.RFC3339),
 	}))
@@ -304,9 +309,14 @@ func (c *streamController) restartRCONForTikTokConnect(username string) {
 		return
 	}
 	if restarted {
+		status := c.rcon.Status()
+		mode, _ := status["mode"].(string)
+		if strings.TrimSpace(mode) == "" {
+			mode = "rcon"
+		}
 		c.hub.broadcast(mustJSON(map[string]any{
 			"type":    "status",
-			"message": fmt.Sprintf("RCON disconnected for %ds and reconnected before connecting @%s", int(rconReconnectDelayOnTikTokConnect/time.Second), username),
+			"message": fmt.Sprintf("Minecraft connector (%s) disconnected for %ds and reconnected before connecting @%s", mode, int(rconReconnectDelayOnTikTokConnect/time.Second), username),
 			"time":    time.Now().Format(time.RFC3339),
 		}))
 	}
@@ -504,10 +514,12 @@ type eventStore struct {
 }
 
 type mcRCONConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"-"`
+	Enabled       bool   `json:"enabled"`
+	Mode          string `json:"mode"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	Password      string `json:"-"`
+	ServerTapPath string `json:"servertap_path"`
 }
 
 type mcRCONManager struct {
@@ -522,14 +534,24 @@ type mcRCONManager struct {
 func newMCRCONManagerFromProperties(path string) *mcRCONManager {
 	m := &mcRCONManager{
 		cfg: mcRCONConfig{
-			Enabled: false,
-			Host:    "127.0.0.1",
-			Port:    25575,
+			Enabled:       false,
+			Mode:          "rcon",
+			Host:          "127.0.0.1",
+			Port:          25575,
+			ServerTapPath: "/v1/server/command",
 		},
 		propPath: path,
 	}
 	_ = m.refreshFromPropertiesLocked()
 	return m
+}
+
+func normalizeMinecraftMode(v string) string {
+	mode := strings.ToLower(strings.TrimSpace(v))
+	if mode == "servertap" {
+		return "servertap"
+	}
+	return "rcon"
 }
 
 func (m *mcRCONManager) refreshFromPropertiesLocked() error {
@@ -553,6 +575,12 @@ func (m *mcRCONManager) refreshFromPropertiesLocked() error {
 			m.cfg.Port = n
 		}
 	}
+	if strings.TrimSpace(m.cfg.Mode) == "" {
+		m.cfg.Mode = "rcon"
+	}
+	if strings.TrimSpace(m.cfg.ServerTapPath) == "" {
+		m.cfg.ServerTapPath = "/v1/server/command"
+	}
 	return nil
 }
 
@@ -562,8 +590,10 @@ func (m *mcRCONManager) Status() map[string]any {
 	_ = m.refreshFromPropertiesLocked()
 	return map[string]any{
 		"enabled":         m.cfg.Enabled,
+		"mode":            normalizeMinecraftMode(m.cfg.Mode),
 		"host":            m.cfg.Host,
 		"port":            m.cfg.Port,
+		"servertap_path":  m.cfg.ServerTapPath,
 		"connected":       m.connected,
 		"last_error":      m.lastError,
 		"properties_path": m.propPath,
@@ -571,55 +601,102 @@ func (m *mcRCONManager) Status() map[string]any {
 }
 
 func (m *mcRCONManager) Connect(host string, port int, password string) error {
+	return m.ConnectWithMode("rcon", host, port, password, "")
+}
+
+func (m *mcRCONManager) ConnectWithMode(mode, host string, port int, password string, serverTapPath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	mode = normalizeMinecraftMode(mode)
 	host = strings.TrimSpace(host)
 	password = strings.TrimSpace(password)
+	serverTapPath = strings.TrimSpace(serverTapPath)
 	useManual := host != "" || (port > 0 && port <= 65535) || password != ""
+	if serverTapPath != "" {
+		useManual = true
+	}
 
-	if useManual {
-		if host != "" {
-			m.cfg.Host = host
-		} else if strings.TrimSpace(m.cfg.Host) == "" {
-			m.cfg.Host = "127.0.0.1"
+	m.cfg.Mode = mode
+
+	if mode == "rcon" {
+		if useManual {
+			if host != "" {
+				m.cfg.Host = host
+			} else if strings.TrimSpace(m.cfg.Host) == "" {
+				m.cfg.Host = "127.0.0.1"
+			}
+			if port > 0 && port <= 65535 {
+				m.cfg.Port = port
+			} else if m.cfg.Port <= 0 || m.cfg.Port > 65535 {
+				m.cfg.Port = 25575
+			}
+			if password != "" {
+				m.cfg.Password = password
+			}
+			m.cfg.Enabled = true
+		} else {
+			_ = m.refreshFromPropertiesLocked()
+			if !m.cfg.Enabled {
+				m.lastError = "enable-rcon=false in Server/server.properties"
+				return errors.New(m.lastError)
+			}
 		}
-		if port > 0 && port <= 65535 {
-			m.cfg.Port = port
-		} else if m.cfg.Port <= 0 || m.cfg.Port > 65535 {
-			m.cfg.Port = 25575
-		}
-		if password != "" {
-			m.cfg.Password = password
-		}
-		m.cfg.Enabled = true
-	} else {
-		_ = m.refreshFromPropertiesLocked()
-		if !m.cfg.Enabled {
-			m.lastError = "enable-rcon=false in Server/server.properties"
+		if strings.TrimSpace(m.cfg.Password) == "" {
+			if useManual {
+				m.lastError = "rcon password is required for manual connect"
+			} else {
+				m.lastError = "rcon.password is empty"
+			}
 			return errors.New(m.lastError)
 		}
-	}
-	if strings.TrimSpace(m.cfg.Password) == "" {
-		if useManual {
-			m.lastError = "rcon password is required for manual connect"
-		} else {
-			m.lastError = "rcon.password is empty"
+
+		if m.conn != nil {
+			_ = m.conn.Close()
+			m.conn = nil
+			m.connected = false
 		}
-		return errors.New(m.lastError)
+		address := fmt.Sprintf("%s:%d", m.cfg.Host, m.cfg.Port)
+		conn, err := rcon.Dial(address, m.cfg.Password)
+		if err != nil {
+			m.lastError = err.Error()
+			return err
+		}
+		m.conn = conn
+		m.connected = true
+		m.lastError = ""
+		return nil
+	}
+
+	// ServerTap mode
+	if host != "" {
+		m.cfg.Host = host
+	} else if strings.TrimSpace(m.cfg.Host) == "" {
+		m.cfg.Host = "127.0.0.1"
+	}
+	if port > 0 && port <= 65535 {
+		m.cfg.Port = port
+	} else if m.cfg.Port <= 0 || m.cfg.Port > 65535 {
+		m.cfg.Port = 4567
+	}
+	if password != "" {
+		m.cfg.Password = password
+	}
+	if serverTapPath != "" {
+		m.cfg.ServerTapPath = serverTapPath
+	}
+	if strings.TrimSpace(m.cfg.ServerTapPath) == "" {
+		m.cfg.ServerTapPath = "/v1/server/command"
 	}
 	if m.conn != nil {
 		_ = m.conn.Close()
 		m.conn = nil
-		m.connected = false
 	}
-	address := fmt.Sprintf("%s:%d", m.cfg.Host, m.cfg.Port)
-	conn, err := rcon.Dial(address, m.cfg.Password)
-	if err != nil {
+	m.connected = false
+	if _, err := m.executeServerTapLocked("list"); err != nil {
 		m.lastError = err.Error()
 		return err
 	}
-	m.conn = conn
 	m.connected = true
 	m.lastError = ""
 	return nil
@@ -637,14 +714,19 @@ func (m *mcRCONManager) Disconnect() {
 
 func (m *mcRCONManager) RestartAfterDelay(delay time.Duration) (bool, error) {
 	m.mu.Lock()
+	mode := normalizeMinecraftMode(m.cfg.Mode)
 	host := strings.TrimSpace(m.cfg.Host)
 	port := m.cfg.Port
 	password := strings.TrimSpace(m.cfg.Password)
+	serverTapPath := strings.TrimSpace(m.cfg.ServerTapPath)
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	if port <= 0 || port > 65535 {
+	if mode == "rcon" && (port <= 0 || port > 65535) {
 		port = 25575
+	}
+	if mode == "servertap" && (port <= 0 || port > 65535) {
+		port = 4567
 	}
 	if m.conn != nil {
 		_ = m.conn.Close()
@@ -653,14 +735,14 @@ func (m *mcRCONManager) RestartAfterDelay(delay time.Duration) (bool, error) {
 	m.connected = false
 	m.mu.Unlock()
 
-	if password == "" {
+	if mode == "rcon" && password == "" {
 		return false, nil
 	}
 	if delay > 0 {
 		time.Sleep(delay)
 	}
 
-	if err := m.Connect(host, port, password); err != nil {
+	if err := m.ConnectWithMode(mode, host, port, password, serverTapPath); err != nil {
 		return true, err
 	}
 	return true, nil
@@ -674,6 +756,21 @@ func (m *mcRCONManager) Execute(command string) (string, error) {
 	if command == "" {
 		return "", fmt.Errorf("command is empty")
 	}
+	mode := normalizeMinecraftMode(m.cfg.Mode)
+	if mode == "servertap" {
+		if !m.connected {
+			return "", fmt.Errorf("servertap is not connected")
+		}
+		out, err := m.executeServerTapLocked(command)
+		if err != nil {
+			m.lastError = err.Error()
+			m.connected = false
+			return "", err
+		}
+		m.lastError = ""
+		return out, nil
+	}
+
 	if !m.connected || m.conn == nil {
 		return "", fmt.Errorf("rcon is not connected")
 	}
@@ -687,6 +784,74 @@ func (m *mcRCONManager) Execute(command string) (string, error) {
 	}
 	m.lastError = ""
 	return out, nil
+}
+
+func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
+	path := strings.TrimSpace(m.cfg.ServerTapPath)
+	if path == "" {
+		path = "/v1/server/command"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	host := strings.TrimSpace(m.cfg.Host)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := m.cfg.Port
+	if port <= 0 || port > 65535 {
+		port = 4567
+	}
+	endpoint := fmt.Sprintf("http://%s:%d%s", host, port, path)
+
+	body, _ := json.Marshal(map[string]any{
+		"command": strings.TrimSpace(command),
+	})
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	token := strings.TrimSpace(m.cfg.Password)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("x-servertap-key", token)
+		req.Header.Set("x-api-key", token)
+	}
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		msg := strings.TrimSpace(string(raw))
+		if msg == "" {
+			msg = fmt.Sprintf("servertap request failed: status %d", resp.StatusCode)
+		}
+		return "", errors.New(msg)
+	}
+	if len(raw) == 0 {
+		return "", nil
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		for _, key := range []string{"output", "result", "response", "message"} {
+			if v, ok := obj[key]; ok {
+				s := strings.TrimSpace(fmt.Sprint(v))
+				if s != "" && s != "<nil>" {
+					return s, nil
+				}
+			}
+		}
+		return strings.TrimSpace(string(raw)), nil
+	}
+	return strings.TrimSpace(string(raw)), nil
 }
 
 func newEventStore(path string) (*eventStore, error) {
@@ -2331,6 +2496,9 @@ func main() {
 			rconStatus := mcRCON.Status()
 			likeState := likeGoal.State()
 			normalizeUnifiedSettings(&settings)
+			if mode, ok := rconStatus["mode"].(string); ok && strings.TrimSpace(mode) != "" {
+				settings.Minecraft.Mode = normalizeMinecraftMode(mode)
+			}
 			if strings.TrimSpace(settings.Username) == "" {
 				if strings.TrimSpace(runtimeUsername) != "" {
 					settings.Username = strings.TrimSpace(strings.TrimPrefix(runtimeUsername, "@"))
@@ -2350,7 +2518,16 @@ func main() {
 				}
 			}
 			if settings.Minecraft.Port <= 0 {
-				settings.Minecraft.Port = 25575
+				if settings.Minecraft.Mode == "servertap" {
+					settings.Minecraft.Port = 4567
+				} else {
+					settings.Minecraft.Port = 25575
+				}
+			}
+			if strings.TrimSpace(settings.Minecraft.ServerTapPath) == "" {
+				if path, ok := rconStatus["servertap_path"].(string); ok && strings.TrimSpace(path) != "" {
+					settings.Minecraft.ServerTapPath = strings.TrimSpace(path)
+				}
 			}
 			if strings.TrimSpace(settings.LikeGoal.Title) == "" {
 				settings.LikeGoal.Title = likeState.Title
@@ -3002,6 +3179,14 @@ func main() {
 		writeJSON(w, http.StatusOK, mcRCON.Status())
 	})
 
+	http.HandleFunc("/api/minecraft/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, mcRCON.Status())
+	})
+
 	http.HandleFunc("/api/minecraft/rcon/connect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -3016,7 +3201,30 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
 			return
 		}
-		if err := mcRCON.Connect(req.Host, req.Port, req.Password); err != nil {
+		if err := mcRCON.ConnectWithMode("rcon", req.Host, req.Port, req.Password, ""); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": mcRCON.Status()})
+	})
+
+	http.HandleFunc("/api/minecraft/connect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Mode          string `json:"mode"`
+			Host          string `json:"host"`
+			Port          int    `json:"port"`
+			Password      string `json:"password"`
+			ServerTapPath string `json:"servertap_path"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+		if err := mcRCON.ConnectWithMode(req.Mode, req.Host, req.Port, req.Password, req.ServerTapPath); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
 			return
 		}
@@ -3032,7 +3240,36 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": mcRCON.Status()})
 	})
 
+	http.HandleFunc("/api/minecraft/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		mcRCON.Disconnect()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": mcRCON.Status()})
+	})
+
 	http.HandleFunc("/api/minecraft/rcon/command", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Command string `json:"command"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+		out, err := executeCommands(mcRCON, req.Command)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"output": out, "status": mcRCON.Status()})
+	})
+
+	http.HandleFunc("/api/minecraft/command", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -3366,9 +3603,13 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 type unifiedSettingsMinecraft struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
+	Mode           string `json:"mode"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Password       string `json:"password"`
+	RCONPassword   string `json:"rcon_password"`
+	ServerTapToken string `json:"servertap_password"`
+	ServerTapPath  string `json:"servertap_path"`
 }
 
 type unifiedSettingsLikeGoal struct {
@@ -3396,9 +3637,13 @@ func defaultUnifiedSettings() unifiedSettingsJSON {
 	return unifiedSettingsJSON{
 		Username: "",
 		Minecraft: unifiedSettingsMinecraft{
-			Host:     "127.0.0.1",
-			Port:     25575,
-			Password: "",
+			Mode:           "rcon",
+			Host:           "127.0.0.1",
+			Port:           25575,
+			Password:       "123",
+			RCONPassword:   "123",
+			ServerTapToken: "change_me",
+			ServerTapPath:  "/v1/server/command",
 		},
 		LikeGoal: unifiedSettingsLikeGoal{
 			Title:          "Like Goal",
@@ -3439,8 +3684,39 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 	if s.Minecraft.Host == "" {
 		s.Minecraft.Host = "127.0.0.1"
 	}
+	s.Minecraft.Mode = normalizeMinecraftMode(s.Minecraft.Mode)
+	s.Minecraft.ServerTapPath = strings.TrimSpace(s.Minecraft.ServerTapPath)
+	if s.Minecraft.ServerTapPath == "" {
+		s.Minecraft.ServerTapPath = "/v1/server/command"
+	}
+	legacyPassword := strings.TrimSpace(s.Minecraft.Password)
+	s.Minecraft.RCONPassword = strings.TrimSpace(s.Minecraft.RCONPassword)
+	s.Minecraft.ServerTapToken = strings.TrimSpace(s.Minecraft.ServerTapToken)
+	if s.Minecraft.RCONPassword == "" {
+		if legacyPassword != "" {
+			s.Minecraft.RCONPassword = legacyPassword
+		} else {
+			s.Minecraft.RCONPassword = "123"
+		}
+	}
+	if s.Minecraft.ServerTapToken == "" {
+		if legacyPassword != "" && s.Minecraft.Mode == "servertap" {
+			s.Minecraft.ServerTapToken = legacyPassword
+		} else {
+			s.Minecraft.ServerTapToken = "change_me"
+		}
+	}
+	if s.Minecraft.Mode == "servertap" {
+		s.Minecraft.Password = s.Minecraft.ServerTapToken
+	} else {
+		s.Minecraft.Password = s.Minecraft.RCONPassword
+	}
 	if s.Minecraft.Port <= 0 || s.Minecraft.Port > 65535 {
-		s.Minecraft.Port = 25575
+		if s.Minecraft.Mode == "servertap" {
+			s.Minecraft.Port = 4567
+		} else {
+			s.Minecraft.Port = 25575
+		}
 	}
 	s.LikeGoal.Title = strings.TrimSpace(s.LikeGoal.Title)
 	if s.LikeGoal.Title == "" {

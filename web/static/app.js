@@ -7,9 +7,11 @@ const statusEl = document.getElementById("status");
     const startBtn = document.getElementById("startBtn");
     const connectBtn = document.getElementById("connectBtn");
     const stopBtn = document.getElementById("stopBtn");
+    const mcModeEl = document.getElementById("mcMode");
     const mcHostEl = document.getElementById("mcHost");
     const mcPortEl = document.getElementById("mcPort");
     const mcPasswordEl = document.getElementById("mcPassword");
+    const mcServerTapPathEl = document.getElementById("mcServerTapPath");
     const mcConnectBtn = document.getElementById("mcConnectBtn");
     const mcDisconnectBtn = document.getElementById("mcDisconnectBtn");
     const mcCommandEl = document.getElementById("mcCommand");
@@ -129,6 +131,9 @@ const statusEl = document.getElementById("status");
     let lastToastSignature = "";
     let lastToastAt = 0;
     let likeGoalState = null;
+    let mcRCONPasswordCache = "123";
+    let mcServerTapPasswordCache = "change_me";
+    let activeMinecraftMode = "rcon";
     const I18N_STORAGE_KEY = "gtlc_lang";
     const EVENT_BOX_PER_ROW_STORAGE_KEY = "gtlc_event_box_per_row";
     let currentLang = "id";
@@ -184,7 +189,7 @@ const statusEl = document.getElementById("status");
         "ui.stop": "Berhenti",
         "ui.start": "Mulai",
         "ui.disconnect": "Putuskan",
-        "ui.connectRcon": "Hubungkan RCON",
+        "ui.connectRcon": "Hubungkan Minecraft",
         "ui.sendCommand": "Kirim Perintah",
         "ui.likeGoalSelectTrigger": "Pilih event trigger",
         "ui.selectGift": "Pilih Gift",
@@ -200,7 +205,7 @@ const statusEl = document.getElementById("status");
         "ui.eventModalEdit": "Edit Event",
         "ui.pickButtonClicked": "Tombol \"{button}\" ditekan",
         "howto.step1": "Saat pertama kali membuka aplikasi, masukkan username TikTok lalu tekan Mulai",
-        "howto.step2": "Jika server Minecraft sudah berjalan, tekan Hubungkan RCON",
+        "howto.step2": "Jika server Minecraft sudah berjalan, tekan Hubungkan Minecraft",
         "howto.step3": "Jika siaran langsung TikTok sudah dimulai, tekan Hubungkan",
         "howto.step4": "Untuk menguji event, tekan Jalankan atau gunakan Simulator Event",
         "howto.footer": "Jika belum membeli lisensi bisa melalui WhatsApp",
@@ -234,6 +239,10 @@ const statusEl = document.getElementById("status");
         "msg.emptyCommand": "Perintah kosong.",
         "msg.rconConnected": "RCON terhubung.",
         "msg.rconDisconnected": "RCON terputus.",
+        "msg.servertapConnected": "ServerTap terhubung.",
+        "msg.servertapDisconnected": "ServerTap terputus.",
+        "msg.mcConnectorConnectFailed": "gagal terhubung ke konektor Minecraft",
+        "msg.mcConnectorDisconnectFailed": "gagal memutuskan konektor Minecraft",
         "msg.simulatedOutput": "Simulasi {type} - {message}",
         "msg.noOutput": "(tidak ada output)",
         "msg.uploading": "Mengunggah..."
@@ -289,7 +298,7 @@ const statusEl = document.getElementById("status");
         "ui.stop": "Stop",
         "ui.start": "Start",
         "ui.disconnect": "Disconnect",
-        "ui.connectRcon": "Connect RCON",
+        "ui.connectRcon": "Connect Minecraft",
         "ui.sendCommand": "Send Command",
         "ui.likeGoalSelectTrigger": "Select event trigger",
         "ui.selectGift": "Select Gift",
@@ -305,7 +314,7 @@ const statusEl = document.getElementById("status");
         "ui.eventModalEdit": "Edit Event",
         "ui.pickButtonClicked": "Button \"{button}\" clicked",
         "howto.step1": "When opening the app for the first time, you must enter the username and press Start",
-        "howto.step2": "If your Minecraft server is already running, you can press Connect RCON",
+        "howto.step2": "If your Minecraft server is already running, you can press Connect Minecraft",
         "howto.step3": "If the TikTok live has started, you can press Connect",
         "howto.step4": "If you want to test events, you can press Run or use Event Simulator",
         "howto.footer": "If you have not purchased a license, contact WhatsApp",
@@ -339,6 +348,10 @@ const statusEl = document.getElementById("status");
         "msg.emptyCommand": "Command is empty.",
         "msg.rconConnected": "RCON connected.",
         "msg.rconDisconnected": "RCON disconnected.",
+        "msg.servertapConnected": "ServerTap connected.",
+        "msg.servertapDisconnected": "ServerTap disconnected.",
+        "msg.mcConnectorConnectFailed": "failed to connect Minecraft connector",
+        "msg.mcConnectorDisconnectFailed": "failed to disconnect Minecraft connector",
         "msg.simulatedOutput": "Simulated {type} - {message}",
         "msg.noOutput": "(no output)",
         "msg.uploading": "Uploading..."
@@ -378,6 +391,10 @@ const statusEl = document.getElementById("status");
         [I18N.id["msg.emptyCommand"], I18N.en["msg.emptyCommand"]],
         [I18N.id["msg.rconConnected"], I18N.en["msg.rconConnected"]],
         [I18N.id["msg.rconDisconnected"], I18N.en["msg.rconDisconnected"]],
+        [I18N.id["msg.servertapConnected"], I18N.en["msg.servertapConnected"]],
+        [I18N.id["msg.servertapDisconnected"], I18N.en["msg.servertapDisconnected"]],
+        [I18N.id["msg.mcConnectorConnectFailed"], I18N.en["msg.mcConnectorConnectFailed"]],
+        [I18N.id["msg.mcConnectorDisconnectFailed"], I18N.en["msg.mcConnectorDisconnectFailed"]],
         [I18N.id["msg.noOutput"], I18N.en["msg.noOutput"]],
         [I18N.id["msg.uploading"], I18N.en["msg.uploading"]]
       ];
@@ -401,6 +418,16 @@ const statusEl = document.getElementById("status");
       if (m) return currentLang === "id"
         ? ("RCON diputus selama " + m[1] + " detik lalu tersambung lagi sebelum terhubung ke @" + m[2])
         : ("RCON disconnected for " + m[1] + "s and reconnected before connecting @" + m[2]);
+      m = text.match(/^Minecraft connector \((.+)\) disconnected for (\d+)s and reconnected before connecting @(.+)$/i)
+        || text.match(/^Konektor Minecraft \((.+)\) diputus selama (\d+) detik lalu tersambung lagi sebelum terhubung ke @(.+)$/i);
+      if (m) return currentLang === "id"
+        ? ("Konektor Minecraft (" + m[1] + ") diputus selama " + m[2] + " detik lalu tersambung lagi sebelum terhubung ke @" + m[3])
+        : ("Minecraft connector (" + m[1] + ") disconnected for " + m[2] + "s and reconnected before connecting @" + m[3]);
+      m = text.match(/^Minecraft connector \((.+)\) status after TikTok reconnect @(.+): connected=(true|false) \((.+):(.+)\)$/i)
+        || text.match(/^Status konektor Minecraft \((.+)\) setelah reconnect TikTok @(.+): connected=(true|false) \((.+):(.+)\)$/i);
+      if (m) return currentLang === "id"
+        ? ("Status konektor Minecraft (" + m[1] + ") setelah reconnect TikTok @" + m[2] + ": connected=" + m[3] + " (" + m[4] + ":" + m[5] + ")")
+        : ("Minecraft connector (" + m[1] + ") status after TikTok reconnect @" + m[2] + ": connected=" + m[3] + " (" + m[4] + ":" + m[5] + ")");
       m = text.match(/^@(.+) is not live yet\. rechecking in (\d+)s\.\.\.$/i) || text.match(/^@(.+) belum live\. cek ulang dalam (\d+) detik\.\.\.$/i);
       if (m) return currentLang === "id"
         ? ("@" + m[1] + " belum live. cek ulang dalam " + m[2] + " detik...")
@@ -468,6 +495,9 @@ const statusEl = document.getElementById("status");
         ["rcon.password is empty", "rcon.password kosong"],
         ["enable-rcon=false in server/server.properties", "enable-rcon=false di server/server.properties"],
         ["rcon is not connected", "rcon belum terhubung"],
+        ["servertap is not connected", "servertap belum terhubung"],
+        ["servertap request failed", "request servertap gagal"],
+        ["minecraft connector", "konektor minecraft"],
         ["command is empty", "perintah kosong"],
         ["username is required", "username wajib diisi"],
         ["failed to create sound directory", "gagal membuat folder suara"],
@@ -594,7 +624,8 @@ const statusEl = document.getElementById("status");
       if (usernameEl) usernameEl.placeholder = currentLang === "id" ? "Username TikTok, misal masjup88" : "TikTok username, e.g. masjup88";
       if (mcHostEl) mcHostEl.placeholder = currentLang === "id" ? "Host (contoh 127.0.0.1)" : "Host (e.g. 127.0.0.1)";
       if (mcPortEl) mcPortEl.placeholder = currentLang === "id" ? "Port (contoh 25575)" : "Port (e.g. 25575)";
-      if (mcPasswordEl) mcPasswordEl.placeholder = currentLang === "id" ? "Password RCON" : "RCON password";
+      if (mcServerTapPathEl) mcServerTapPathEl.placeholder = currentLang === "id" ? "Path ServerTap (contoh /v1/server/command)" : "ServerTap path (e.g. /v1/server/command)";
+      if (mcPasswordEl) mcPasswordEl.placeholder = currentLang === "id" ? "Password RCON / Token ServerTap" : "RCON password / ServerTap token";
       if (eventTitleEl) eventTitleEl.placeholder = currentLang === "id" ? "Judul untuk Event List Box" : "Title for Event List Box";
       if (eventLabelEl) eventLabelEl.placeholder = currentLang === "id" ? "Label/filter rule (opsional)" : "Rule label/filter (optional)";
       if (eventSoundEl) eventSoundEl.placeholder = currentLang === "id" ? "URL/path suara (opsional, contoh /static/sounds/trigger.mp3)" : "Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)";
@@ -650,6 +681,7 @@ const statusEl = document.getElementById("status");
       setOpt(likeGoalModeEl, "double", currentLang === "id" ? "lipat dua" : "double");
       syncLabelHint();
       syncTestEventFields();
+      syncMinecraftConnectorModeUI();
       renderEventRows(currentEventItems);
     }
 
@@ -1147,10 +1179,7 @@ const statusEl = document.getElementById("status");
 
     function getGiftSubtitleFontSize(columns) {
       const safeColumns = normalizeEventBoxColumns(columns);
-      const minSize = 24;
-      const maxSize = 40;
-      const ratio = (safeColumns - 5) / 5;
-      return minSize + ((maxSize - minSize) * (1 - ratio));
+      return getEventBoxScaleProfile(safeColumns).font;
     }
 
     const EVENT_BOX_BASE_WIDTH = 1920;
@@ -1278,28 +1307,34 @@ const statusEl = document.getElementById("status");
           clone.style.minWidth = "100%";
           clone.style.width = "100%";
           clone.style.height = "100%";
+          clone.style.background = "transparent";
 
           const canvasHost = document.createElement("div");
-          canvasHost.className = "event-showcase";
+          canvasHost.className = "event-showcase event-export-canvas event-export-grid";
           canvasHost.style.width = captureWidth + "px";
           canvasHost.style.height = captureHeight + "px";
           canvasHost.style.overflow = "hidden";
           canvasHost.style.background = "transparent";
+          canvasHost.style.border = "0";
 
           const sliderWindow = document.createElement("div");
           sliderWindow.className = "event-slider-window";
           sliderWindow.style.width = "100%";
           sliderWindow.style.height = "100%";
           sliderWindow.style.aspectRatio = "auto";
+          sliderWindow.style.background = "transparent";
+          sliderWindow.style.border = "0";
 
           const track = document.createElement("div");
           track.className = "event-card-track";
           track.style.width = "100%";
           track.style.height = "100%";
+          track.style.background = "transparent";
 
           const eventBoxColumns = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim();
           const eventBoxImageSize = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-image-size").trim();
           const eventBoxSubtitleHeight = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height").trim();
+          const eventBoxSubtitleSingleHeight = getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height-single").trim();
           if (eventBoxColumns) {
             track.style.setProperty("--event-box-columns", eventBoxColumns);
           }
@@ -1308,6 +1343,9 @@ const statusEl = document.getElementById("status");
           }
           if (eventBoxSubtitleHeight) {
             track.style.setProperty("--event-box-subtitle-height", eventBoxSubtitleHeight);
+          }
+          if (eventBoxSubtitleSingleHeight) {
+            track.style.setProperty("--event-box-subtitle-height-single", eventBoxSubtitleSingleHeight);
           }
 
           track.appendChild(clone);
@@ -1333,8 +1371,9 @@ const statusEl = document.getElementById("status");
           const canvas = document.createElement("canvas");
           canvas.width = 1920;
           canvas.height = 1080;
-          const ctx = canvas.getContext("2d");
+          const ctx = canvas.getContext("2d", { alpha: true });
           if (ctx) {
+            ctx.globalCompositeOperation = "copy";
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(renderedCanvas, 0, 0, canvas.width, canvas.height);
           }
@@ -1373,25 +1412,97 @@ const statusEl = document.getElementById("status");
 
     function getEventBoxImageSize(columns) {
       const safeColumns = normalizeEventBoxColumns(columns);
-      const minSize = 68;
-      const maxSize = 116;
-      const ratio = (safeColumns - 5) / 5;
-      return Math.round(maxSize - ((maxSize - minSize) * ratio));
+      return getEventBoxScaleProfile(safeColumns).image;
+    }
+
+    function getEventBoxSubtitleHeight(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      return getEventBoxScaleProfile(safeColumns).subtitle;
+    }
+
+    function getEventBoxSubtitleSingleHeight(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      return getEventBoxScaleProfile(safeColumns).subtitleSingle;
+    }
+
+    function getEventBoxScaleProfile(columns) {
+      const safeColumns = normalizeEventBoxColumns(columns);
+      const table = {
+        5: { font: 34, image: 108, subtitle: 66, subtitleSingle: 40 },
+        6: { font: 30, image: 96, subtitle: 62, subtitleSingle: 38 },
+        7: { font: 27, image: 96, subtitle: 58, subtitleSingle: 36 },
+        8: { font: 24, image: 88, subtitle: 54, subtitleSingle: 34 },
+        9: { font: 22, image: 80, subtitle: 52, subtitleSingle: 33 },
+        10: { font: 20, image: 74, subtitle: 50, subtitleSingle: 32 }
+      };
+      return table[safeColumns] || table[7];
+    }
+
+    function applyEventRowTextLayout(rootEl) {
+      if (!rootEl) return;
+      const measureSingleLineWidth = (subtitleEl) => {
+        const text = String(subtitleEl.textContent || "").replace(/\s+/g, " ").trim();
+        if (!text) return 0;
+        const style = getComputedStyle(subtitleEl);
+        const probe = document.createElement("span");
+        probe.textContent = text;
+        probe.style.position = "absolute";
+        probe.style.visibility = "hidden";
+        probe.style.pointerEvents = "none";
+        probe.style.whiteSpace = "nowrap";
+        probe.style.fontFamily = style.fontFamily;
+        probe.style.fontSize = style.fontSize;
+        probe.style.fontWeight = style.fontWeight;
+        probe.style.fontStyle = style.fontStyle;
+        probe.style.letterSpacing = style.letterSpacing;
+        probe.style.textTransform = style.textTransform;
+        document.body.appendChild(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
+
+      for (const slide of rootEl.querySelectorAll(".event-box-slide")) {
+        const cards = Array.from(slide.children).filter((card) => !card.classList.contains("event-card-empty"));
+        for (const card of cards) {
+          const subtitle = card.querySelector(".event-card-gift-subtitle");
+          if (!subtitle) continue;
+          fitGiftSubtitle(subtitle);
+          card.classList.remove("event-row-singleline", "event-row-mixed");
+          subtitle.classList.remove("is-singleline-center", "is-wrap");
+          const subtitleStyle = getComputedStyle(subtitle);
+          const paddingX = (parseFloat(subtitleStyle.paddingLeft) || 0) + (parseFloat(subtitleStyle.paddingRight) || 0);
+          const availableWidth = Math.max(0, subtitle.clientWidth - paddingX);
+          const textWidth = measureSingleLineWidth(subtitle);
+          const isWrapped = availableWidth > 0 ? (textWidth > (availableWidth + 0.5)) : false;
+          if (isWrapped) {
+            subtitle.classList.add("is-wrap");
+          } else {
+            card.classList.add("event-row-singleline");
+          }
+        }
+      }
     }
 
     function applyEventBoxColumns(columns) {
       const safeColumns = normalizeEventBoxColumns(columns);
       const imageSize = getEventBoxImageSize(safeColumns) + "px";
+      const subtitleHeight = getEventBoxSubtitleHeight(safeColumns) + "px";
+      const subtitleSingleHeight = getEventBoxSubtitleSingleHeight(safeColumns) + "px";
       if (eventBoxPerRowEl) {
         eventBoxPerRowEl.value = String(safeColumns);
       }
       if (eventBoxRowsEl) {
         eventBoxRowsEl.style.setProperty("--event-box-columns", String(safeColumns));
         eventBoxRowsEl.style.setProperty("--event-box-image-size", imageSize);
+        eventBoxRowsEl.style.setProperty("--event-box-subtitle-height", subtitleHeight);
+        eventBoxRowsEl.style.setProperty("--event-box-subtitle-height-single", subtitleSingleHeight);
       }
       if (eventBoxRowsPopupEl) {
         eventBoxRowsPopupEl.style.setProperty("--event-box-columns", String(safeColumns));
         eventBoxRowsPopupEl.style.setProperty("--event-box-image-size", imageSize);
+        eventBoxRowsPopupEl.style.setProperty("--event-box-subtitle-height", subtitleHeight);
+        eventBoxRowsPopupEl.style.setProperty("--event-box-subtitle-height-single", subtitleSingleHeight);
       }
       return safeColumns;
     }
@@ -2191,12 +2302,21 @@ const statusEl = document.getElementById("status");
       eventBoxRowsPopupEl.style.transform = eventBoxRowsEl ? eventBoxRowsEl.style.transform || "translateX(0px)" : "translateX(0px)";
       const eventBoxColumns = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-columns").trim() : "";
       const eventBoxImageSize = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-image-size").trim() : "";
+      const eventBoxSubtitleHeight = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height").trim() : "";
+      const eventBoxSubtitleSingleHeight = eventBoxRowsEl ? getComputedStyle(eventBoxRowsEl).getPropertyValue("--event-box-subtitle-height-single").trim() : "";
       if (eventBoxColumns) {
         eventBoxRowsPopupEl.style.setProperty("--event-box-columns", eventBoxColumns);
       }
       if (eventBoxImageSize) {
         eventBoxRowsPopupEl.style.setProperty("--event-box-image-size", eventBoxImageSize);
       }
+      if (eventBoxSubtitleHeight) {
+        eventBoxRowsPopupEl.style.setProperty("--event-box-subtitle-height", eventBoxSubtitleHeight);
+      }
+      if (eventBoxSubtitleSingleHeight) {
+        eventBoxRowsPopupEl.style.setProperty("--event-box-subtitle-height-single", eventBoxSubtitleSingleHeight);
+      }
+      applyEventRowTextLayout(eventBoxRowsPopupEl);
       fitGiftSubtitles(eventBoxRowsPopupEl);
     }
 
@@ -2428,13 +2548,7 @@ const statusEl = document.getElementById("status");
 
           const subtitleEl = document.createElement("div");
           subtitleEl.className = "event-card-gift-subtitle";
-          if (Array.from(subtitle).length > 8) {
-            subtitleEl.classList.add("is-wrap");
-            const wrappedSubtitle = splitGiftSubtitleToTwoBalancedLines(subtitle);
-            subtitleEl.textContent = wrappedSubtitle;
-          } else {
-            subtitleEl.textContent = subtitle;
-          }
+          subtitleEl.textContent = subtitle;
 
           card.appendChild(subtitleEl);
           slide.appendChild(card);
@@ -2450,6 +2564,7 @@ const statusEl = document.getElementById("status");
         eventBoxRowsEl.appendChild(slide);
       }
 
+      applyEventRowTextLayout(eventBoxRowsEl);
       setupEventLoop(pages.length);
     }
 
@@ -2540,9 +2655,13 @@ const statusEl = document.getElementById("status");
 
     function collectSettingsPayload() {
       const username = String(usernameEl && usernameEl.value ? usernameEl.value : "").trim().replace(/^@+/, "");
+      const mcMode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").trim().toLowerCase() === "servertap" ? "servertap" : "rcon";
+      commitCurrentMinecraftPassword();
       const mcHost = String(mcHostEl && mcHostEl.value ? mcHostEl.value : "").trim();
-      const mcPort = Math.max(1, Math.min(65535, Number(mcPortEl && mcPortEl.value ? mcPortEl.value : 25575) || 25575));
-      const mcPassword = String(mcPasswordEl && mcPasswordEl.value ? mcPasswordEl.value : "");
+      const defaultPort = mcMode === "servertap" ? 4567 : 25575;
+      const mcPort = Math.max(1, Math.min(65535, Number(mcPortEl && mcPortEl.value ? mcPortEl.value : defaultPort) || defaultPort));
+      const mcPassword = mcMode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache;
+      const mcServerTapPath = String(mcServerTapPathEl && mcServerTapPathEl.value ? mcServerTapPathEl.value : "/v1/server/command").trim();
       const likeGoalTitle = String(likeGoalTitleEl && likeGoalTitleEl.value ? likeGoalTitleEl.value : "").trim();
       const likeGoalGoal = Math.max(1, Number(likeGoalValueEl && likeGoalValueEl.value ? likeGoalValueEl.value : 1) || 1);
       const likeGoalModeID = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? 2 : 1;
@@ -2551,9 +2670,13 @@ const statusEl = document.getElementById("status");
       return {
         username,
         minecraft: {
+          mode: mcMode,
           host: mcHost,
           port: mcPort,
-          password: mcPassword
+          password: mcPassword,
+          rcon_password: mcRCONPasswordCache,
+          servertap_password: mcServerTapPasswordCache,
+          servertap_path: mcServerTapPath
         },
         like_goal: {
           title: likeGoalTitle,
@@ -2574,9 +2697,24 @@ const statusEl = document.getElementById("status");
       }
 
       const mc = settings.minecraft || {};
+      if (mcModeEl && typeof mc.mode === "string") {
+        mcModeEl.value = String(mc.mode).toLowerCase() === "servertap" ? "servertap" : "rcon";
+      }
       if (mcHostEl && typeof mc.host === "string") mcHostEl.value = mc.host;
       if (mcPortEl && Number(mc.port) > 0) mcPortEl.value = String(Math.max(1, Math.min(65535, Number(mc.port))));
-      if (mcPasswordEl && typeof mc.password === "string") mcPasswordEl.value = mc.password;
+      const rawRCONPassword = String(mc.rcon_password || "").trim();
+      const rawServerTapPassword = String(mc.servertap_password || "").trim();
+      const rawLegacyPassword = String(mc.password || "").trim();
+      mcRCONPasswordCache = rawRCONPassword || rawLegacyPassword || "123";
+      mcServerTapPasswordCache = rawServerTapPassword || ((String(mc.mode || "").toLowerCase() === "servertap" && rawLegacyPassword) ? rawLegacyPassword : "") || "change_me";
+      if (mcPasswordEl) {
+        const currentMode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+        mcPasswordEl.value = currentMode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache;
+      }
+      if (mcServerTapPathEl && typeof mc.servertap_path === "string" && mc.servertap_path.trim()) {
+        mcServerTapPathEl.value = mc.servertap_path;
+      }
+      syncMinecraftConnectorModeUI();
 
       const goalState = settings.like_goal || {};
       if (goalState && typeof goalState === "object" && Object.keys(goalState).length > 0) {
@@ -2733,34 +2871,71 @@ const statusEl = document.getElementById("status");
       });
     }
 
+    function syncMinecraftConnectorModeUI() {
+      const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+      activeMinecraftMode = mode;
+      if (mcPasswordEl) {
+        mcPasswordEl.placeholder = mode === "servertap"
+          ? (currentLang === "id" ? "Token ServerTap (opsional)" : "ServerTap token (optional)")
+          : (currentLang === "id" ? "Password RCON" : "RCON password");
+        mcPasswordEl.value = mode === "servertap" ? (mcServerTapPasswordCache || "change_me") : (mcRCONPasswordCache || "123");
+      }
+      if (mcServerTapPathEl) {
+        const show = mode === "servertap";
+        mcServerTapPathEl.style.display = show ? "" : "none";
+        if (!mcServerTapPathEl.value.trim()) {
+          mcServerTapPathEl.value = "/v1/server/command";
+        }
+      }
+      if (mcPortEl && (!mcPortEl.value || Number(mcPortEl.value) <= 0)) {
+        mcPortEl.value = mode === "servertap" ? "4567" : "25575";
+      }
+    }
+
+    function commitCurrentMinecraftPassword(modeOverride) {
+      if (!mcPasswordEl) return;
+      const mode = String(modeOverride || activeMinecraftMode || "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+      const current = String(mcPasswordEl.value || "").trim();
+      if (mode === "servertap") {
+        mcServerTapPasswordCache = current || "change_me";
+      } else {
+        mcRCONPasswordCache = current || "123";
+      }
+    }
+
     mcConnectBtn.addEventListener("click", async () => {
+      const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+      commitCurrentMinecraftPassword();
       const payload = {
+        mode,
         host: mcHostEl.value.trim(),
         port: Number(mcPortEl.value || 0),
-        password: mcPasswordEl.value
+        password: mode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache,
+        servertap_path: String(mcServerTapPathEl && mcServerTapPathEl.value ? mcServerTapPathEl.value : "").trim()
       };
       try {
-        const res = await fetch("/api/minecraft/rcon/connect", {
+        const res = await fetch("/api/minecraft/connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal terhubung ke RCON" : "failed to connect RCON"));
-        setMCOutput(t("msg.rconConnected"));
+        if (!res.ok) throw new Error(data.error || t("msg.mcConnectorConnectFailed"));
+        setMCOutput(mode === "servertap" ? t("msg.servertapConnected") : t("msg.rconConnected"));
       } catch (err) {
-        setMCOutput(err.message || (currentLang === "id" ? "gagal terhubung ke RCON" : "failed to connect RCON"));
+        setMCOutput(err.message || t("msg.mcConnectorConnectFailed"));
       }
     });
 
     mcDisconnectBtn.addEventListener("click", async () => {
       try {
-        const res = await fetch("/api/minecraft/rcon/disconnect", { method: "POST" });
+        const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+        const res = await fetch("/api/minecraft/disconnect", { method: "POST" });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memutuskan RCON" : "failed to disconnect RCON"));
-        setMCOutput(t("msg.rconDisconnected"));
+        if (!res.ok) throw new Error(data.error || t("msg.mcConnectorDisconnectFailed"));
+        setMCOutput(mode === "servertap" ? t("msg.servertapDisconnected") : t("msg.rconDisconnected"));
       } catch (err) {
-        setMCOutput(err.message || (currentLang === "id" ? "gagal memutuskan RCON" : "failed to disconnect RCON"));
+        setMCOutput(err.message || t("msg.mcConnectorDisconnectFailed"));
       }
     });
 
@@ -2771,7 +2946,7 @@ const statusEl = document.getElementById("status");
         return;
       }
       try {
-        const res = await fetch("/api/minecraft/rcon/command", {
+        const res = await fetch("/api/minecraft/command", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ command })
@@ -2790,6 +2965,20 @@ const statusEl = document.getElementById("status");
         mcSendBtn.click();
       }
     });
+
+    if (mcModeEl) {
+      mcModeEl.addEventListener("change", () => {
+        const prevMode = activeMinecraftMode;
+        commitCurrentMinecraftPassword(prevMode);
+        syncMinecraftConnectorModeUI();
+      });
+    }
+
+    if (mcPasswordEl) {
+      mcPasswordEl.addEventListener("input", () => {
+        commitCurrentMinecraftPassword(activeMinecraftMode);
+      });
+    }
 
     function syncTestEventFields() {
       const isGift = testEventTypeEl.value === "gift";

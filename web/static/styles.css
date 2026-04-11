@@ -1319,6 +1319,10 @@ button:hover {
   outline: 0;
 }
 
+.event-card-gift.event-row-singleline {
+  grid-template-rows: calc(var(--event-box-image-size, 96px) + 20px) var(--event-box-subtitle-height-single, calc(1.15em + 8px));
+}
+
 .event-card-gift-frame {
   display: grid;
   place-items: center;
@@ -1384,6 +1388,14 @@ button:hover {
   paint-order: normal;
 }
 
+.event-card-gift.event-row-singleline .event-card-gift-subtitle {
+  min-height: var(--event-box-subtitle-height-single, calc(1.15em + 8px));
+  max-height: var(--event-box-subtitle-height-single, calc(1.15em + 8px));
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  white-space: nowrap;
+}
+
 .event-card-gift-subtitle.is-wrap {
   min-height: var(--event-box-subtitle-height, calc(2 * 1.15em + 8px));
   max-height: var(--event-box-subtitle-height, calc(2 * 1.15em + 8px));
@@ -1397,6 +1409,17 @@ button:hover {
   overflow-wrap: anywhere;
   word-break: break-word;
   padding: 4px 8px;
+}
+
+.event-card-gift.event-row-mixed .event-card-gift-subtitle.is-singleline-center {
+  min-height: var(--event-box-subtitle-height, calc(2 * 1.15em + 8px));
+  max-height: var(--event-box-subtitle-height, calc(2 * 1.15em + 8px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  white-space: nowrap;
 }
 
 .event-card-gift-subtitle.is-wrap.is-second-long {

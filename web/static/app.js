@@ -133,6 +133,8 @@ const statusEl = document.getElementById("status");
     let likeGoalState = null;
     let mcRCONPasswordCache = "123";
     let mcServerTapPasswordCache = "change_me";
+    let mcRCONPortCache = 25575;
+    let mcServerTapPortCache = 4567;
     let activeMinecraftMode = "rcon";
     const I18N_STORAGE_KEY = "gtlc_lang";
     const EVENT_BOX_PER_ROW_STORAGE_KEY = "gtlc_event_box_per_row";
@@ -624,7 +626,7 @@ const statusEl = document.getElementById("status");
       if (usernameEl) usernameEl.placeholder = currentLang === "id" ? "Username TikTok, misal masjup88" : "TikTok username, e.g. masjup88";
       if (mcHostEl) mcHostEl.placeholder = currentLang === "id" ? "Host (contoh 127.0.0.1)" : "Host (e.g. 127.0.0.1)";
       if (mcPortEl) mcPortEl.placeholder = currentLang === "id" ? "Port (contoh 25575)" : "Port (e.g. 25575)";
-      if (mcServerTapPathEl) mcServerTapPathEl.placeholder = currentLang === "id" ? "Path ServerTap (contoh /v1/server/command)" : "ServerTap path (e.g. /v1/server/command)";
+      if (mcServerTapPathEl) mcServerTapPathEl.placeholder = currentLang === "id" ? "Path ServerTap (contoh /v1/server/exec)" : "ServerTap path (e.g. /v1/server/exec)";
       if (mcPasswordEl) mcPasswordEl.placeholder = currentLang === "id" ? "Password RCON / Token ServerTap" : "RCON password / ServerTap token";
       if (eventTitleEl) eventTitleEl.placeholder = currentLang === "id" ? "Judul untuk Event List Box" : "Title for Event List Box";
       if (eventLabelEl) eventLabelEl.placeholder = currentLang === "id" ? "Label/filter rule (opsional)" : "Rule label/filter (optional)";
@@ -2657,11 +2659,12 @@ const statusEl = document.getElementById("status");
       const username = String(usernameEl && usernameEl.value ? usernameEl.value : "").trim().replace(/^@+/, "");
       const mcMode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").trim().toLowerCase() === "servertap" ? "servertap" : "rcon";
       commitCurrentMinecraftPassword();
+      commitCurrentMinecraftPort();
       const mcHost = String(mcHostEl && mcHostEl.value ? mcHostEl.value : "").trim();
       const defaultPort = mcMode === "servertap" ? 4567 : 25575;
       const mcPort = Math.max(1, Math.min(65535, Number(mcPortEl && mcPortEl.value ? mcPortEl.value : defaultPort) || defaultPort));
       const mcPassword = mcMode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache;
-      const mcServerTapPath = String(mcServerTapPathEl && mcServerTapPathEl.value ? mcServerTapPathEl.value : "/v1/server/command").trim();
+      const mcServerTapPath = String(mcServerTapPathEl && mcServerTapPathEl.value ? mcServerTapPathEl.value : "/v1/server/exec").trim();
       const likeGoalTitle = String(likeGoalTitleEl && likeGoalTitleEl.value ? likeGoalTitleEl.value : "").trim();
       const likeGoalGoal = Math.max(1, Number(likeGoalValueEl && likeGoalValueEl.value ? likeGoalValueEl.value : 1) || 1);
       const likeGoalModeID = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? 2 : 1;
@@ -2674,6 +2677,8 @@ const statusEl = document.getElementById("status");
           host: mcHost,
           port: mcPort,
           password: mcPassword,
+          rcon_port: Math.max(1, Math.min(65535, Number(mcRCONPortCache) || 25575)),
+          servertap_port: Math.max(1, Math.min(65535, Number(mcServerTapPortCache) || 4567)),
           rcon_password: mcRCONPasswordCache,
           servertap_password: mcServerTapPasswordCache,
           servertap_path: mcServerTapPath
@@ -2701,12 +2706,21 @@ const statusEl = document.getElementById("status");
         mcModeEl.value = String(mc.mode).toLowerCase() === "servertap" ? "servertap" : "rcon";
       }
       if (mcHostEl && typeof mc.host === "string") mcHostEl.value = mc.host;
-      if (mcPortEl && Number(mc.port) > 0) mcPortEl.value = String(Math.max(1, Math.min(65535, Number(mc.port))));
+      const normalizedMode = String(mc.mode || "").toLowerCase() === "servertap" ? "servertap" : "rcon";
+      const legacyPort = Number(mc.port || 0);
+      const rawRCONPort = Number(mc.rcon_port || 0);
+      const rawServerTapPort = Number(mc.servertap_port || 0);
+      mcRCONPortCache = Math.max(1, Math.min(65535, rawRCONPort > 0 ? rawRCONPort : (legacyPort > 0 && normalizedMode !== "servertap" ? legacyPort : 25575)));
+      mcServerTapPortCache = Math.max(1, Math.min(65535, rawServerTapPort > 0 ? rawServerTapPort : (legacyPort > 0 && normalizedMode === "servertap" ? legacyPort : 4567)));
+      if (mcPortEl) {
+        const currentMode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+        mcPortEl.value = String(currentMode === "servertap" ? mcServerTapPortCache : mcRCONPortCache);
+      }
       const rawRCONPassword = String(mc.rcon_password || "").trim();
       const rawServerTapPassword = String(mc.servertap_password || "").trim();
       const rawLegacyPassword = String(mc.password || "").trim();
       mcRCONPasswordCache = rawRCONPassword || rawLegacyPassword || "123";
-      mcServerTapPasswordCache = rawServerTapPassword || ((String(mc.mode || "").toLowerCase() === "servertap" && rawLegacyPassword) ? rawLegacyPassword : "") || "change_me";
+      mcServerTapPasswordCache = rawServerTapPassword || (normalizedMode === "servertap" && rawLegacyPassword ? rawLegacyPassword : "") || "change_me";
       if (mcPasswordEl) {
         const currentMode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
         mcPasswordEl.value = currentMode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache;
@@ -2884,11 +2898,12 @@ const statusEl = document.getElementById("status");
         const show = mode === "servertap";
         mcServerTapPathEl.style.display = show ? "" : "none";
         if (!mcServerTapPathEl.value.trim()) {
-          mcServerTapPathEl.value = "/v1/server/command";
+          mcServerTapPathEl.value = "/v1/server/exec";
         }
       }
-      if (mcPortEl && (!mcPortEl.value || Number(mcPortEl.value) <= 0)) {
-        mcPortEl.value = mode === "servertap" ? "4567" : "25575";
+      if (mcPortEl) {
+        const nextPort = mode === "servertap" ? mcServerTapPortCache : mcRCONPortCache;
+        mcPortEl.value = String(Math.max(1, Math.min(65535, Number(nextPort) || (mode === "servertap" ? 4567 : 25575))));
       }
     }
 
@@ -2903,9 +2918,22 @@ const statusEl = document.getElementById("status");
       }
     }
 
+    function commitCurrentMinecraftPort(modeOverride) {
+      if (!mcPortEl) return;
+      const mode = String(modeOverride || activeMinecraftMode || "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
+      const fallback = mode === "servertap" ? 4567 : 25575;
+      const current = Math.max(1, Math.min(65535, Number(mcPortEl.value || 0) || fallback));
+      if (mode === "servertap") {
+        mcServerTapPortCache = current;
+      } else {
+        mcRCONPortCache = current;
+      }
+    }
+
     mcConnectBtn.addEventListener("click", async () => {
       const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
       commitCurrentMinecraftPassword();
+      commitCurrentMinecraftPort();
       const payload = {
         mode,
         host: mcHostEl.value.trim(),
@@ -2969,6 +2997,7 @@ const statusEl = document.getElementById("status");
     if (mcModeEl) {
       mcModeEl.addEventListener("change", () => {
         const prevMode = activeMinecraftMode;
+        commitCurrentMinecraftPort(prevMode);
         commitCurrentMinecraftPassword(prevMode);
         syncMinecraftConnectorModeUI();
       });
@@ -2977,6 +3006,12 @@ const statusEl = document.getElementById("status");
     if (mcPasswordEl) {
       mcPasswordEl.addEventListener("input", () => {
         commitCurrentMinecraftPassword(activeMinecraftMode);
+      });
+    }
+
+    if (mcPortEl) {
+      mcPortEl.addEventListener("input", () => {
+        commitCurrentMinecraftPort(activeMinecraftMode);
       });
     }
 

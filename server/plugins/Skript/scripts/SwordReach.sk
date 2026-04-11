@@ -1,5 +1,5 @@
 # Menambah jangkauan pukul sword lebih dari 3 blok ke depan.
-# Rentang tambahan: >3 blok sampai 9 blok.
+# Rentang tambahan: >3 blok sampai 11 blok.
 
 on left click:
     set {_toolName} to "%type of player's tool%"
@@ -28,12 +28,19 @@ on left click:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
 
-    if {_dist} > 9:
+    if {_dist} > 11:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
 
-    # Damage tambahan untuk reach hit. Nilai bisa disesuaikan jika ingin lebih sakit/ringan.
-    damage {_target} by 4
+    # Damage reach mengikuti Strength pemain:
+    # base 4 + (3 per level Strength).
+    set {_reachDamage} to 4
+    set {_strengthLevel} to potion level of strength of player
+    if {_strengthLevel} is set:
+        if {_strengthLevel} > 0:
+            add ({_strengthLevel} * 3) to {_reachDamage}
+
+    damage {_target} by {_reachDamage}
     play sound "entity.player.attack.strong" with volume 1 and pitch 1 to player
 
     wait 2 ticks

@@ -538,7 +538,7 @@ func newMCRCONManagerFromProperties(path string) *mcRCONManager {
 			Mode:          "rcon",
 			Host:          "127.0.0.1",
 			Port:          25575,
-			ServerTapPath: "/v1/server/command",
+			ServerTapPath: "/v1/server/exec",
 		},
 		propPath: path,
 	}
@@ -564,22 +564,27 @@ func (m *mcRCONManager) refreshFromPropertiesLocked() error {
 		return err
 	}
 	m.cfg.Enabled = strings.EqualFold(strings.TrimSpace(props["enable-rcon"]), "true")
-	if p, ok := props["rcon.password"]; ok {
-		m.cfg.Password = strings.TrimSpace(p)
+	mode := normalizeMinecraftMode(m.cfg.Mode)
+	if mode != "servertap" {
+		if p, ok := props["rcon.password"]; ok {
+			m.cfg.Password = strings.TrimSpace(p)
+		}
 	}
 	if v := strings.TrimSpace(props["server-ip"]); v != "" {
 		m.cfg.Host = v
 	}
-	if v := strings.TrimSpace(props["rcon.port"]); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 65535 {
-			m.cfg.Port = n
+	if mode != "servertap" {
+		if v := strings.TrimSpace(props["rcon.port"]); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 65535 {
+				m.cfg.Port = n
+			}
 		}
 	}
 	if strings.TrimSpace(m.cfg.Mode) == "" {
 		m.cfg.Mode = "rcon"
 	}
 	if strings.TrimSpace(m.cfg.ServerTapPath) == "" {
-		m.cfg.ServerTapPath = "/v1/server/command"
+		m.cfg.ServerTapPath = "/v1/server/exec"
 	}
 	return nil
 }
@@ -686,7 +691,7 @@ func (m *mcRCONManager) ConnectWithMode(mode, host string, port int, password st
 		m.cfg.ServerTapPath = serverTapPath
 	}
 	if strings.TrimSpace(m.cfg.ServerTapPath) == "" {
-		m.cfg.ServerTapPath = "/v1/server/command"
+		m.cfg.ServerTapPath = "/v1/server/exec"
 	}
 	if m.conn != nil {
 		_ = m.conn.Close()
@@ -789,7 +794,7 @@ func (m *mcRCONManager) Execute(command string) (string, error) {
 func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 	path := strings.TrimSpace(m.cfg.ServerTapPath)
 	if path == "" {
-		path = "/v1/server/command"
+		path = "/v1/server/exec"
 	}
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
@@ -803,55 +808,100 @@ func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 	if port <= 0 || port > 65535 {
 		port = 4567
 	}
-	endpoint := fmt.Sprintf("http://%s:%d%s", host, port, path)
-
-	body, _ := json.Marshal(map[string]any{
-		"command": strings.TrimSpace(command),
-	})
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	token := strings.TrimSpace(m.cfg.Password)
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("x-servertap-key", token)
-		req.Header.Set("x-api-key", token)
-	}
-
 	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+	token := strings.TrimSpace(m.cfg.Password)
+	command = strings.TrimSpace(command)
 
-	raw, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		msg := strings.TrimSpace(string(raw))
-		if msg == "" {
-			msg = fmt.Sprintf("servertap request failed: status %d", resp.StatusCode)
+	type attempt struct {
+		path     string
+		useForm  bool
+	}
+	attempts := make([]attempt, 0, 2)
+	seen := make(map[string]struct{})
+	addAttempt := func(p string, useForm bool) {
+		key := p + "|" + strconv.FormatBool(useForm)
+		if _, ok := seen[key]; ok {
+			return
 		}
-		return "", errors.New(msg)
-	}
-	if len(raw) == 0 {
-		return "", nil
+		seen[key] = struct{}{}
+		attempts = append(attempts, attempt{path: p, useForm: useForm})
 	}
 
-	var obj map[string]any
-	if err := json.Unmarshal(raw, &obj); err == nil {
-		for _, key := range []string{"output", "result", "response", "message"} {
-			if v, ok := obj[key]; ok {
-				s := strings.TrimSpace(fmt.Sprint(v))
-				if s != "" && s != "<nil>" {
-					return s, nil
+	useFormForPath := strings.HasSuffix(path, "/exec")
+	addAttempt(path, useFormForPath)
+	if path == "/v1/server/command" {
+		addAttempt("/v1/server/exec", true)
+	} else if path == "/v1/server/exec" {
+		addAttempt("/v1/server/command", false)
+	}
+
+	var lastErr error
+	for i, at := range attempts {
+		endpoint := fmt.Sprintf("http://%s:%d%s", host, port, at.path)
+		var body []byte
+		contentType := "application/json"
+		if at.useForm {
+			contentType = "application/x-www-form-urlencoded"
+			body = []byte(url.Values{"command": []string{command}}.Encode())
+		} else {
+			body, _ = json.Marshal(map[string]any{"command": command})
+		}
+
+		req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		req.Header.Set("Content-Type", contentType)
+		if token != "" {
+			req.Header.Set("key", token)
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("x-servertap-key", token)
+			req.Header.Set("x-api-key", token)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		raw, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			msg := strings.TrimSpace(string(raw))
+			if msg == "" {
+				msg = fmt.Sprintf("servertap request failed: status %d", resp.StatusCode)
+			}
+			lastErr = errors.New(msg)
+			shouldRetry := i < len(attempts)-1 && (resp.StatusCode == http.StatusNotFound || (resp.StatusCode == http.StatusBadRequest && strings.Contains(strings.ToLower(msg), "missing command")))
+			if shouldRetry {
+				continue
+			}
+			return "", lastErr
+		}
+		if len(raw) == 0 {
+			return "", nil
+		}
+
+		var obj map[string]any
+		if err := json.Unmarshal(raw, &obj); err == nil {
+			for _, key := range []string{"output", "result", "response", "message"} {
+				if v, ok := obj[key]; ok {
+					s := strings.TrimSpace(fmt.Sprint(v))
+					if s != "" && s != "<nil>" {
+						return s, nil
+					}
 				}
 			}
+			return strings.TrimSpace(string(raw)), nil
 		}
 		return strings.TrimSpace(string(raw)), nil
 	}
-	return strings.TrimSpace(string(raw)), nil
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("servertap request failed")
 }
 
 func newEventStore(path string) (*eventStore, error) {
@@ -2509,20 +2559,30 @@ func main() {
 					settings.Minecraft.Host = strings.TrimSpace(host)
 				}
 			}
-			if settings.Minecraft.Port <= 0 {
-				switch v := rconStatus["port"].(type) {
-				case float64:
-					settings.Minecraft.Port = int(v)
-				case int:
-					settings.Minecraft.Port = v
+			statusPort := 0
+			switch v := rconStatus["port"].(type) {
+			case float64:
+				statusPort = int(v)
+			case int:
+				statusPort = v
+			}
+			if statusPort > 0 && statusPort <= 65535 {
+				if settings.Minecraft.Mode == "servertap" {
+					settings.Minecraft.ServerTapPort = statusPort
+				} else {
+					settings.Minecraft.RCONPort = statusPort
 				}
 			}
-			if settings.Minecraft.Port <= 0 {
-				if settings.Minecraft.Mode == "servertap" {
-					settings.Minecraft.Port = 4567
-				} else {
-					settings.Minecraft.Port = 25575
-				}
+			if settings.Minecraft.RCONPort <= 0 || settings.Minecraft.RCONPort > 65535 {
+				settings.Minecraft.RCONPort = 25575
+			}
+			if settings.Minecraft.ServerTapPort <= 0 || settings.Minecraft.ServerTapPort > 65535 {
+				settings.Minecraft.ServerTapPort = 4567
+			}
+			if settings.Minecraft.Mode == "servertap" {
+				settings.Minecraft.Port = settings.Minecraft.ServerTapPort
+			} else {
+				settings.Minecraft.Port = settings.Minecraft.RCONPort
 			}
 			if strings.TrimSpace(settings.Minecraft.ServerTapPath) == "" {
 				if path, ok := rconStatus["servertap_path"].(string); ok && strings.TrimSpace(path) != "" {
@@ -3607,6 +3667,8 @@ type unifiedSettingsMinecraft struct {
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
 	Password       string `json:"password"`
+	RCONPort       int    `json:"rcon_port"`
+	ServerTapPort  int    `json:"servertap_port"`
 	RCONPassword   string `json:"rcon_password"`
 	ServerTapToken string `json:"servertap_password"`
 	ServerTapPath  string `json:"servertap_path"`
@@ -3641,9 +3703,11 @@ func defaultUnifiedSettings() unifiedSettingsJSON {
 			Host:           "127.0.0.1",
 			Port:           25575,
 			Password:       "123",
+			RCONPort:       25575,
+			ServerTapPort:  4567,
 			RCONPassword:   "123",
 			ServerTapToken: "change_me",
-			ServerTapPath:  "/v1/server/command",
+			ServerTapPath:  "/v1/server/exec",
 		},
 		LikeGoal: unifiedSettingsLikeGoal{
 			Title:          "Like Goal",
@@ -3687,7 +3751,22 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 	s.Minecraft.Mode = normalizeMinecraftMode(s.Minecraft.Mode)
 	s.Minecraft.ServerTapPath = strings.TrimSpace(s.Minecraft.ServerTapPath)
 	if s.Minecraft.ServerTapPath == "" {
-		s.Minecraft.ServerTapPath = "/v1/server/command"
+		s.Minecraft.ServerTapPath = "/v1/server/exec"
+	}
+	legacyPort := s.Minecraft.Port
+	if s.Minecraft.RCONPort <= 0 || s.Minecraft.RCONPort > 65535 {
+		if legacyPort > 0 && legacyPort <= 65535 && s.Minecraft.Mode == "rcon" {
+			s.Minecraft.RCONPort = legacyPort
+		} else {
+			s.Minecraft.RCONPort = 25575
+		}
+	}
+	if s.Minecraft.ServerTapPort <= 0 || s.Minecraft.ServerTapPort > 65535 {
+		if legacyPort > 0 && legacyPort <= 65535 && s.Minecraft.Mode == "servertap" {
+			s.Minecraft.ServerTapPort = legacyPort
+		} else {
+			s.Minecraft.ServerTapPort = 4567
+		}
 	}
 	legacyPassword := strings.TrimSpace(s.Minecraft.Password)
 	s.Minecraft.RCONPassword = strings.TrimSpace(s.Minecraft.RCONPassword)
@@ -3707,16 +3786,11 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 		}
 	}
 	if s.Minecraft.Mode == "servertap" {
+		s.Minecraft.Port = s.Minecraft.ServerTapPort
 		s.Minecraft.Password = s.Minecraft.ServerTapToken
 	} else {
+		s.Minecraft.Port = s.Minecraft.RCONPort
 		s.Minecraft.Password = s.Minecraft.RCONPassword
-	}
-	if s.Minecraft.Port <= 0 || s.Minecraft.Port > 65535 {
-		if s.Minecraft.Mode == "servertap" {
-			s.Minecraft.Port = 4567
-		} else {
-			s.Minecraft.Port = 25575
-		}
 	}
 	s.LikeGoal.Title = strings.TrimSpace(s.LikeGoal.Title)
 	if s.LikeGoal.Title == "" {

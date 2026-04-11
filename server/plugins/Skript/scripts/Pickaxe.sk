@@ -34,7 +34,7 @@ on block damage:
     else:
         set {_dx} to 0
         set {_dz} to -1
-
+    play sound "block.stone.break" with volume 1 and pitch 1 to player
     # Hancurkan area 7x7x7 (radius 3) dari blok target.
     loop integers between -3 and 3:
         set {_forward} to loop-value-1
@@ -63,6 +63,5 @@ on block damage:
                         if {_block} is not air:
                             set {_drops::*} to drops of {_block}
                             set block at {_loc} to air
-                            play sound "block.stone.break" with volume 1 and pitch 1 to player
                             loop {_drops::*}:
                                 drop loop-value-4 at {_loc}

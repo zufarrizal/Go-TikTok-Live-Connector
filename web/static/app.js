@@ -728,7 +728,7 @@ const statusEl = document.getElementById("status");
       if (howtoStep4El) howtoStep4El.textContent = t("howto.step4");
       if (howtoFooterEl) {
         howtoFooterEl.innerHTML = esc(t("howto.footer")) + ": " +
-          "<a href=\"https://wa.me/6285156560055\" target=\"_blank\" rel=\"noopener noreferrer\">+62 851 5656 0055</a>";
+          "<a href=\"https://wa.me/6285156560055\" target=\"_blank\" rel=\"noopener noreferrer\">MASJUP</a>";
       }
       if (eventGiftPicker && typeof eventGiftPicker.setPlaceholder === "function") eventGiftPicker.setPlaceholder(t("ui.selectGift"));
       if (testEventGiftPicker && typeof testEventGiftPicker.setPlaceholder === "function") testEventGiftPicker.setPlaceholder(t("ui.selectGift"));
@@ -2716,6 +2716,7 @@ const statusEl = document.getElementById("status");
       stopEventSlider();
 
       const eventBoxItems = (items || []).filter((item) => {
+        if (item.show_in_export === false) return false;
         const t = normalizeEventType(item.type);
         return t === "gift" || t === "like" || t === "follow" || t === "share";
       });

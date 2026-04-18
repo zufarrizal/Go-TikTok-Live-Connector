@@ -692,7 +692,7 @@ const statusEl = document.getElementById("status");
       if (testEventUsernameEl) testEventUsernameEl.placeholder = currentLang === "id" ? "Username TikTok tester" : "Tester TikTok username";
       if (testEventCountEl) testEventCountEl.placeholder = currentLang === "id" ? "Jumlah" : "Count";
       if (testEventTextEl) testEventTextEl.placeholder = currentLang === "id" ? "Teks/Pesan (opsional)" : "Text/Message (optional)";
-      if (usernameEl) usernameEl.placeholder = currentLang === "id" ? "Username TikTok, misal masjup88" : "TikTok username, e.g. masjup88";
+      if (usernameEl) usernameEl.placeholder = currentLang === "id" ? "Username TikTok, misal example" : "TikTok username, e.g. example";
       if (mcHostEl) mcHostEl.placeholder = currentLang === "id" ? "Host (contoh 127.0.0.1)" : "Host (e.g. 127.0.0.1)";
       if (mcPortEl) mcPortEl.placeholder = currentLang === "id" ? "Port (contoh 25575)" : "Port (e.g. 25575)";
       if (mcServerTapPathEl) mcServerTapPathEl.placeholder = currentLang === "id" ? "Path ServerTap (contoh /v1/server/exec)" : "ServerTap path (e.g. /v1/server/exec)";

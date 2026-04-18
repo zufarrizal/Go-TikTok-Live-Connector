@@ -3692,15 +3692,7 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
 			return
 		}
-		sort.Slice(items, func(i, j int) bool {
-			if items[i].Diamond == items[j].Diamond {
-				if items[i].NamaGift == items[j].NamaGift {
-					return items[i].ID < items[j].ID
-				}
-				return items[i].NamaGift < items[j].NamaGift
-			}
-			return items[i].Diamond < items[j].Diamond
-		})
+		sortGiftListItemsByDiamond(items)
 		regular, exclusive := splitGiftListByExclusivity(items)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"items":           items,
@@ -4901,6 +4893,7 @@ func loadGiftListJSON(path string) ([]giftListJSONItem, error) {
 	if err := json.Unmarshal(b, &items); err != nil {
 		return nil, err
 	}
+	sortGiftListItemsByDiamond(items)
 	return items, nil
 }
 
@@ -5707,6 +5700,7 @@ func saveGiftListJSON(path string, username string, gifts []giftCatalogItem) (st
 			ImagePath:   g.ImagePath,
 		})
 	}
+	sortGiftListItemsByDiamond(items)
 
 	b, err := json.MarshalIndent(items, "", "  ")
 	if err != nil {
@@ -5716,6 +5710,18 @@ func saveGiftListJSON(path string, username string, gifts []giftCatalogItem) (st
 		return "", err
 	}
 	return path, nil
+}
+
+func sortGiftListItemsByDiamond(items []giftListJSONItem) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Diamond == items[j].Diamond {
+			if items[i].NamaGift == items[j].NamaGift {
+				return items[i].ID < items[j].ID
+			}
+			return items[i].NamaGift < items[j].NamaGift
+		}
+		return items[i].Diamond < items[j].Diamond
+	})
 }
 
 func firstNonEmptyGiftImageURL(primary []string, extras []struct {

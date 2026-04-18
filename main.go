@@ -2161,6 +2161,13 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 			}, 0, 1
 		}
 	}
+	if liveEvent, ok := ev.(gotiktoklive.Event); ok {
+		// Keep unsupported/experimental TikTok events triggerable through `type=other`.
+		return "other", map[string]string{
+			"event_type":     "other",
+			"raw_event_type": fmt.Sprintf("%T", liveEvent),
+		}, 0, 1
+	}
 	return "", nil, 0, 0
 }
 
@@ -2345,7 +2352,43 @@ func isLikelyNumericUserID(value string) bool {
 
 func applyCommandTemplate(command string, vars map[string]string) string {
 	out := command
+	if vars == nil {
+		return out
+	}
+
+	expanded := make(map[string]string, len(vars)+8)
 	for k, v := range vars {
+		expanded[k] = v
+	}
+
+	// Preferred placeholders for MC command templates.
+	if v := strings.TrimSpace(expanded["username"]); v != "" {
+		if _, ok := expanded["playername"]; !ok {
+			expanded["playername"] = v
+		}
+	}
+	if v := strings.TrimSpace(expanded["gift_name"]); v != "" {
+		if _, ok := expanded["giftname"]; !ok {
+			expanded["giftname"] = v
+		}
+	}
+	if v := strings.TrimSpace(expanded["diamond"]); v != "" {
+		if _, ok := expanded["coins"]; !ok {
+			expanded["coins"] = v
+		}
+	}
+	if v := strings.TrimSpace(expanded["likes"]); v != "" {
+		if _, ok := expanded["likecount"]; !ok {
+			expanded["likecount"] = v
+		}
+	}
+	if v := strings.TrimSpace(expanded["total_likes"]); v != "" {
+		if _, ok := expanded["totallikecount"]; !ok {
+			expanded["totallikecount"] = v
+		}
+	}
+
+	for k, v := range expanded {
 		out = strings.ReplaceAll(out, "{"+k+"}", v)
 	}
 	return out

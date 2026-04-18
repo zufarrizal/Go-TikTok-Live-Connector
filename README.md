@@ -166,17 +166,15 @@ Template command/shortcut memakai format `{key}`.
 
 Placeholder yang disuplai event live:
 
-- `{event_type}`
+- `{playername}`
 - `{username}`
 - `{nickname}`
-- `{follow}`
 - `{comment}`
-- `{likes}`
-- `{total_likes}`
-- `{gift_name}`
-- `{gift_id}`
-- `{diamond}`
+- `{giftname}`
+- `{coins}`
 - `{repeatcount}`
+- `{likecount}`
+- `{totallikecount}`
 
 Penggantian placeholder dilakukan oleh backend dengan `strings.ReplaceAll` per key.
 

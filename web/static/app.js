@@ -86,6 +86,9 @@ const statusEl = document.getElementById("status");
     const eventRepeatByGiftComboWrapEl = document.getElementById("eventRepeatByGiftComboWrap");
     const eventRepeatByGiftComboLabelEl = document.getElementById("eventRepeatByGiftComboLabel");
     const eventRepeatByGiftComboEl = document.getElementById("eventRepeatByGiftCombo");
+    const eventShowInExportWrapEl = document.getElementById("eventShowInExportWrap");
+    const eventShowInExportLabelEl = document.getElementById("eventShowInExportLabel");
+    const eventShowInExportEl = document.getElementById("eventShowInExport");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
     const shortcutRowEl = document.getElementById("shortcutRow");
     const eventShortcutKeysEl = document.getElementById("eventShortcutKeys");
@@ -118,6 +121,7 @@ const statusEl = document.getElementById("status");
     const thSoundEl = document.getElementById("thSound");
     const thMCCommandEl = document.getElementById("thMCCommand");
     const thShortcutEl = document.getElementById("thShortcut");
+    const thShowInExportEl = document.getElementById("thShowInExport");
     const thModeEl = document.getElementById("thMode");
     const thActionsEl = document.getElementById("thActions");
     const eventPlaceholderTitleEl = document.getElementById("eventPlaceholderTitle");
@@ -207,6 +211,7 @@ const statusEl = document.getElementById("status");
         "ui.sound": "Suara",
         "ui.mcCommand": "Perintah MC",
         "ui.shortcut": "Shortcut",
+        "ui.showInExport": "Tampil",
         "ui.mode": "Mode",
         "ui.actions": "Aksi",
         "ui.mcOnly": "MC",
@@ -330,6 +335,7 @@ const statusEl = document.getElementById("status");
         "ui.sound": "Sound",
         "ui.mcCommand": "MC Command",
         "ui.shortcut": "Shortcut",
+        "ui.showInExport": "Show",
         "ui.mode": "Mode",
         "ui.actions": "Actions",
         "ui.mcOnly": "MC",
@@ -637,6 +643,7 @@ const statusEl = document.getElementById("status");
       if (thSoundEl) thSoundEl.textContent = t("ui.sound");
       if (thMCCommandEl) thMCCommandEl.textContent = t("ui.mcCommand");
       if (thShortcutEl) thShortcutEl.textContent = t("ui.shortcut");
+      if (thShowInExportEl) thShowInExportEl.textContent = t("ui.showInExport");
       if (thModeEl) thModeEl.textContent = t("ui.mode");
       if (thActionsEl) thActionsEl.textContent = t("ui.actions");
       if (eventPlaceholderTitleEl) eventPlaceholderTitleEl.textContent = t("ui.placeholderHelp");
@@ -688,6 +695,12 @@ const statusEl = document.getElementById("status");
         eventRepeatByGiftComboLabelEl.textContent = "";
         if (input) eventRepeatByGiftComboLabelEl.appendChild(input);
         eventRepeatByGiftComboLabelEl.appendChild(document.createTextNode(" " + t("ui.repeatByGiftCombo")));
+      }
+      if (eventShowInExportLabelEl) {
+        const input = eventShowInExportLabelEl.querySelector("input");
+        eventShowInExportLabelEl.textContent = "";
+        if (input) eventShowInExportLabelEl.appendChild(input);
+        eventShowInExportLabelEl.appendChild(document.createTextNode(" " + t("ui.showInExport")));
       }
       if (testEventUsernameEl) testEventUsernameEl.placeholder = currentLang === "id" ? "Username TikTok tester" : "Tester TikTok username";
       if (testEventCountEl) testEventCountEl.placeholder = currentLang === "id" ? "Jumlah" : "Count";
@@ -2424,6 +2437,9 @@ const statusEl = document.getElementById("status");
       if (eventRepeatByGiftComboEl) {
         eventRepeatByGiftComboEl.checked = true;
       }
+      if (eventShowInExportEl) {
+        eventShowInExportEl.checked = true;
+      }
       eventShortcutKeysEl.value = "";
       eventShortcutHoldMsEl.value = "0";
       eventShortcutPicker.syncFromSelect();
@@ -2629,7 +2645,7 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"8\">" + esc(t("ui.noEventsYet")) + "</td>";
+        tr.innerHTML = "<td colspan=\"9\">" + esc(t("ui.noEventsYet")) + "</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
@@ -2649,6 +2665,8 @@ const statusEl = document.getElementById("status");
           ? "<img class=\"event-table-gift-thumb\" src=\"" + esc(giftImage) + "\" alt=\"" + esc(giftNameText) + "\" loading=\"lazy\"" +
             (remoteGiftImage ? " data-fallback-src=\"" + esc(remoteGiftImage) + "\"" : "") + ">"
           : "<span class=\"event-table-gift-thumb-fallback\">IMG</span>";
+        const showInExport = item.show_in_export !== false;
+        const showInExportHTML = "<input type=\"checkbox\" class=\"event-show-export-toggle\" data-id=\"" + item.id + "\"" + (showInExport ? " checked" : "") + ">";
         const tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + (item.type || "") + "</td>" +
@@ -2661,6 +2679,7 @@ const statusEl = document.getElementById("status");
           "<td>" + esc(getSoundFileName(item.sound_url)) + "</td>" +
           "<td>" + (item.mc_command || "") + "</td>" +
           "<td>" + esc(shortcutView) + "</td>" +
+          "<td>" + showInExportHTML + "</td>" +
           "<td><div class=\"event-actions\">" +
             "<button type=\"button\" class=\"run\" data-act=\"test\" data-id=\"" + item.id + "\">" + esc(t("ui.run")) + "</button>" +
             "<button type=\"button\" class=\"edit\" data-act=\"edit\" data-id=\"" + item.id + "\">" + esc(t("ui.edit")) + "</button>" +
@@ -3450,6 +3469,7 @@ const statusEl = document.getElementById("status");
         label: eventLabelEl.value.trim(),
         gift_id: type === "gift" ? giftId : 0,
         repeat_by_gift_combo: type === "gift" ? !!(eventRepeatByGiftComboEl && eventRepeatByGiftComboEl.checked) : false,
+        show_in_export: !!(eventShowInExportEl && eventShowInExportEl.checked),
         sound_url: normalizeSoundURL(eventSoundEl.value.trim()),
         mc_command: eventMCCommandEl.value.trim(),
         run_mc_command: runMCCommand,
@@ -3762,6 +3782,9 @@ const statusEl = document.getElementById("status");
           if (eventRepeatByGiftComboEl) {
             eventRepeatByGiftComboEl.checked = item.repeat_by_gift_combo !== false;
           }
+          if (eventShowInExportEl) {
+            eventShowInExportEl.checked = item.show_in_export !== false;
+          }
           eventMCCommandEl.value = item.mc_command || "";
           eventShortcutKeysEl.value = normalizeShortcutSymbols(item.shortcut_keys);
           eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
@@ -3804,6 +3827,7 @@ const statusEl = document.getElementById("status");
             label: item.label || "",
             gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
             repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo !== false : false,
+            show_in_export: item.show_in_export !== false,
             sound_url: normalizeSoundURL(item.sound_url || ""),
             mc_command: item.mc_command || "",
             run_mc_command: item.run_mc_command !== false,
@@ -3845,6 +3869,56 @@ const statusEl = document.getElementById("status");
       }
     }
 
+    async function handleEventShowInExportChange(e) {
+      const input = e.target && e.target.closest ? e.target.closest("input.event-show-export-toggle") : null;
+      if (!input) return;
+      const id = Number(input.dataset.id || 0);
+      if (!id) return;
+      const nextValue = !!input.checked;
+      input.disabled = true;
+      try {
+        const listRes = await fetch("/api/events");
+        const listData = await listRes.json();
+        if (!listRes.ok) throw new Error(listData.error || (currentLang === "id" ? "gagal memuat event" : "failed to load events"));
+        const item = (listData.items || []).find((x) => Number(x.id) === id);
+        if (!item) throw new Error(currentLang === "id" ? "event tidak ditemukan" : "event not found");
+
+        const payload = {
+          type: item.type || "join",
+          title: item.title || "",
+          label: item.label || "",
+          gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
+          repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo !== false : false,
+          show_in_export: nextValue,
+          sound_url: normalizeSoundURL(item.sound_url || ""),
+          mc_command: item.mc_command || "",
+          run_mc_command: item.run_mc_command !== false,
+          run_shortcut: !!item.run_shortcut,
+          shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
+          shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0))
+        };
+
+        const updateRes = await fetch("/api/events/" + id, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const updateData = await updateRes.json();
+        if (!updateRes.ok) throw new Error(updateData.error || (currentLang === "id" ? "gagal menyimpan event" : "failed to save event"));
+
+        setStatus(t("msg.eventUpdated"), true);
+        await loadEventsTable();
+        await persistActivePresetProfile({ silent: true });
+      } catch (err) {
+        input.checked = !nextValue;
+        setStatus(err.message || (currentLang === "id" ? "gagal menyimpan event" : "failed to save event"), false);
+      } finally {
+        if (input.isConnected) {
+          input.disabled = false;
+        }
+      }
+    }
+
     eventTypeEl.addEventListener("change", () => {
       syncGiftFields();
       syncLabelHint();
@@ -3873,6 +3947,7 @@ const statusEl = document.getElementById("status");
     });
 
     eventRowsEl.addEventListener("click", handleEventActionClick);
+    eventRowsEl.addEventListener("change", handleEventShowInExportChange);
     if (eventBoxRowsEl) {
       eventBoxRowsEl.addEventListener("click", handleEventActionClick);
     }

@@ -499,6 +499,7 @@ type eventRecord struct {
 	Label             string `json:"label"`
 	GiftID            int    `json:"gift_id"`
 	RepeatByGiftCombo bool   `json:"repeat_by_gift_combo"`
+	ShowInExport      bool   `json:"show_in_export"`
 	GiftName          string `json:"gift_name"`
 	Diamond           int    `json:"diamond"`
 	SoundURL          string `json:"sound_url"`
@@ -514,6 +515,7 @@ func (e *eventRecord) UnmarshalJSON(data []byte) error {
 	aux := struct {
 		eventRecordAlias
 		RepeatByGiftCombo *bool `json:"repeat_by_gift_combo"`
+		ShowInExport      *bool `json:"show_in_export"`
 	}{}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -523,6 +525,11 @@ func (e *eventRecord) UnmarshalJSON(data []byte) error {
 		e.RepeatByGiftCombo = strings.TrimSpace(strings.ToLower(e.Type)) == "gift"
 	} else {
 		e.RepeatByGiftCombo = *aux.RepeatByGiftCombo
+	}
+	if aux.ShowInExport == nil {
+		e.ShowInExport = true
+	} else {
+		e.ShowInExport = *aux.ShowInExport
 	}
 	return nil
 }
@@ -1080,7 +1087,7 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, title, label string, giftID int, repeatByGiftCombo bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) create(eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1091,6 +1098,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, repeatBy
 		Label:             strings.TrimSpace(label),
 		GiftID:            giftID,
 		RepeatByGiftCombo: repeatByGiftCombo,
+		ShowInExport:      showInExport,
 		GiftName:          strings.TrimSpace(giftName),
 		Diamond:           diamond,
 		SoundURL:          strings.TrimSpace(soundURL),
@@ -1108,7 +1116,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, repeatBy
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, title, label string, giftID int, repeatByGiftCombo bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1119,6 +1127,7 @@ func (s *eventStore) update(id int, eventType, title, label string, giftID int, 
 			s.items[i].Label = strings.TrimSpace(label)
 			s.items[i].GiftID = giftID
 			s.items[i].RepeatByGiftCombo = repeatByGiftCombo
+			s.items[i].ShowInExport = showInExport
 			s.items[i].GiftName = strings.TrimSpace(giftName)
 			s.items[i].Diamond = diamond
 			s.items[i].SoundURL = strings.TrimSpace(soundURL)
@@ -2948,6 +2957,7 @@ func main() {
 				Label             string `json:"label"`
 				GiftID            int    `json:"gift_id"`
 				RepeatByGiftCombo *bool  `json:"repeat_by_gift_combo"`
+				ShowInExport      *bool  `json:"show_in_export"`
 				SoundURL          string `json:"sound_url"`
 				MCCommand         string `json:"mc_command"`
 				RunMCCommand      *bool  `json:"run_mc_command"`
@@ -3000,6 +3010,10 @@ func main() {
 			if req.Type != "gift" {
 				repeatByGiftCombo = false
 			}
+			showInExport := true
+			if req.ShowInExport != nil {
+				showInExport = *req.ShowInExport
+			}
 			if !runMCCommand && !runShortcut {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
 				return
@@ -3027,7 +3041,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -3052,6 +3066,7 @@ func main() {
 				Label             string `json:"label"`
 				GiftID            int    `json:"gift_id"`
 				RepeatByGiftCombo *bool  `json:"repeat_by_gift_combo"`
+				ShowInExport      *bool  `json:"show_in_export"`
 				SoundURL          string `json:"sound_url"`
 				MCCommand         string `json:"mc_command"`
 				RunMCCommand      *bool  `json:"run_mc_command"`
@@ -3104,6 +3119,10 @@ func main() {
 			if req.Type != "gift" {
 				repeatByGiftCombo = false
 			}
+			showInExport := true
+			if req.ShowInExport != nil {
+				showInExport = *req.ShowInExport
+			}
 			if !runMCCommand && !runShortcut {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
 				return
@@ -3131,7 +3150,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return

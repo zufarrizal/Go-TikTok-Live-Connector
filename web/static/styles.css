@@ -1156,16 +1156,20 @@ button:hover {
 .crud-table th:nth-child(4),
 .crud-table td:nth-child(4),
 .crud-table th:nth-child(7),
-.crud-table td:nth-child(7) {
-  white-space: nowrap;
-}
-
+.crud-table td:nth-child(7),
 .crud-table th:nth-child(8),
-.crud-table td:nth-child(8) {
+.crud-table td:nth-child(8),
+.crud-table th:nth-child(9),
+.crud-table td:nth-child(9) {
   white-space: nowrap;
 }
 
-.crud-table td:nth-child(8) {
+.crud-table th:nth-child(9),
+.crud-table td:nth-child(9) {
+  white-space: nowrap;
+}
+
+.crud-table td:nth-child(9) {
   overflow: hidden;
 }
 
@@ -1184,7 +1188,9 @@ button:hover {
 .crud-table th:nth-child(7),
 .crud-table td:nth-child(7) { width: 120px; }
 .crud-table th:nth-child(8),
-.crud-table td:nth-child(8) { width: 220px; }
+.crud-table td:nth-child(8) { width: 84px; text-align: center; }
+.crud-table th:nth-child(9),
+.crud-table td:nth-child(9) { width: 220px; }
 
 .event-actions {
   display: flex;

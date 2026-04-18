@@ -5357,7 +5357,108 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 
 	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 	baseURL := "https://webcast.tiktok.com/webcast/gift/list/"
+	client := &http.Client{Timeout: 20 * time.Second}
+	paramCandidates := []url.Values{
+		buildZerodyGiftFetchQuery(roomID, username, ua),
+		buildLegacyGiftFetchQuery(roomID, username, ua),
+	}
+	var lastErr error
+	for _, query := range paramCandidates {
+		referer := strings.TrimSpace(query.Get("referer"))
+		if referer == "" {
+			referer = "https://www.tiktok.com/"
+		}
+		req, err := http.NewRequest(http.MethodGet, baseURL+"?"+query.Encode(), nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		req.Header.Set("User-Agent", ua)
+		req.Header.Set("Accept", "application/json,text/html")
+		req.Header.Set("Referer", referer)
+		req.Header.Set("Origin", "https://www.tiktok.com")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if resp.StatusCode >= 400 {
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+			continue
+		}
+		items, parseErr := normalizeGiftCatalogPayload(body)
+		if parseErr != nil {
+			lastErr = parseErr
+			continue
+		}
+		if len(items) > 0 {
+			return items, nil
+		}
+		lastErr = fmt.Errorf("empty gift list")
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("failed to fetch gift catalog")
+}
+
+func buildZerodyGiftFetchQuery(roomID string, username string, ua string) url.Values {
+	referer := "https://www.tiktok.com/"
+	if username != "" {
+		referer = "https://www.tiktok.com/@" + username + "/live"
+	}
+	query := url.Values{}
+	query.Set("aid", "1988")
+	query.Set("app_language", "en")
+	query.Set("app_name", "tiktok_web")
+	query.Set("browser_language", "en-US")
+	query.Set("browser_name", "Mozilla")
+	query.Set("browser_online", "true")
+	query.Set("browser_platform", "Win32")
+	query.Set("browser_version", ua)
+	query.Set("cookie_enabled", "true")
+	query.Set("device_platform", "web_pc")
+	query.Set("focus_state", "true")
+	query.Set("from_page", "user")
+	query.Set("history_len", "10")
+	query.Set("internal_ext", "")
+	query.Set("cursor", "")
+	query.Set("did_rule", "3")
+	query.Set("fetch_rule", "1")
+	query.Set("last_rtt", "0")
+	query.Set("is_fullscreen", "false")
+	query.Set("is_page_visible", "true")
+	query.Set("live_id", "12")
+	query.Set("resp_content_type", "protobuf")
+	query.Set("screen_height", "1080")
+	query.Set("screen_width", "1920")
+	query.Set("tz_name", "Europe/Berlin")
+	query.Set("referer", referer)
+	query.Set("root_referer", "https://www.tiktok.com/")
+	query.Set("version_code", "180800")
+	query.Set("webcast_sdk_version", "1.3.0")
+	query.Set("update_version_code", "1.3.0")
+	query.Set("room_id", roomID)
+	query.Set("channel", "tiktok_web")
+	query.Set("data_collection_enabled", "true")
+	query.Set("os", "windows")
+	query.Set("priority_region", "US")
+	query.Set("region", "US")
+	query.Set("user_is_login", "true")
+	query.Set("webcast_language", "en")
+	query.Set("device_id", strconv.FormatInt(time.Now().UnixNano(), 10))
+	return query
+}
+
+func buildLegacyGiftFetchQuery(roomID string, username string, ua string) url.Values {
 	query := url.Values{}
 	query.Set("aid", "1988")
 	query.Set("app_language", "en-US")
@@ -5388,71 +5489,206 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 	query.Set("webcast_sdk_version", "1.3.0")
 	query.Set("update_version_code", "1.3.0")
 	query.Set("room_id", roomID)
+	return query
+}
 
-	req, err := http.NewRequest(http.MethodGet, baseURL+"?"+query.Encode(), nil)
-	if err != nil {
+func normalizeGiftCatalogPayload(body []byte) ([]giftCatalogItem, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", ua)
-	req.Header.Set("Accept", "application/json,text/html")
-	req.Header.Set("Referer", referer)
-	req.Header.Set("Origin", "https://www.tiktok.com")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+	rawGifts, ok := findGiftArray(payload)
+	if !ok {
+		return nil, fmt.Errorf("gift payload does not contain gifts array")
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-
-	var parsed struct {
-		Data struct {
-			Gifts []struct {
-				ID           int    `json:"id"`
-				Name         string `json:"name"`
-				Describe     string `json:"describe"`
-				DiamondCount int    `json:"diamond_count"`
-				Type         int    `json:"type"`
-				Image        struct {
-					URLList []string `json:"url_list"`
-					URI     string   `json:"uri"`
-				} `json:"image"`
-				Images []struct {
-					URLList []string `json:"url_list"`
-					URI     string   `json:"uri"`
-				} `json:"images"`
-			} `json:"gifts"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, err
-	}
-
-	seen := make(map[int]giftCatalogItem, len(parsed.Data.Gifts))
-	for _, g := range parsed.Data.Gifts {
-		if g.ID == 0 {
+	seen := make(map[int]giftCatalogItem, len(rawGifts))
+	for _, entry := range rawGifts {
+		giftMap, ok := entry.(map[string]any)
+		if !ok {
 			continue
 		}
-		seen[g.ID] = giftCatalogItem{
-			ID:          g.ID,
-			Name:        g.Name,
-			Describe:    g.Describe,
-			Diamonds:    g.DiamondCount,
-			Type:        g.Type,
-			IsExclusive: isExclusiveGiftType(g.Type),
-			ImageURL:    firstNonEmptyGiftImageURL(g.Image.URLList, g.Images),
+		id := anyToInt(giftMap["id"])
+		if id <= 0 {
+			id = anyToInt(giftMap["gift_id"])
+		}
+		if id <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(anyToString(giftMap["name"]))
+		if name == "" {
+			name = strings.TrimSpace(anyToString(giftMap["gift_name"]))
+		}
+		describe := strings.TrimSpace(anyToString(giftMap["describe"]))
+		if describe == "" {
+			describe = strings.TrimSpace(anyToString(giftMap["description"]))
+		}
+		diamonds := anyToInt(giftMap["diamond_count"])
+		if diamonds <= 0 {
+			diamonds = anyToInt(giftMap["diamondCount"])
+		}
+		if diamonds <= 0 {
+			diamonds = anyToInt(giftMap["diamond"])
+		}
+		giftType := anyToInt(giftMap["type"])
+		isExclusive := false
+		if raw := giftMap["is_exclusive"]; raw != nil {
+			isExclusive = anyToBool(raw)
+		} else if raw := giftMap["isExclusive"]; raw != nil {
+			isExclusive = anyToBool(raw)
+		}
+		imageURL := firstNonEmptyString(extractGiftImageURLs(giftMap))
+		seen[id] = giftCatalogItem{
+			ID:          id,
+			Name:        name,
+			Describe:    describe,
+			Diamonds:    diamonds,
+			Type:        giftType,
+			IsExclusive: isExclusive || isExclusiveGiftType(giftType),
+			ImageURL:    imageURL,
 		}
 	}
+	if len(seen) == 0 {
+		return nil, fmt.Errorf("gift payload contains no valid gift entries")
+	}
 	return sortGiftCatalogItems(seen), nil
+}
+
+func findGiftArray(payload map[string]any) ([]any, bool) {
+	if payload == nil {
+		return nil, false
+	}
+	if data, ok := payload["data"].(map[string]any); ok {
+		if arr, ok := data["gifts"].([]any); ok {
+			return arr, true
+		}
+	}
+	if arr, ok := payload["gifts"].([]any); ok {
+		return arr, true
+	}
+	return nil, false
+}
+
+func extractGiftImageURLs(gift map[string]any) []string {
+	var urls []string
+	if image, ok := gift["image"].(map[string]any); ok {
+		if rawList, ok := image["url_list"]; ok {
+			urls = append(urls, toStringSlice(rawList)...)
+		}
+		if rawList, ok := image["urlList"]; ok {
+			urls = append(urls, toStringSlice(rawList)...)
+		}
+	}
+	if rawImages, ok := gift["images"].([]any); ok {
+		for _, raw := range rawImages {
+			item, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if rawList, ok := item["url_list"]; ok {
+				urls = append(urls, toStringSlice(rawList)...)
+			}
+			if rawList, ok := item["urlList"]; ok {
+				urls = append(urls, toStringSlice(rawList)...)
+			}
+		}
+	}
+	return urls
+}
+
+func toStringSlice(raw any) []string {
+	rawArr, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(rawArr))
+	for _, v := range rawArr {
+		s := strings.TrimSpace(anyToString(v))
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func anyToString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case json.Number:
+		return t.String()
+	case float64:
+		return strconv.FormatInt(int64(t), 10)
+	case float32:
+		return strconv.FormatInt(int64(t), 10)
+	case int:
+		return strconv.Itoa(t)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case int32:
+		return strconv.FormatInt(int64(t), 10)
+	case uint:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint64:
+		return strconv.FormatUint(t, 10)
+	case uint32:
+		return strconv.FormatUint(uint64(t), 10)
+	case bool:
+		return strconv.FormatBool(t)
+	default:
+		return ""
+	}
+}
+
+func anyToInt(v any) int {
+	switch t := v.(type) {
+	case json.Number:
+		if i64, err := t.Int64(); err == nil {
+			return int(i64)
+		}
+		if f64, err := t.Float64(); err == nil {
+			return int(f64)
+		}
+	case float64:
+		return int(t)
+	case float32:
+		return int(t)
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case int32:
+		return int(t)
+	case uint:
+		return int(t)
+	case uint64:
+		return int(t)
+	case uint32:
+		return int(t)
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(t))
+		if err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+func anyToBool(v any) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		b, err := strconv.ParseBool(strings.TrimSpace(t))
+		return err == nil && b
+	case int:
+		return t != 0
+	case int64:
+		return t != 0
+	case float64:
+		return t != 0
+	default:
+		return false
+	}
 }
 
 func saveGiftListJSON(path string, username string, gifts []giftCatalogItem) (string, error) {

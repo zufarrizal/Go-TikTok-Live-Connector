@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Montserrat:wght@700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -19,7 +20,6 @@
           <span id="languageCodeLabel">ID</span>
         </button>
         <button id="howToUseBtn" type="button">How to Use</button>
-        <button id="appSettingsSaveBtn" type="button">Save</button>
       </div>
     </header>
 
@@ -59,6 +59,9 @@
     <section class="tools-single">
       <section class="mc" aria-label="Minecraft Connector">
         <h2 id="minecraftConnectorTitle">Minecraft Connector</h2>
+        <div class="mc-row">
+          <label id="mcEnabledLabel" class="like-goal-enabled"><input id="mcEnabled" type="checkbox" checked> Enabled</label>
+        </div>
         <div class="mc-row mc-rcon-row">
           <select id="mcMode" aria-label="Minecraft connector mode">
             <option value="rcon" selected>RCON</option>
@@ -119,11 +122,16 @@
         <div class="crud-top">
           <h2 id="eventPanelTitle">Event Panel</h2>
           <div class="crud-top-actions">
-            <button id="exportEventsBtn" type="button">Export Events</button>
-            <button id="loadEventsBtn" type="button">Load Events</button>
+            <div class="preset-profile-controls">
+              <select id="presetProfileSelect" aria-label="Preset profile">
+                <option value="">Select preset profile</option>
+              </select>
+              <button id="savePresetProfileBtn" type="button">Save Profile</button>
+              <button id="openCreatePresetProfileModalBtn" type="button">New Profile</button>
+              <button id="renamePresetProfileBtn" type="button">Rename Profile</button>
+            </div>
             <button id="resetEventsBtn" type="button">Reset Events</button>
             <button id="openEventModalBtn" type="button">Add Event</button>
-            <input id="eventsJsonFile" class="visually-hidden-file" type="file" accept="application/json,.json">
           </div>
         </div>
 
@@ -239,13 +247,48 @@
             <code>{gift_name}</code>
             <code>{gift_id}</code>
             <code>{diamond}</code>
-            <code>{repeat_count}</code>
+            <code>{repeatcount}</code>
             <code>{event_type}</code>
+          </div>
+          <div id="eventRepeatByGiftComboWrap" class="execution-mode full">
+            <label id="eventRepeatByGiftComboLabel"><input id="eventRepeatByGiftCombo" type="checkbox" checked> Repeat by Gift Combo</label>
           </div>
 
           <div class="modal-actions full">
             <button id="resetEventBtn" type="button">Reset</button>
             <button id="saveEventBtn" type="submit" class="save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="createPresetProfileModal" class="modal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createPresetProfileModalTitle">
+        <div class="modal-head">
+          <h3 id="createPresetProfileModalTitle">Create Profile</h3>
+          <button id="closeCreatePresetProfileModalBtn" type="button">Close</button>
+        </div>
+        <form id="createPresetProfileForm" class="modal-form" autocomplete="off">
+          <input id="createPresetProfileName" type="text" placeholder="Profile name (without P-)" aria-label="Profile name">
+          <div class="modal-actions full">
+            <button id="cancelCreatePresetProfileBtn" type="button">Close</button>
+            <button id="saveCreatePresetProfileBtn" type="submit" class="save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="renamePresetProfileModal" class="modal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="renamePresetProfileModalTitle">
+        <div class="modal-head">
+          <h3 id="renamePresetProfileModalTitle">Rename Profile</h3>
+          <button id="closeRenamePresetProfileModalBtn" type="button">Close</button>
+        </div>
+        <form id="renamePresetProfileForm" class="modal-form" autocomplete="off">
+          <input id="renamePresetProfileName" type="text" placeholder="New profile name (without P-)" aria-label="New profile name">
+          <div class="modal-actions full">
+            <button id="cancelRenamePresetProfileBtn" type="button">Close</button>
+            <button id="saveRenamePresetProfileBtn" type="submit" class="save">Save</button>
           </div>
         </form>
       </div>

@@ -56,6 +56,8 @@ on respawn:
 
 on pickup:
     if is_allowed_item(event-item) is true:
+        if event-item is diamond:
+            play sound "entity.experience_orb.pickup" with volume 1 and pitch 1 to player
         stop
     cancel event
 

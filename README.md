@@ -33,7 +33,7 @@ Project ini berisi:
   - MC command (`run_mc_command`)
   - keyboard shortcut (`run_shortcut`, Windows-only)
   - atau keduanya bersamaan
-- Penanganan gift combo grouped (`RepeatEnd`) agar `repeat_count` final akurat.
+- Penanganan gift combo grouped (`RepeatEnd`) agar `repeatcount` final akurat.
 - Gift catalog sync + cache:
   - `gift-list.json`
   - image cache di `giftimage/`
@@ -134,7 +134,7 @@ Contoh item:
   "gift_name": "Blow a kiss",
   "diamond": 1,
   "sound_url": "/static/sounds/faaah.mp3",
-  "mc_command": "tnt 10 {username} {repeat_count}",
+  "mc_command": "tnt 10 {username} {repeatcount}",
   "run_mc_command": true,
   "run_shortcut": false,
   "shortcut_keys": "",
@@ -176,7 +176,7 @@ Placeholder yang disuplai event live:
 - `{gift_name}`
 - `{gift_id}`
 - `{diamond}`
-- `{repeat_count}`
+- `{repeatcount}`
 
 Penggantian placeholder dilakukan oleh backend dengan `strings.ReplaceAll` per key.
 
@@ -186,7 +186,8 @@ Khusus grouped gift (`GroupID != 0`):
 
 - event ditahan sampai `RepeatEnd=true`
 - backend hitung total efektif combo
-- rule dipicu sekali dengan `{repeat_count}` final
+- rule dipicu sekali setelah combo selesai
+- `{repeatcount}` selalu pakai total final combo
 
 Tujuannya supaya command tidak dieksekusi berkali-kali untuk combo yang sama.
 
@@ -300,7 +301,7 @@ Test tanpa live TikTok:
 
 ## Catatan Data Runtime
 
-File runtime seperti `events.json`, `gift-list.json`, `settings.json`, `giftimage/`, `sounds/`, dan file data server lain tidak akan ikut commit kecuali ditambahkan ke whitelist `.gitignore` atau berformat `.sk`.
+File runtime seperti `events.json`, `gift-list.json`, `giftimage/`, `sounds/`, dan file data server lain tidak akan ikut commit kecuali ditambahkan ke whitelist `.gitignore` atau berformat `.sk`.
 
 Saran:
 

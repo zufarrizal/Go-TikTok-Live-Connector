@@ -39,6 +39,7 @@ var (
 	appGiftImage  string
 	appSoundsDir  string
 	appSettings   string
+	appDataFileMu sync.Mutex
 )
 
 const defaultUsernameAllowlistURL = "https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt"
@@ -492,25 +493,54 @@ func sleepOrCancel(ctx context.Context, d time.Duration) bool {
 }
 
 type eventRecord struct {
-	ID           int    `json:"id"`
-	Type         string `json:"type"`
-	Title        string `json:"title"`
-	Label        string `json:"label"`
-	GiftID       int    `json:"gift_id"`
-	GiftName     string `json:"gift_name"`
-	Diamond      int    `json:"diamond"`
-	SoundURL     string `json:"sound_url"`
-	MCCommand    string `json:"mc_command"`
-	RunMCCommand bool   `json:"run_mc_command"`
-	RunShortcut  bool   `json:"run_shortcut"`
-	ShortcutKeys string `json:"shortcut_keys"`
-	ShortcutHold int    `json:"shortcut_hold_ms"`
+	ID                int    `json:"id"`
+	Type              string `json:"type"`
+	Title             string `json:"title"`
+	Label             string `json:"label"`
+	GiftID            int    `json:"gift_id"`
+	RepeatByGiftCombo bool   `json:"repeat_by_gift_combo"`
+	GiftName          string `json:"gift_name"`
+	Diamond           int    `json:"diamond"`
+	SoundURL          string `json:"sound_url"`
+	MCCommand         string `json:"mc_command"`
+	RunMCCommand      bool   `json:"run_mc_command"`
+	RunShortcut       bool   `json:"run_shortcut"`
+	ShortcutKeys      string `json:"shortcut_keys"`
+	ShortcutHold      int    `json:"shortcut_hold_ms"`
+}
+
+func (e *eventRecord) UnmarshalJSON(data []byte) error {
+	type eventRecordAlias eventRecord
+	aux := struct {
+		eventRecordAlias
+		RepeatByGiftCombo *bool `json:"repeat_by_gift_combo"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*e = eventRecord(aux.eventRecordAlias)
+	if aux.RepeatByGiftCombo == nil {
+		e.RepeatByGiftCombo = strings.TrimSpace(strings.ToLower(e.Type)) == "gift"
+	} else {
+		e.RepeatByGiftCombo = *aux.RepeatByGiftCombo
+	}
+	return nil
 }
 
 type eventStore struct {
 	mu    sync.Mutex
 	path  string
 	items []eventRecord
+}
+
+func (s *eventStore) setPath(path string) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	s.mu.Lock()
+	s.path = path
+	s.mu.Unlock()
 }
 
 type mcRCONConfig struct {
@@ -602,6 +632,25 @@ func (m *mcRCONManager) Status() map[string]any {
 		"connected":       m.connected,
 		"last_error":      m.lastError,
 		"properties_path": m.propPath,
+	}
+}
+
+func (m *mcRCONManager) Enabled() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cfg.Enabled
+}
+
+func (m *mcRCONManager) SetEnabled(enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cfg.Enabled = enabled
+	if !enabled {
+		if m.conn != nil {
+			_ = m.conn.Close()
+			m.conn = nil
+		}
+		m.connected = false
 	}
 }
 
@@ -813,8 +862,8 @@ func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 	command = strings.TrimSpace(command)
 
 	type attempt struct {
-		path     string
-		useForm  bool
+		path    string
+		useForm bool
 	}
 	attempts := make([]attempt, 0, 2)
 	seen := make(map[string]struct{})
@@ -919,6 +968,9 @@ func (s *eventStore) load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	appDataFileMu.Lock()
+	defer appDataFileMu.Unlock()
+
 	b, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -932,8 +984,8 @@ func (s *eventStore) load() error {
 		return nil
 	}
 
-	var items []eventRecord
-	if err := json.Unmarshal(b, &items); err != nil {
+	items, err := parseEventRecordsPayload(b)
+	if err != nil {
 		return err
 	}
 	changed := false
@@ -968,7 +1020,26 @@ func (s *eventStore) list() []eventRecord {
 }
 
 func (s *eventStore) saveLocked() error {
-	b, err := json.MarshalIndent(s.items, "", "  ")
+	appDataFileMu.Lock()
+	defer appDataFileMu.Unlock()
+
+	var settings *unifiedSettingsJSON
+	if bExisting, err := os.ReadFile(s.path); err == nil {
+		if cfg, found, decodeErr := decodeUnifiedSettingsFromPayload(bExisting); decodeErr == nil && found {
+			settings = &cfg
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	payload := map[string]any{
+		"items": s.items,
+	}
+	if settings != nil {
+		payload["settings"] = settings
+	}
+
+	b, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -979,6 +1050,7 @@ func normalizeEventExecutionMode(item *eventRecord) {
 	if item == nil {
 		return
 	}
+	item.Type = strings.TrimSpace(strings.ToLower(item.Type))
 	item.ShortcutKeys = strings.TrimSpace(item.ShortcutKeys)
 	if item.ShortcutHold < 0 {
 		item.ShortcutHold = 0
@@ -993,6 +1065,9 @@ func normalizeEventExecutionMode(item *eventRecord) {
 	if !item.RunMCCommand && !item.RunShortcut {
 		item.RunMCCommand = true
 	}
+	if item.Type != "gift" {
+		item.RepeatByGiftCombo = false
+	}
 }
 
 func (s *eventStore) nextIDLocked() int {
@@ -1005,24 +1080,25 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) create(eventType, title, label string, giftID int, repeatByGiftCombo bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item := eventRecord{
-		ID:           s.nextIDLocked(),
-		Type:         strings.TrimSpace(eventType),
-		Title:        strings.TrimSpace(title),
-		Label:        strings.TrimSpace(label),
-		GiftID:       giftID,
-		GiftName:     strings.TrimSpace(giftName),
-		Diamond:      diamond,
-		SoundURL:     strings.TrimSpace(soundURL),
-		MCCommand:    strings.TrimSpace(mcCommand),
-		RunMCCommand: runMCCommand,
-		RunShortcut:  runShortcut,
-		ShortcutKeys: strings.TrimSpace(shortcutKeys),
-		ShortcutHold: shortcutHold,
+		ID:                s.nextIDLocked(),
+		Type:              strings.TrimSpace(eventType),
+		Title:             strings.TrimSpace(title),
+		Label:             strings.TrimSpace(label),
+		GiftID:            giftID,
+		RepeatByGiftCombo: repeatByGiftCombo,
+		GiftName:          strings.TrimSpace(giftName),
+		Diamond:           diamond,
+		SoundURL:          strings.TrimSpace(soundURL),
+		MCCommand:         strings.TrimSpace(mcCommand),
+		RunMCCommand:      runMCCommand,
+		RunShortcut:       runShortcut,
+		ShortcutKeys:      strings.TrimSpace(shortcutKeys),
+		ShortcutHold:      shortcutHold,
 	}
 	normalizeEventExecutionMode(&item)
 	s.items = append(s.items, item)
@@ -1032,7 +1108,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, giftName
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, title, label string, giftID int, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, title, label string, giftID int, repeatByGiftCombo bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1042,6 +1118,7 @@ func (s *eventStore) update(id int, eventType, title, label string, giftID int, 
 			s.items[i].Title = strings.TrimSpace(title)
 			s.items[i].Label = strings.TrimSpace(label)
 			s.items[i].GiftID = giftID
+			s.items[i].RepeatByGiftCombo = repeatByGiftCombo
 			s.items[i].GiftName = strings.TrimSpace(giftName)
 			s.items[i].Diamond = diamond
 			s.items[i].SoundURL = strings.TrimSpace(soundURL)
@@ -1455,7 +1532,7 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 		"follow":       "true",
 		"likes":        "1",
 		"total_likes":  strconv.Itoa(state.CurrentLikes),
-		"repeat_count": "1",
+		"repeatcount": "1",
 	}
 
 	if m.auto != nil {
@@ -1580,7 +1657,7 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 			"follow":       follow,
 			"likes":        strconv.Itoa(likeEvent.Likes),
 			"total_likes":  strconv.Itoa(m.state.CurrentLikes),
-			"repeat_count": "1",
+			"repeatcount": "1",
 		}
 		if m.auto != nil {
 			m.auto.enqueueTrigger(queuedMCTrigger{
@@ -1678,7 +1755,9 @@ func (a *mcEventAutomation) processQueue() {
 	for job := range a.queue {
 		commandOut := ""
 		var commandErr error
-		if job.runMCCommand {
+		mcEnabled := a.rcon.Enabled()
+		runMCCommand := job.runMCCommand && mcEnabled
+		if runMCCommand {
 			commandOut, commandErr = executeCommands(a.rcon, job.command)
 		}
 		var shortcutErr error
@@ -1693,10 +1772,11 @@ func (a *mcEventAutomation) processQueue() {
 			"gift_id":          job.giftID,
 			"gift_name":        job.vars["gift_name"],
 			"username":         job.vars["username"],
-			"repeat_count":     job.vars["repeat_count"],
+			"repeatcount":     job.vars["repeatcount"],
 			"sound_url":        job.rule.SoundURL,
 			"command":          job.command,
-			"run_mc_command":   job.runMCCommand,
+			"run_mc_command":   runMCCommand,
+			"mc_enabled":       mcEnabled,
 			"run_shortcut":     job.runShortcut,
 			"shortcut_keys":    job.shortcutKeys,
 			"shortcut_hold_ms": job.shortcutHold,
@@ -1735,7 +1815,7 @@ func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
 		"gift_id":          job.giftID,
 		"gift_name":        job.vars["gift_name"],
 		"username":         job.vars["username"],
-		"repeat_count":     job.vars["repeat_count"],
+		"repeatcount":     job.vars["repeatcount"],
 		"sound_url":        job.rule.SoundURL,
 		"command":          job.command,
 		"run_mc_command":   job.runMCCommand,
@@ -1771,32 +1851,44 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 		// Keep `likes` as cumulative like amount per username.
 		vars["likes"] = strconv.Itoa(currTotal)
 	}
-	if eventType == "gift" {
-		shouldProcess, totalRepeatCount := a.normalizeGiftCounts(ev, loopCount)
-		if !shouldProcess {
-			return
-		}
-		loopCount = totalRepeatCount
-	}
-	if loopCount <= 0 {
-		return
-	}
 	if vars == nil {
 		vars = map[string]string{}
 	}
-	// `repeat_count` is always the effective total (final combo count for grouped gifts).
-	vars["repeat_count"] = strconv.Itoa(loopCount)
 	rules := a.store.rulesForTrigger(eventType, giftID)
 	if len(rules) == 0 {
 		return
 	}
-	for _, rule := range rules {
-		if !ruleLabelMatches(rule, vars) {
-			continue
+
+	currentRepeatCount := loopCount
+	comboReady := true
+	comboRepeatCount := loopCount
+	if eventType == "gift" {
+		currentRepeatCount, comboReady, comboRepeatCount = a.normalizeGiftCounts(ev, loopCount)
+		// Grouped gift streaks should only be processed once at combo end.
+		if !comboReady {
+			return
 		}
-		jobVars := make(map[string]string, len(vars))
+	}
+	if currentRepeatCount <= 0 {
+		return
+	}
+
+	for _, rule := range rules {
+		jobVars := make(map[string]string, len(vars)+1)
 		for k, v := range vars {
 			jobVars[k] = v
+		}
+		repeatCount := currentRepeatCount
+		if eventType == "gift" {
+			// For gift events, always use final combo total.
+			repeatCount = resolveGiftRepeatCount(currentRepeatCount, comboRepeatCount)
+		}
+		if repeatCount <= 0 {
+			repeatCount = 1
+		}
+		jobVars["repeatcount"] = strconv.Itoa(repeatCount)
+		if !ruleLabelMatches(rule, jobVars) {
+			continue
 		}
 		a.enqueueTrigger(queuedMCTrigger{
 			rule:         rule,
@@ -1900,14 +1992,14 @@ func (a *mcEventAutomation) shouldProcessEvent(ev any) bool {
 	return !liveEvent.IsHistory()
 }
 
-func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int) {
+func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool, int) {
 	g, ok := ev.(gotiktoklive.GiftEvent)
 	if !ok {
 		out := fallback
 		if out <= 0 {
 			out = 1
 		}
-		return true, out
+		return out, true, out
 	}
 
 	current := g.RepeatCount
@@ -1921,7 +2013,7 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 
 	// Non-grouped gifts are treated as standalone events.
 	if g.GroupID == 0 {
-		return true, current
+		return current, true, current
 	}
 
 	a.mu.Lock()
@@ -1936,6 +2028,7 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 			state = giftComboProgress{}
 		}
 	}
+	prevLast := state.Last
 	if state.Last > 0 && current > state.Last {
 		state.SawIncrease = true
 	}
@@ -1946,9 +2039,20 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 	state.Last = current
 	a.giftCombo[g.GroupID] = state
 
-	// Wait for combo end to execute once using final total repeat_count.
+	// For non-combo mode, use per-event delta instead of cumulative RepeatCount.
+	// Example grouped streak: 1,2,3 -> emit 1,1,1 (not 1,2,3).
+	perEvent := current
+	if prevLast > 0 {
+		if current > prevLast {
+			perEvent = current - prevLast
+		} else if current == prevLast {
+			perEvent = 0
+		}
+	}
+
+	// Wait for combo end to execute once using final total repeatcount.
 	if !g.RepeatEnd {
-		return false, 0
+		return perEvent, false, 0
 	}
 
 	total := state.Max
@@ -1962,7 +2066,17 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (bool, int
 		total = 1
 	}
 	delete(a.giftCombo, g.GroupID)
-	return true, total
+	return perEvent, true, total
+}
+
+func resolveGiftRepeatCount(currentRepeatCount int, comboRepeatCount int) int {
+	if comboRepeatCount > 0 {
+		return comboRepeatCount
+	}
+	if currentRepeatCount > 0 {
+		return currentRepeatCount
+	}
+	return 1
 }
 
 func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
@@ -2006,7 +2120,7 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 			"gift_name":    e.Name,
 			"gift_id":      strconv.FormatInt(e.ID, 10),
 			"diamond":      strconv.Itoa(e.Diamonds),
-			"repeat_count": strconv.Itoa(e.RepeatCount),
+			"repeatcount": strconv.Itoa(e.RepeatCount),
 		}, int(e.ID), loopCount
 	case gotiktoklive.UserEvent:
 		username := historyUsernameFromEvent(e, e.User)
@@ -2509,21 +2623,44 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init like goal store: %v", err)
 	}
+	if settings, err := loadUnifiedSettings(appSettings); err == nil {
+		activeProfile := strings.TrimSpace(settings.ActiveProfile)
+		if activeProfile == "" {
+			activeProfile = "Default"
+			settings.ActiveProfile = activeProfile
+			_ = saveUnifiedSettings(appSettings, settings)
+		}
+		if _, profileAbs, _, pathErr := resolvePresetProfilePath(activeProfile); pathErr == nil {
+			store.setPath(profileAbs)
+			if body, readErr := os.ReadFile(profileAbs); readErr == nil {
+				if parsed, parseErr := parseEventRecordsPayload(body); parseErr == nil {
+					if normalized, normErr := normalizeImportedEvents(parsed); normErr == nil {
+						if replaceErr := store.replaceAll(normalized); replaceErr == nil {
+							log.Printf("active preset profile loaded on startup: %s (%d event(s))", activeProfile, len(normalized))
+						}
+					}
+				}
+			} else if errors.Is(readErr, os.ErrNotExist) {
+				_ = store.replaceAll([]eventRecord{})
+			}
+		}
+		mcRCON.SetEnabled(settings.Minecraft.Enabled)
+		if strings.TrimSpace(settings.Username) != "" {
+			go func(username string) {
+				if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {
+					hub.broadcast(mustJSON(map[string]any{
+						"type":  "error",
+						"error": "failed to sync like goal on startup: " + syncErr.Error(),
+						"time":  time.Now().Format(time.RFC3339),
+					}))
+				}
+			}(settings.Username)
+		}
+	}
 	ctrl := newStreamController(hub, func(ev any) {
 		autoMC.HandleLiveEvent(ev)
 		likeGoal.HandleLiveEvent(ev)
 	}, mcRCON)
-	if settings, err := loadUnifiedSettings(appSettings); err == nil && strings.TrimSpace(settings.Username) != "" {
-		go func(username string) {
-			if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {
-				hub.broadcast(mustJSON(map[string]any{
-					"type":  "error",
-					"error": "failed to sync like goal on startup: " + syncErr.Error(),
-					"time":  time.Now().Format(time.RFC3339),
-				}))
-			}
-		}(settings.Username)
-	}
 
 	embeddedStatic, err := fs.Sub(embeddedWebFS, "web/static")
 	if err != nil {
@@ -2614,6 +2751,9 @@ func main() {
 			if mode, ok := rconStatus["mode"].(string); ok && strings.TrimSpace(mode) != "" {
 				settings.Minecraft.Mode = normalizeMinecraftMode(mode)
 			}
+			if enabled, ok := rconStatus["enabled"].(bool); ok {
+				settings.Minecraft.Enabled = enabled
+			}
 			if strings.TrimSpace(settings.Username) == "" {
 				if strings.TrimSpace(runtimeUsername) != "" {
 					settings.Username = strings.TrimSpace(strings.TrimPrefix(runtimeUsername, "@"))
@@ -2677,6 +2817,7 @@ func main() {
 				return
 			}
 			normalizeUnifiedSettings(&req)
+			mcRCON.SetEnabled(req.Minecraft.Enabled)
 			likeState, err := likeGoal.Configure(
 				req.LikeGoal.Title,
 				req.LikeGoal.Goal,
@@ -2802,16 +2943,17 @@ func main() {
 			writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
 			var req struct {
-				Type         string `json:"type"`
-				Title        string `json:"title"`
-				Label        string `json:"label"`
-				GiftID       int    `json:"gift_id"`
-				SoundURL     string `json:"sound_url"`
-				MCCommand    string `json:"mc_command"`
-				RunMCCommand *bool  `json:"run_mc_command"`
-				RunShortcut  *bool  `json:"run_shortcut"`
-				ShortcutKeys string `json:"shortcut_keys"`
-				ShortcutHold int    `json:"shortcut_hold_ms"`
+				Type              string `json:"type"`
+				Title             string `json:"title"`
+				Label             string `json:"label"`
+				GiftID            int    `json:"gift_id"`
+				RepeatByGiftCombo *bool  `json:"repeat_by_gift_combo"`
+				SoundURL          string `json:"sound_url"`
+				MCCommand         string `json:"mc_command"`
+				RunMCCommand      *bool  `json:"run_mc_command"`
+				RunShortcut       *bool  `json:"run_shortcut"`
+				ShortcutKeys      string `json:"shortcut_keys"`
+				ShortcutHold      int    `json:"shortcut_hold_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -2851,6 +2993,13 @@ func main() {
 			if !runShortcut {
 				shortcutKeys = ""
 			}
+			repeatByGiftCombo := true
+			if req.RepeatByGiftCombo != nil {
+				repeatByGiftCombo = *req.RepeatByGiftCombo
+			}
+			if req.Type != "gift" {
+				repeatByGiftCombo = false
+			}
 			if !runMCCommand && !runShortcut {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
 				return
@@ -2878,7 +3027,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -2898,16 +3047,17 @@ func main() {
 		switch r.Method {
 		case http.MethodPut:
 			var req struct {
-				Type         string `json:"type"`
-				Title        string `json:"title"`
-				Label        string `json:"label"`
-				GiftID       int    `json:"gift_id"`
-				SoundURL     string `json:"sound_url"`
-				MCCommand    string `json:"mc_command"`
-				RunMCCommand *bool  `json:"run_mc_command"`
-				RunShortcut  *bool  `json:"run_shortcut"`
-				ShortcutKeys string `json:"shortcut_keys"`
-				ShortcutHold int    `json:"shortcut_hold_ms"`
+				Type              string `json:"type"`
+				Title             string `json:"title"`
+				Label             string `json:"label"`
+				GiftID            int    `json:"gift_id"`
+				RepeatByGiftCombo *bool  `json:"repeat_by_gift_combo"`
+				SoundURL          string `json:"sound_url"`
+				MCCommand         string `json:"mc_command"`
+				RunMCCommand      *bool  `json:"run_mc_command"`
+				RunShortcut       *bool  `json:"run_shortcut"`
+				ShortcutKeys      string `json:"shortcut_keys"`
+				ShortcutHold      int    `json:"shortcut_hold_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -2947,6 +3097,13 @@ func main() {
 			if !runShortcut {
 				shortcutKeys = ""
 			}
+			repeatByGiftCombo := true
+			if req.RepeatByGiftCombo != nil {
+				repeatByGiftCombo = *req.RepeatByGiftCombo
+			}
+			if req.Type != "gift" {
+				repeatByGiftCombo = false
+			}
 			if !runMCCommand && !runShortcut {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
 				return
@@ -2974,7 +3131,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -2991,26 +3148,416 @@ func main() {
 		}
 	})
 
-	http.HandleFunc("/api/events/export", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+	http.HandleFunc("/api/events/save-profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			ProfileName string `json:"profile_name"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
 			return
 		}
 		items := store.list()
 		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 
+		baseAbs, targetAbs, fileName, err := resolvePresetProfilePath(req.ProfileName)
+		if err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "resolve preset directory") {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			return
+		}
+		if err := os.MkdirAll(baseAbs, 0755); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to prepare preset directory"})
+			return
+		}
 		payload := map[string]any{"items": items}
+		if settings, loadErr := loadUnifiedSettings(appSettings); loadErr == nil {
+			payload["settings"] = settings
+		}
 		b, err := json.MarshalIndent(payload, "", "  ")
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to build export json"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to build preset profile"})
+			return
+		}
+		if err := os.WriteFile(targetAbs, b, 0644); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save preset profile"})
+			return
+		}
+		profileName, _ := profileNameFromFileName(fileName)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":           true,
+			"profile_name": profileName,
+			"file_name":    fileName,
+			"file_path":    targetAbs,
+		})
+	})
+
+	errSaveImportedEvents := errors.New("failed to save imported events")
+	importEventsFromBody := func(body []byte) (int, error) {
+		parsed, err := parseEventRecordsPayload(body)
+		if err != nil {
+			return 0, err
+		}
+		normalized, err := normalizeImportedEvents(parsed)
+		if err != nil {
+			return 0, err
+		}
+		if err := store.replaceAll(normalized); err != nil {
+			return 0, errSaveImportedEvents
+		}
+
+		hub.broadcast(mustJSON(map[string]any{
+			"type":    "status",
+			"message": fmt.Sprintf("Loaded %d event(s) from JSON", len(normalized)),
+			"time":    time.Now().Format(time.RFC3339),
+		}))
+		return len(normalized), nil
+	}
+
+	http.HandleFunc("/api/events/profiles", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		fileName := "events-" + time.Now().Format("20060102-150405") + ".json"
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(b)
+		baseDir := strings.TrimSpace(appBaseDir)
+		if baseDir == "" {
+			baseDir = "."
+		}
+		if abs, err := filepath.Abs(baseDir); err == nil && strings.TrimSpace(abs) != "" {
+			baseDir = abs
+		}
+
+		entries, err := os.ReadDir(baseDir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"ok":       true,
+					"base_dir": baseDir,
+					"items":    []map[string]any{},
+				})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list preset profiles"})
+			return
+		}
+
+		items := make([]map[string]any, 0)
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := strings.TrimSpace(entry.Name())
+			if name == "" {
+				continue
+			}
+			if !strings.EqualFold(filepath.Ext(name), ".json") {
+				continue
+			}
+			profileName, ok := profileNameFromFileName(name)
+			if !ok {
+				continue
+			}
+
+			filePath := filepath.Join(baseDir, name)
+			info, infoErr := entry.Info()
+			if infoErr != nil {
+				continue
+			}
+
+			items = append(items, map[string]any{
+				"profile_name": profileName,
+				"file_name":    name,
+				"file_path":    filePath,
+				"size":         info.Size(),
+				"modified_at":  info.ModTime().Format(time.RFC3339),
+			})
+		}
+		sort.Slice(items, func(i, j int) bool {
+			left := strings.ToLower(strings.TrimSpace(fmt.Sprint(items[i]["profile_name"])))
+			right := strings.ToLower(strings.TrimSpace(fmt.Sprint(items[j]["profile_name"])))
+			return left < right
+		})
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":       true,
+			"base_dir": baseDir,
+			"items":    items,
+		})
+	})
+
+	http.HandleFunc("/api/events/create-profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			ProfileName string `json:"profile_name"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+
+		baseAbs, targetAbs, fileName, err := resolvePresetProfilePath(req.ProfileName)
+		if err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "resolve preset directory") {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			return
+		}
+
+		if _, statErr := os.Stat(targetAbs); statErr == nil {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "preset profile already exists"})
+			return
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to access preset profile"})
+			return
+		}
+
+		emptyPayload := map[string]any{
+			"items":    []eventRecord{},
+			"settings": defaultUnifiedSettings(),
+		}
+		body, err := json.MarshalIndent(emptyPayload, "", "  ")
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create preset profile"})
+			return
+		}
+		if err := os.MkdirAll(baseAbs, 0755); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to prepare preset directory"})
+			return
+		}
+		if err := os.WriteFile(targetAbs, body, 0644); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create preset profile"})
+			return
+		}
+		profileName, _ := profileNameFromFileName(fileName)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":           true,
+			"profile_name": profileName,
+			"file_name":    fileName,
+			"file_path":    targetAbs,
+		})
+	})
+
+	http.HandleFunc("/api/events/load-profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			ProfileName string `json:"profile_name"`
+			FileName    string `json:"file_name"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+
+		profileName := strings.TrimSpace(req.ProfileName)
+		if profileName == "" {
+			if p, ok := profileNameFromFileName(req.FileName); ok {
+				profileName = p
+			} else {
+				profileName = strings.TrimSpace(req.FileName)
+			}
+		}
+		_, targetAbs, fileName, err := resolvePresetProfilePath(profileName)
+		if err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "resolve preset directory") {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			return
+		}
+
+		body, err := os.ReadFile(targetAbs)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "preset profile not found"})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read preset profile"})
+			return
+		}
+
+		store.setPath(targetAbs)
+		count, err := importEventsFromBody(body)
+		if err != nil {
+			if errors.Is(err, errSaveImportedEvents) {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+
+		var loadedSettings *unifiedSettingsJSON
+		var likeState any
+		currentSettings, _ := loadUnifiedSettings(appSettings)
+		if cfg, found, cfgErr := decodeUnifiedSettingsFromPayload(body); cfgErr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid preset profile settings"})
+			return
+		} else if found {
+			normalizeUnifiedSettings(&cfg)
+			mcRCON.SetEnabled(cfg.Minecraft.Enabled)
+			nextLikeState, configureErr := likeGoal.Configure(
+				cfg.LikeGoal.Title,
+				cfg.LikeGoal.Goal,
+				cfg.LikeGoal.Mode,
+				cfg.LikeGoal.TriggerEventID,
+				cfg.LikeGoal.Enabled,
+				true,
+			)
+			if configureErr != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": configureErr.Error()})
+				return
+			}
+			loadedSettings = &cfg
+			likeState = nextLikeState
+			currentSettings = cfg
+		}
+		profileName, _ = profileNameFromFileName(fileName)
+		currentSettings.ActiveProfile = profileName
+		if saveErr := saveUnifiedSettings(appSettings, currentSettings); saveErr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save settings"})
+			return
+		}
+		if loadedSettings != nil {
+			loadedSettings.ActiveProfile = profileName
+		}
+		resp := map[string]any{
+			"ok":           true,
+			"count":        count,
+			"profile_name": profileName,
+			"file_name":    fileName,
+		}
+		if loadedSettings != nil {
+			resp["settings"] = loadedSettings
+			resp["like_goal_state"] = likeState
+		}
+		writeJSON(w, http.StatusOK, resp)
+	})
+
+	http.HandleFunc("/api/events/rename-profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			OldProfileName string `json:"old_profile_name"`
+			NewProfileName string `json:"new_profile_name"`
+			OldFileName    string `json:"old_file_name"`
+			NewFileName    string `json:"new_file_name"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			return
+		}
+
+		oldProfileName := strings.TrimSpace(req.OldProfileName)
+		if oldProfileName == "" {
+			if p, ok := profileNameFromFileName(req.OldFileName); ok {
+				oldProfileName = p
+			} else {
+				oldProfileName = strings.TrimSpace(req.OldFileName)
+			}
+		}
+		newProfileName := strings.TrimSpace(req.NewProfileName)
+		if newProfileName == "" {
+			if p, ok := profileNameFromFileName(req.NewFileName); ok {
+				newProfileName = p
+			} else {
+				newProfileName = strings.TrimSpace(req.NewFileName)
+			}
+		}
+		if oldProfileName == "" || newProfileName == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "old_profile_name and new_profile_name are required"})
+			return
+		}
+
+		_, oldAbs, oldFileName, err := resolvePresetProfilePath(oldProfileName)
+		if err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "resolve preset directory") {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			return
+		}
+		_, newAbs, newFileName, err := resolvePresetProfilePath(newProfileName)
+		if err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "resolve preset directory") {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			return
+		}
+
+		oldProfileName, _ = profileNameFromFileName(oldFileName)
+		newProfileName, _ = profileNameFromFileName(newFileName)
+
+		if strings.EqualFold(oldFileName, newFileName) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":               true,
+				"old_profile_name": oldProfileName,
+				"new_profile_name": newProfileName,
+				"old_file_name":    oldFileName,
+				"new_file_name":    newFileName,
+			})
+			return
+		}
+
+		if _, statErr := os.Stat(oldAbs); statErr != nil {
+			if errors.Is(statErr, os.ErrNotExist) {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "preset profile not found"})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to access preset profile"})
+			return
+		}
+		if _, statErr := os.Stat(newAbs); statErr == nil {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "target preset profile already exists"})
+			return
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to access target preset profile"})
+			return
+		}
+
+		if err := os.Rename(oldAbs, newAbs); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to rename preset profile"})
+			return
+		}
+		if settings, err := loadUnifiedSettings(appSettings); err == nil {
+			if strings.EqualFold(strings.TrimSpace(settings.ActiveProfile), oldProfileName) {
+				settings.ActiveProfile = newProfileName
+				_ = saveUnifiedSettings(appSettings, settings)
+				store.setPath(newAbs)
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":               true,
+			"old_profile_name": oldProfileName,
+			"new_profile_name": newProfileName,
+			"old_file_name":    oldFileName,
+			"new_file_name":    newFileName,
+		})
 	})
 
 	http.HandleFunc("/api/events/load", func(w http.ResponseWriter, r *http.Request) {
@@ -3048,27 +3595,16 @@ func main() {
 			body = readBody
 		}
 
-		parsed, err := parseEventRecordsPayload(body)
+		count, err := importEventsFromBody(body)
 		if err != nil {
+			if errors.Is(err, errSaveImportedEvents) {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+				return
+			}
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
-		normalized, err := normalizeImportedEvents(parsed)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
-			return
-		}
-		if err := store.replaceAll(normalized); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save imported events"})
-			return
-		}
-
-		hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": fmt.Sprintf("Loaded %d event(s) from JSON", len(normalized)),
-			"time":    time.Now().Format(time.RFC3339),
-		}))
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(normalized)})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": count})
 	})
 
 	http.HandleFunc("/api/events/reset", func(w http.ResponseWriter, r *http.Request) {
@@ -3082,7 +3618,7 @@ func main() {
 		}
 		hub.broadcast(mustJSON(map[string]any{
 			"type":    "status",
-			"message": "events.json has been reset",
+			"message": "event list has been reset",
 			"time":    time.Now().Format(time.RFC3339),
 		}))
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -3338,6 +3874,10 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		if !mcRCON.Enabled() {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "minecraft connector is disabled", "status": mcRCON.Status()})
+			return
+		}
 		var req struct {
 			Mode          string `json:"mode"`
 			Host          string `json:"host"`
@@ -3399,6 +3939,10 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		if !mcRCON.Enabled() {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "minecraft connector is disabled", "status": mcRCON.Status()})
+			return
+		}
 		var req struct {
 			Command string `json:"command"`
 		}
@@ -3437,7 +3981,7 @@ func main() {
 			"gift_name":    item.GiftName,
 			"gift_id":      strconv.Itoa(item.GiftID),
 			"diamond":      strconv.Itoa(item.Diamond),
-			"repeat_count": "1",
+			"repeatcount": "1",
 		})
 		shortcut := applyCommandTemplate(item.ShortcutKeys, map[string]string{
 			"event_type":   "test",
@@ -3447,7 +3991,7 @@ func main() {
 			"gift_name":    item.GiftName,
 			"gift_id":      strconv.Itoa(item.GiftID),
 			"diamond":      strconv.Itoa(item.Diamond),
-			"repeat_count": "1",
+			"repeatcount": "1",
 		})
 		out := ""
 		var cmdErr error
@@ -3494,7 +4038,7 @@ func main() {
 			Type        string `json:"type"`
 			Username    string `json:"username"`
 			GiftID      int    `json:"gift_id"`
-			RepeatCount int    `json:"repeat_count"`
+			RepeatCount int    `json:"repeatcount"`
 			Text        string `json:"text"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
@@ -3555,7 +4099,7 @@ func main() {
 			}
 			resp["gift_id"] = gift.ID
 			resp["gift_name"] = gift.NamaGift
-			resp["repeat_count"] = req.RepeatCount
+			resp["repeatcount"] = req.RepeatCount
 			resp["message"] = gift.NamaGift
 		case "chat":
 			ev = gotiktoklive.ChatEvent{
@@ -3727,7 +4271,77 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+func profileNameFromFileName(fileName string) (string, bool) {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return "", false
+	}
+	if !strings.HasPrefix(fileName, "P-") || !strings.EqualFold(filepath.Ext(fileName), ".json") {
+		return "", false
+	}
+	base := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	if !strings.HasPrefix(base, "P-") {
+		return "", false
+	}
+	name := strings.TrimSpace(strings.TrimPrefix(base, "P-"))
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+func normalizeProfileName(profileName string) (string, error) {
+	name := strings.TrimSpace(profileName)
+	if name == "" {
+		return "", fmt.Errorf("profile_name is required")
+	}
+	if strings.HasSuffix(strings.ToLower(name), ".json") {
+		name = strings.TrimSpace(name[:len(name)-len(".json")])
+	}
+	if strings.HasPrefix(name, "P-") || strings.HasPrefix(name, "p-") {
+		name = strings.TrimSpace(name[2:])
+	}
+	if name == "" {
+		return "", fmt.Errorf("profile_name is required")
+	}
+	if strings.Contains(name, "..") || strings.ContainsAny(name, `/\`) {
+		return "", fmt.Errorf("invalid profile_name")
+	}
+	if strings.ContainsAny(name, `<>:"/\|?*`) {
+		return "", fmt.Errorf("invalid profile_name")
+	}
+	return name, nil
+}
+
+func resolvePresetProfilePath(profileName string) (string, string, string, error) {
+	name, err := normalizeProfileName(profileName)
+	if err != nil {
+		return "", "", "", err
+	}
+	fileName := "P-" + name + ".json"
+
+	baseDir := strings.TrimSpace(appBaseDir)
+	if baseDir == "" {
+		baseDir = "."
+	}
+	baseAbs, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to resolve preset directory")
+	}
+	targetPath := filepath.Join(baseAbs, fileName)
+	targetAbs, err := filepath.Abs(targetPath)
+	if err != nil {
+		return "", "", "", fmt.Errorf("invalid preset profile path")
+	}
+	basePrefix := strings.TrimRight(baseAbs, string(os.PathSeparator)) + string(os.PathSeparator)
+	if targetAbs != baseAbs && !strings.HasPrefix(targetAbs, basePrefix) {
+		return "", "", "", fmt.Errorf("invalid preset profile path")
+	}
+	return baseAbs, targetAbs, fileName, nil
+}
+
 type unifiedSettingsMinecraft struct {
+	Enabled        bool   `json:"enabled"`
 	Mode           string `json:"mode"`
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
@@ -3737,6 +4351,24 @@ type unifiedSettingsMinecraft struct {
 	RCONPassword   string `json:"rcon_password"`
 	ServerTapToken string `json:"servertap_password"`
 	ServerTapPath  string `json:"servertap_path"`
+}
+
+func (m *unifiedSettingsMinecraft) UnmarshalJSON(data []byte) error {
+	type alias unifiedSettingsMinecraft
+	aux := struct {
+		alias
+		Enabled *bool `json:"enabled"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*m = unifiedSettingsMinecraft(aux.alias)
+	if aux.Enabled == nil {
+		m.Enabled = true
+	} else {
+		m.Enabled = *aux.Enabled
+	}
+	return nil
 }
 
 type unifiedSettingsLikeGoal struct {
@@ -3753,17 +4385,24 @@ type unifiedSettingsLikeGoal struct {
 	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
+type unifiedSettingsEventBox struct {
+	PerRow int `json:"per_row,omitempty"`
+}
+
 type unifiedSettingsJSON struct {
-	Username  string                   `json:"username"`
-	Minecraft unifiedSettingsMinecraft `json:"minecraft"`
-	LikeGoal  unifiedSettingsLikeGoal  `json:"like_goal"`
-	UpdatedAt string                   `json:"updated_at,omitempty"`
+	Username      string                   `json:"username"`
+	ActiveProfile string                   `json:"active_profile,omitempty"`
+	Minecraft     unifiedSettingsMinecraft `json:"minecraft"`
+	LikeGoal      unifiedSettingsLikeGoal  `json:"like_goal"`
+	EventBox      unifiedSettingsEventBox  `json:"event_box,omitempty"`
+	UpdatedAt     string                   `json:"updated_at,omitempty"`
 }
 
 func defaultUnifiedSettings() unifiedSettingsJSON {
 	return unifiedSettingsJSON{
 		Username: "",
 		Minecraft: unifiedSettingsMinecraft{
+			Enabled:        true,
 			Mode:           "rcon",
 			Host:           "127.0.0.1",
 			Port:           25575,
@@ -3784,6 +4423,9 @@ func defaultUnifiedSettings() unifiedSettingsJSON {
 			TriggerEventID: 0,
 			Enabled:        true,
 			TriggerCount:   0,
+		},
+		EventBox: unifiedSettingsEventBox{
+			PerRow: 5,
 		},
 		UpdatedAt: time.Now().Format(time.RFC3339),
 	}
@@ -3809,6 +4451,7 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 		return
 	}
 	s.Username = strings.TrimSpace(strings.TrimPrefix(s.Username, "@"))
+	s.ActiveProfile = strings.TrimSpace(s.ActiveProfile)
 	s.Minecraft.Host = strings.TrimSpace(s.Minecraft.Host)
 	if s.Minecraft.Host == "" {
 		s.Minecraft.Host = "127.0.0.1"
@@ -3883,35 +4526,27 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 	if s.LikeGoal.TriggerCount < 0 {
 		s.LikeGoal.TriggerCount = 0
 	}
+	if s.EventBox.PerRow <= 0 {
+		s.EventBox.PerRow = 5
+	}
+	if s.EventBox.PerRow < 5 {
+		s.EventBox.PerRow = 5
+	}
+	if s.EventBox.PerRow > 10 {
+		s.EventBox.PerRow = 10
+	}
 }
 
-func loadUnifiedSettings(path string) (unifiedSettingsJSON, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		cfg := defaultUnifiedSettings()
-		return cfg, nil
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			cfg := defaultUnifiedSettings()
-			return cfg, nil
-		}
-		return unifiedSettingsJSON{}, err
-	}
-	if len(strings.TrimSpace(string(b))) == 0 {
-		cfg := defaultUnifiedSettings()
-		return cfg, nil
-	}
+func decodeUnifiedSettingsObject(data []byte) (unifiedSettingsJSON, error) {
 	var cfg unifiedSettingsJSON
-	if err := json.Unmarshal(b, &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return unifiedSettingsJSON{}, err
 	}
 	// Backward compatibility: migrate legacy like_goal_state into like_goal when present.
 	var legacy struct {
 		LikeGoalState *likeGoalState `json:"like_goal_state"`
 	}
-	if err := json.Unmarshal(b, &legacy); err == nil && legacy.LikeGoalState != nil {
+	if err := json.Unmarshal(data, &legacy); err == nil && legacy.LikeGoalState != nil {
 		normalizeLikeGoalState(legacy.LikeGoalState)
 		if cfg.LikeGoal.CurrentGoal <= 0 {
 			cfg.LikeGoal.CurrentGoal = legacy.LikeGoalState.CurrentGoal
@@ -3933,6 +4568,80 @@ func loadUnifiedSettings(path string) (unifiedSettingsJSON, error) {
 	return cfg, nil
 }
 
+func decodeUnifiedSettingsFromPayload(data []byte) (unifiedSettingsJSON, bool, error) {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return unifiedSettingsJSON{}, false, nil
+	}
+	if data[0] == '[' {
+		return unifiedSettingsJSON{}, false, nil
+	}
+
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return unifiedSettingsJSON{}, false, err
+	}
+	if root == nil {
+		return unifiedSettingsJSON{}, false, nil
+	}
+
+	if rawSettings, ok := root["settings"]; ok {
+		rawSettings = bytes.TrimSpace(rawSettings)
+		if len(rawSettings) > 0 && !bytes.Equal(rawSettings, []byte("null")) {
+			cfg, err := decodeUnifiedSettingsObject(rawSettings)
+			if err != nil {
+				return unifiedSettingsJSON{}, true, err
+			}
+			return cfg, true, nil
+		}
+	}
+
+	hasLegacyKeys := false
+	for _, key := range []string{"username", "minecraft", "like_goal", "like_goal_state", "event_box"} {
+		if _, ok := root[key]; ok {
+			hasLegacyKeys = true
+			break
+		}
+	}
+	if hasLegacyKeys {
+		cfg, err := decodeUnifiedSettingsObject(data)
+		if err != nil {
+			return unifiedSettingsJSON{}, true, err
+		}
+		return cfg, true, nil
+	}
+
+	return unifiedSettingsJSON{}, false, nil
+}
+
+func loadUnifiedSettings(path string) (unifiedSettingsJSON, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		cfg := defaultUnifiedSettings()
+		return cfg, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg := defaultUnifiedSettings()
+			return cfg, nil
+		}
+		return unifiedSettingsJSON{}, err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		cfg := defaultUnifiedSettings()
+		return cfg, nil
+	}
+	cfg, found, err := decodeUnifiedSettingsFromPayload(b)
+	if err != nil {
+		return unifiedSettingsJSON{}, err
+	}
+	if !found {
+		cfg = defaultUnifiedSettings()
+	}
+	return cfg, nil
+}
+
 func saveUnifiedSettings(path string, cfg unifiedSettingsJSON) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -3941,10 +4650,14 @@ func saveUnifiedSettings(path string, cfg unifiedSettingsJSON) error {
 	normalizeUnifiedSettings(&cfg)
 	cfg.LikeGoal.Mode = ""
 	cfg.UpdatedAt = time.Now().Format(time.RFC3339)
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	payload := map[string]any{"settings": cfg}
+
+	b, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return err
 	}
+	appDataFileMu.Lock()
+	defer appDataFileMu.Unlock()
 	return os.WriteFile(path, b, 0644)
 }
 
@@ -3958,13 +4671,13 @@ func initAppPaths() {
 	}
 
 	if root := writableDataRoot(); root != "" {
-		appEventsPath = filepath.Join(root, "events.json")
+		appEventsPath = filepath.Join(root, "P-Default.json")
 		appGiftList = filepath.Join(root, "gift-list.json")
 		appGiftImage = filepath.Join(root, "giftimage")
 		appSoundsDir = filepath.Join(root, "sounds")
 		appSettings = filepath.Join(root, "settings.json")
 	} else {
-		appEventsPath = resolveAppPath("events.json", false, cwd, exeDir)
+		appEventsPath = resolveAppPath("P-Default.json", false, cwd, exeDir)
 		appGiftList = resolveAppPath("gift-list.json", false, cwd, exeDir)
 		appGiftImage = resolveAppPath("giftimage", true, cwd, exeDir)
 		appSoundsDir = resolveAppPath("sounds", true, cwd, exeDir)

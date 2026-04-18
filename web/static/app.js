@@ -8,6 +8,8 @@ const statusEl = document.getElementById("status");
     const connectBtn = document.getElementById("connectBtn");
     const stopBtn = document.getElementById("stopBtn");
     const mcModeEl = document.getElementById("mcMode");
+    const mcEnabledEl = document.getElementById("mcEnabled");
+    const mcEnabledLabelEl = document.getElementById("mcEnabledLabel");
     const mcHostEl = document.getElementById("mcHost");
     const mcPortEl = document.getElementById("mcPort");
     const mcPasswordEl = document.getElementById("mcPassword");
@@ -30,7 +32,6 @@ const statusEl = document.getElementById("status");
     const likeGoalPreviewTitleEl = document.getElementById("likeGoalPreviewTitle");
     const likeGoalProgressTextEl = document.getElementById("likeGoalProgressText");
     const likeGoalProgressBarEl = document.getElementById("likeGoalProgressBar");
-    const appSettingsSaveBtn = document.getElementById("appSettingsSaveBtn");
     const languageToggleBtn = document.getElementById("languageToggleBtn");
     const languageFlagIcon = document.getElementById("languageFlagIcon");
     const languageCodeLabel = document.getElementById("languageCodeLabel");
@@ -49,10 +50,23 @@ const statusEl = document.getElementById("status");
     const eventModalEl = document.getElementById("eventModal");
     const eventBoxModalEl = document.getElementById("eventBoxModal");
     const openEventModalBtn = document.getElementById("openEventModalBtn");
-    const exportEventsBtn = document.getElementById("exportEventsBtn");
-    const loadEventsBtn = document.getElementById("loadEventsBtn");
+    const presetProfileSelectEl = document.getElementById("presetProfileSelect");
+    const savePresetProfileBtn = document.getElementById("savePresetProfileBtn");
+    const openCreatePresetProfileModalBtn = document.getElementById("openCreatePresetProfileModalBtn");
+    const renamePresetProfileBtn = document.getElementById("renamePresetProfileBtn");
+    const createPresetProfileModalEl = document.getElementById("createPresetProfileModal");
+    const createPresetProfileModalTitleEl = document.getElementById("createPresetProfileModalTitle");
+    const closeCreatePresetProfileModalBtn = document.getElementById("closeCreatePresetProfileModalBtn");
+    const cancelCreatePresetProfileBtn = document.getElementById("cancelCreatePresetProfileBtn");
+    const createPresetProfileForm = document.getElementById("createPresetProfileForm");
+    const createPresetProfileNameEl = document.getElementById("createPresetProfileName");
+    const renamePresetProfileModalEl = document.getElementById("renamePresetProfileModal");
+    const renamePresetProfileModalTitleEl = document.getElementById("renamePresetProfileModalTitle");
+    const closeRenamePresetProfileModalBtn = document.getElementById("closeRenamePresetProfileModalBtn");
+    const cancelRenamePresetProfileBtn = document.getElementById("cancelRenamePresetProfileBtn");
+    const renamePresetProfileForm = document.getElementById("renamePresetProfileForm");
+    const renamePresetProfileNameEl = document.getElementById("renamePresetProfileName");
     const resetEventsBtn = document.getElementById("resetEventsBtn");
-    const eventsJsonFileEl = document.getElementById("eventsJsonFile");
     const openEventBoxPopupBtn = document.getElementById("openEventBoxPopupBtn");
     const closeEventModalBtn = document.getElementById("closeEventModalBtn");
     const closeEventBoxPopupBtn = document.getElementById("closeEventBoxPopupBtn");
@@ -69,6 +83,9 @@ const statusEl = document.getElementById("status");
     const eventSoundFileEl = document.getElementById("eventSoundFile");
     const eventRunMCCommandEl = document.getElementById("eventRunMCCommand");
     const eventRunShortcutEl = document.getElementById("eventRunShortcut");
+    const eventRepeatByGiftComboWrapEl = document.getElementById("eventRepeatByGiftComboWrap");
+    const eventRepeatByGiftComboLabelEl = document.getElementById("eventRepeatByGiftComboLabel");
+    const eventRepeatByGiftComboEl = document.getElementById("eventRepeatByGiftCombo");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
     const shortcutRowEl = document.getElementById("shortcutRow");
     const eventShortcutKeysEl = document.getElementById("eventShortcutKeys");
@@ -136,8 +153,13 @@ const statusEl = document.getElementById("status");
     let mcRCONPortCache = 25575;
     let mcServerTapPortCache = 4567;
     let activeMinecraftMode = "rcon";
+    let presetProfiles = [];
+    let renamePresetSourceProfile = "";
+    let settingsAutosaveTimer = null;
+    let pendingActivePresetProfile = "";
     const I18N_STORAGE_KEY = "gtlc_lang";
     const EVENT_BOX_PER_ROW_STORAGE_KEY = "gtlc_event_box_per_row";
+    const ACTIVE_PRESET_PROFILE_STORAGE_KEY = "gtlc_active_preset_profile";
     let currentLang = "id";
     const I18N = {
       id: {
@@ -146,6 +168,7 @@ const statusEl = document.getElementById("status");
         "ui.connectTikTok": "Hubungkan TikTok",
         "ui.eventSimulator": "Simulator Event",
         "ui.minecraftConnector": "Konektor Minecraft",
+        "ui.minecraftEnabled": "Aktifkan Konektor Minecraft",
         "ui.likeGoal": "Target Like (OBS Overlay)",
         "ui.enabled": "Aktif",
         "ui.testLikeGoal": "Tes Target Like",
@@ -153,7 +176,13 @@ const statusEl = document.getElementById("status");
         "ui.openOverlay": "Buka Overlay",
         "ui.copyLink": "Salin Link",
         "ui.eventPanel": "Panel Event",
-        "ui.exportEvents": "Ekspor Event",
+        "ui.selectPresetProfile": "Pilih profile preset",
+        "ui.saveProfile": "Simpan Profile",
+        "ui.newProfile": "Profile Baru",
+        "ui.createProfile": "Buat Profile",
+        "ui.loadProfile": "Load Profile",
+        "ui.renameProfile": "Rename Profile",
+        "ui.noPresetProfiles": "Tidak ada profile preset",
         "ui.loadEvents": "Muat Event",
         "ui.resetEvents": "Reset Event",
         "ui.addEvent": "Tambah Event",
@@ -168,6 +197,7 @@ const statusEl = document.getElementById("status");
         "ui.uploadSound": "Unggah Suara",
         "ui.runShortcut": "Jalankan Shortcut Keyboard",
         "ui.runMC": "Jalankan Perintah MC",
+        "ui.repeatByGiftCombo": "Repeat by Gift Combo",
         "ui.reset": "Reset",
         "ui.type": "Tipe",
         "ui.title": "Judul",
@@ -220,7 +250,6 @@ const statusEl = document.getElementById("status");
         "msg.serverDisconnectedRetry": "server terputus (mencoba lagi...)",
         "msg.settingsSaved": "pengaturan tersimpan",
         "msg.settingsLoaded": "pengaturan dimuat",
-        "msg.eventsExported": "event berhasil diekspor",
         "msg.eventsReset": "event berhasil direset",
         "msg.eventCreated": "event berhasil dibuat",
         "msg.eventUpdated": "event berhasil diperbarui",
@@ -233,6 +262,12 @@ const statusEl = document.getElementById("status");
         "msg.simulateCountdown": "simulasi event dalam {sec} detik...",
         "msg.eventSimulated": "event disimulasikan: {type} @{username}",
         "msg.loadedEventCount": "berhasil memuat {count} event dari JSON",
+        "msg.loadedPresetProfile": "profile {name} dimuat ({count} event)",
+        "msg.selectPresetProfileFirst": "pilih profile preset terlebih dahulu",
+        "msg.enterNewPresetProfileName": "Masukkan nama profile preset baru",
+        "msg.presetProfileRenamed": "profile {oldName} diubah menjadi {newName}",
+        "msg.profileNameRequired": "nama profile wajib diisi",
+        "msg.presetProfileCreated": "profile {name} berhasil dibuat dengan event kosong",
         "msg.editingEvent": "mengedit event #{id}",
         "msg.eventTestSucceeded": "tes event #{id} berhasil",
         "msg.giftRefreshed": "daftar gift diperbarui untuk @{username}{region}{source}",
@@ -245,6 +280,7 @@ const statusEl = document.getElementById("status");
         "msg.servertapDisconnected": "ServerTap terputus.",
         "msg.mcConnectorConnectFailed": "gagal terhubung ke konektor Minecraft",
         "msg.mcConnectorDisconnectFailed": "gagal memutuskan konektor Minecraft",
+        "msg.mcConnectorDisabled": "konektor Minecraft nonaktif",
         "msg.simulatedOutput": "Simulasi {type} - {message}",
         "msg.noOutput": "(tidak ada output)",
         "msg.uploading": "Mengunggah..."
@@ -255,6 +291,7 @@ const statusEl = document.getElementById("status");
         "ui.connectTikTok": "Connect TikTok",
         "ui.eventSimulator": "Event Simulator",
         "ui.minecraftConnector": "Minecraft Connector",
+        "ui.minecraftEnabled": "Enable Minecraft Connector",
         "ui.likeGoal": "Like Goal (OBS Overlay)",
         "ui.enabled": "Enabled",
         "ui.testLikeGoal": "Test Like Goal",
@@ -262,7 +299,13 @@ const statusEl = document.getElementById("status");
         "ui.openOverlay": "Open Overlay",
         "ui.copyLink": "Copy Link",
         "ui.eventPanel": "Event Panel",
-        "ui.exportEvents": "Export Events",
+        "ui.selectPresetProfile": "Select preset profile",
+        "ui.saveProfile": "Save Profile",
+        "ui.newProfile": "New Profile",
+        "ui.createProfile": "Create Profile",
+        "ui.loadProfile": "Load Profile",
+        "ui.renameProfile": "Rename Profile",
+        "ui.noPresetProfiles": "No preset profiles",
         "ui.loadEvents": "Load Events",
         "ui.resetEvents": "Reset Events",
         "ui.addEvent": "Add Event",
@@ -277,6 +320,7 @@ const statusEl = document.getElementById("status");
         "ui.uploadSound": "Upload Sound",
         "ui.runShortcut": "Run Keyboard Shortcut",
         "ui.runMC": "Run MC Command",
+        "ui.repeatByGiftCombo": "Repeat by Gift Combo",
         "ui.reset": "Reset",
         "ui.type": "Type",
         "ui.title": "Title",
@@ -329,7 +373,6 @@ const statusEl = document.getElementById("status");
         "msg.serverDisconnectedRetry": "server disconnected (retrying...)",
         "msg.settingsSaved": "settings saved",
         "msg.settingsLoaded": "settings loaded",
-        "msg.eventsExported": "events exported successfully",
         "msg.eventsReset": "events reset successfully",
         "msg.eventCreated": "event created successfully",
         "msg.eventUpdated": "event updated successfully",
@@ -342,6 +385,12 @@ const statusEl = document.getElementById("status");
         "msg.simulateCountdown": "simulate event in {sec}s...",
         "msg.eventSimulated": "event simulated: {type} @{username}",
         "msg.loadedEventCount": "loaded {count} event(s) from JSON",
+        "msg.loadedPresetProfile": "profile {name} loaded ({count} event(s))",
+        "msg.selectPresetProfileFirst": "select a preset profile first",
+        "msg.enterNewPresetProfileName": "Enter new preset profile name",
+        "msg.presetProfileRenamed": "profile {oldName} renamed to {newName}",
+        "msg.profileNameRequired": "profile name is required",
+        "msg.presetProfileCreated": "profile {name} created with empty events",
         "msg.editingEvent": "editing event #{id}",
         "msg.eventTestSucceeded": "event test #{id} succeeded",
         "msg.giftRefreshed": "gift list refreshed for @{username}{region}{source}",
@@ -354,6 +403,7 @@ const statusEl = document.getElementById("status");
         "msg.servertapDisconnected": "ServerTap disconnected.",
         "msg.mcConnectorConnectFailed": "failed to connect Minecraft connector",
         "msg.mcConnectorDisconnectFailed": "failed to disconnect Minecraft connector",
+        "msg.mcConnectorDisabled": "minecraft connector is disabled",
         "msg.simulatedOutput": "Simulated {type} - {message}",
         "msg.noOutput": "(no output)",
         "msg.uploading": "Uploading..."
@@ -380,7 +430,6 @@ const statusEl = document.getElementById("status");
         [I18N.id["msg.serverDisconnectedRetry"], I18N.en["msg.serverDisconnectedRetry"]],
         [I18N.id["msg.settingsSaved"], I18N.en["msg.settingsSaved"]],
         [I18N.id["msg.settingsLoaded"], I18N.en["msg.settingsLoaded"]],
-        [I18N.id["msg.eventsExported"], I18N.en["msg.eventsExported"]],
         [I18N.id["msg.eventsReset"], I18N.en["msg.eventsReset"]],
         [I18N.id["msg.eventCreated"], I18N.en["msg.eventCreated"]],
         [I18N.id["msg.eventUpdated"], I18N.en["msg.eventUpdated"]],
@@ -563,7 +612,6 @@ const statusEl = document.getElementById("status");
       }
       document.title = "TikStream";
       if (howToUseBtn) howToUseBtn.textContent = t("ui.howToUse");
-      if (appSettingsSaveBtn) appSettingsSaveBtn.textContent = t("ui.save");
       if (connectTikTokTitleEl) connectTikTokTitleEl.textContent = t("ui.connectTikTok");
       if (eventSimulatorTitleEl) eventSimulatorTitleEl.textContent = t("ui.eventSimulator");
       if (minecraftConnectorTitleEl) minecraftConnectorTitleEl.textContent = t("ui.minecraftConnector");
@@ -599,8 +647,17 @@ const statusEl = document.getElementById("status");
       if (mcDisconnectBtn) mcDisconnectBtn.textContent = t("ui.disconnect");
       if (mcSendBtn) mcSendBtn.textContent = t("ui.sendCommand");
       if (testEventBtn) testEventBtn.textContent = t("ui.simulate");
-      if (exportEventsBtn) exportEventsBtn.textContent = t("ui.exportEvents");
-      if (loadEventsBtn) loadEventsBtn.textContent = t("ui.loadEvents");
+      if (savePresetProfileBtn) savePresetProfileBtn.textContent = t("ui.saveProfile");
+      if (openCreatePresetProfileModalBtn) openCreatePresetProfileModalBtn.textContent = t("ui.newProfile");
+      if (renamePresetProfileBtn) renamePresetProfileBtn.textContent = t("ui.renameProfile");
+      if (closeCreatePresetProfileModalBtn) closeCreatePresetProfileModalBtn.textContent = t("ui.close");
+      if (cancelCreatePresetProfileBtn) cancelCreatePresetProfileBtn.textContent = t("ui.close");
+      if (closeRenamePresetProfileModalBtn) closeRenamePresetProfileModalBtn.textContent = t("ui.close");
+      if (cancelRenamePresetProfileBtn) cancelRenamePresetProfileBtn.textContent = t("ui.close");
+      if (presetProfileSelectEl) {
+        presetProfileSelectEl.setAttribute("aria-label", t("ui.selectPresetProfile"));
+        presetProfileSelectEl.title = t("ui.selectPresetProfile");
+      }
       if (resetEventsBtn) resetEventsBtn.textContent = t("ui.resetEvents");
       if (openEventModalBtn) openEventModalBtn.textContent = t("ui.addEvent");
       if (exportEventBoxBtn) exportEventBoxBtn.textContent = t("ui.savePngSlides");
@@ -620,6 +677,18 @@ const statusEl = document.getElementById("status");
         if (input) likeGoalEnabledLabelEl.appendChild(input);
         likeGoalEnabledLabelEl.appendChild(document.createTextNode(" " + t("ui.enabled")));
       }
+      if (mcEnabledLabelEl) {
+        const input = mcEnabledLabelEl.querySelector("input");
+        mcEnabledLabelEl.textContent = "";
+        if (input) mcEnabledLabelEl.appendChild(input);
+        mcEnabledLabelEl.appendChild(document.createTextNode(" " + t("ui.minecraftEnabled")));
+      }
+      if (eventRepeatByGiftComboLabelEl) {
+        const input = eventRepeatByGiftComboLabelEl.querySelector("input");
+        eventRepeatByGiftComboLabelEl.textContent = "";
+        if (input) eventRepeatByGiftComboLabelEl.appendChild(input);
+        eventRepeatByGiftComboLabelEl.appendChild(document.createTextNode(" " + t("ui.repeatByGiftCombo")));
+      }
       if (testEventUsernameEl) testEventUsernameEl.placeholder = currentLang === "id" ? "Username TikTok tester" : "Tester TikTok username";
       if (testEventCountEl) testEventCountEl.placeholder = currentLang === "id" ? "Jumlah" : "Count";
       if (testEventTextEl) testEventTextEl.placeholder = currentLang === "id" ? "Teks/Pesan (opsional)" : "Text/Message (optional)";
@@ -632,6 +701,10 @@ const statusEl = document.getElementById("status");
       if (eventLabelEl) eventLabelEl.placeholder = currentLang === "id" ? "Label/filter rule (opsional)" : "Rule label/filter (optional)";
       if (eventSoundEl) eventSoundEl.placeholder = currentLang === "id" ? "URL/path suara (opsional, contoh /static/sounds/trigger.mp3)" : "Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)";
       if (eventShortcutHoldMsEl) eventShortcutHoldMsEl.placeholder = currentLang === "id" ? "Tahan" : "Hold";
+      if (createPresetProfileModalTitleEl) createPresetProfileModalTitleEl.textContent = t("ui.createProfile");
+      if (createPresetProfileNameEl) createPresetProfileNameEl.placeholder = currentLang === "id" ? "Nama profile (tanpa P-)" : "Profile name (without P-)";
+      if (renamePresetProfileModalTitleEl) renamePresetProfileModalTitleEl.textContent = t("ui.renameProfile");
+      if (renamePresetProfileNameEl) renamePresetProfileNameEl.placeholder = currentLang === "id" ? "Nama profile baru (tanpa P-)" : "New profile name (without P-)";
       if (howToModalEl) {
         const title = document.getElementById("howToModalTitle");
         if (title) title.textContent = t("ui.howToUse");
@@ -681,6 +754,7 @@ const statusEl = document.getElementById("status");
       setOpt(eventTypeEl, "other", currentLang === "id" ? "other" : "other");
       setOpt(likeGoalModeEl, "increase", currentLang === "id" ? "naik" : "increase");
       setOpt(likeGoalModeEl, "double", currentLang === "id" ? "lipat dua" : "double");
+      renderPresetProfileOptions(presetProfileSelectEl ? presetProfileSelectEl.value : "");
       syncLabelHint();
       syncTestEventFields();
       syncMinecraftConnectorModeUI();
@@ -940,43 +1014,142 @@ const statusEl = document.getElementById("status");
       return data;
     }
 
-    async function exportEventsJSON() {
-      const res = await fetch("/api/events/export");
-      if (!res.ok) {
-        let errText = currentLang === "id" ? "gagal mengekspor event" : "failed to export events";
-        try {
-          const data = await res.json();
-          errText = data.error || errText;
-        } catch (_) {
-        }
-        throw new Error(errText);
-      }
-
-      const blob = await res.blob();
-      const dispo = String(res.headers.get("Content-Disposition") || "");
-      const nameMatch = dispo.match(/filename=\"?([^\";]+)\"?/i);
-      const fileName = nameMatch && nameMatch[1] ? nameMatch[1] : "events-export.json";
-
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(href);
-    }
-
-    async function loadEventsFromFile(file) {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/events/load", {
+    async function loadEventsFromPresetProfile(fileName) {
+      const res = await fetch("/api/events/load-profile", {
         method: "POST",
-        body: formData
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_name: String(fileName || "").trim() })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat event" : "failed to load events"));
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat profile preset" : "failed to load preset profile"));
       return data;
+    }
+
+    async function applySelectedPresetProfile(profileName) {
+      const name = String(profileName || "").trim();
+      if (!name) return;
+      const result = await loadEventsFromPresetProfile(name);
+      if (result && result.settings) {
+        applyLoadedSettings(result.settings);
+      }
+      if (result && result.like_goal_state) {
+        renderLikeGoalState(result.like_goal_state);
+      }
+      await loadEventsTable();
+      resetEventForm();
+      closeEventModal();
+      try {
+        localStorage.setItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY, name);
+      } catch (_) {}
+      setStatus(t("msg.loadedPresetProfile", {
+        name,
+        count: String(result.count || 0)
+      }), true);
+    }
+
+    function getSelectedPresetProfileName() {
+      return String(presetProfileSelectEl && presetProfileSelectEl.value ? presetProfileSelectEl.value : "").trim();
+    }
+
+    async function persistActivePresetProfile(options = {}) {
+      const silent = options.silent !== false;
+      const profileName = getSelectedPresetProfileName();
+      if (!profileName) return false;
+      const res = await fetch("/api/events/save-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_name: profileName })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal menyimpan profile preset" : "failed to save preset profile"));
+      try {
+        localStorage.setItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY, profileName);
+      } catch (_) {}
+      if (!silent) {
+        setStatus((currentLang === "id" ? "profile " : "profile ") + profileName + (currentLang === "id" ? " tersimpan" : " saved"), true);
+      }
+      return true;
+    }
+
+    async function renamePresetProfile(oldFileName, newFileName) {
+      const res = await fetch("/api/events/rename-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          old_profile_name: String(oldFileName || "").trim(),
+          new_profile_name: String(newFileName || "").trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal rename profile preset" : "failed to rename preset profile"));
+      return data;
+    }
+
+    async function createPresetProfile(profileName) {
+      const res = await fetch("/api/events/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_name: String(profileName || "").trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal membuat profile preset" : "failed to create preset profile"));
+      return data;
+    }
+
+    function renderPresetProfileOptions(selectedValue) {
+      if (!presetProfileSelectEl) return;
+      let selected = String(selectedValue || "").trim();
+      if (!selected) {
+        selected = String(pendingActivePresetProfile || "").trim();
+      }
+      presetProfileSelectEl.innerHTML = "";
+
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = t("ui.selectPresetProfile");
+      presetProfileSelectEl.appendChild(defaultOpt);
+
+      for (const profile of presetProfiles) {
+        const name = String(profile && profile.profile_name ? profile.profile_name : "").trim();
+        if (!name) continue;
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        presetProfileSelectEl.appendChild(opt);
+      }
+
+      if (presetProfiles.length === 0) {
+        const emptyOpt = document.createElement("option");
+        emptyOpt.value = "";
+        emptyOpt.textContent = t("ui.noPresetProfiles");
+        emptyOpt.disabled = true;
+        presetProfileSelectEl.appendChild(emptyOpt);
+      }
+
+      const hasSelected = selected && presetProfiles.some((p) => String(p && p.profile_name ? p.profile_name : "").trim() === selected);
+      presetProfileSelectEl.value = hasSelected ? selected : "";
+      if (hasSelected) {
+        pendingActivePresetProfile = selected;
+      }
+    }
+
+    async function refreshPresetProfiles(options = {}) {
+      const silent = !!options.silent;
+      const previous = presetProfileSelectEl ? presetProfileSelectEl.value : "";
+      const preferred = String(previous || pendingActivePresetProfile || localStorage.getItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY) || "").trim();
+      try {
+        const res = await fetch("/api/events/profiles");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal memuat daftar profile preset" : "failed to load preset profiles"));
+        presetProfiles = Array.isArray(data.items) ? data.items : [];
+        renderPresetProfileOptions(preferred);
+      } catch (err) {
+        presetProfiles = [];
+        renderPresetProfileOptions("");
+        if (!silent) {
+          setStatus(err.message || (currentLang === "id" ? "gagal memuat daftar profile preset" : "failed to load preset profiles"), false);
+        }
+      }
     }
 
     function resolveGiftImageLocal(gift) {
@@ -1069,17 +1242,6 @@ const statusEl = document.getElementById("status");
       return used;
     }
 
-    function getUsedShortcutKeys(excludeEventId) {
-      const used = new Set();
-      for (const item of currentEventItems || []) {
-        if (excludeEventId !== null && excludeEventId !== undefined && Number(item.id) === Number(excludeEventId)) continue;
-        if (!item || !item.run_shortcut) continue;
-        const key = normalizeShortcutSymbols(item.shortcut_keys);
-        if (key) used.add(key);
-      }
-      return used;
-    }
-
     function refreshEventGiftOptions() {
       const usedGiftIds = getUsedGiftIds(editingEventId);
       const filtered = giftOptions.filter((g) => !usedGiftIds.has(Number(g.id)));
@@ -1097,9 +1259,7 @@ const statusEl = document.getElementById("status");
     }
 
     function refreshShortcutOptions() {
-      const usedShortcutKeys = getUsedShortcutKeys(editingEventId);
-      const filtered = shortcutOptions.filter((k) => !usedShortcutKeys.has(String(k)));
-      eventShortcutPicker.setOptions(filtered);
+      eventShortcutPicker.setOptions(shortcutOptions);
 
       if (editingEventId !== null) {
         const currentItem = (currentEventItems || []).find((item) => Number(item.id) === Number(editingEventId));
@@ -1123,6 +1283,30 @@ const statusEl = document.getElementById("status");
       const title = String(item && item.title ? item.title : "").trim();
       if (title) return title;
       return String(item && item.gift_name ? item.gift_name : "Gift");
+    }
+
+    function normalizeEventType(type) {
+      const value = String(type || "").trim().toLowerCase();
+      if (value === "user_follow") return "follow";
+      if (value === "user_share") return "share";
+      return value;
+    }
+
+    function getEventTypeCardLabel(type) {
+      const normalized = normalizeEventType(type);
+      if (normalized === "gift") return "GIFT";
+      if (normalized === "like") return "LIKE";
+      if (normalized === "follow") return "FOLLOW";
+      if (normalized === "share") return "SHARE";
+      return normalized ? normalized.toUpperCase() : "EVENT";
+    }
+
+    function getEventTypeIconClass(type) {
+      const normalized = normalizeEventType(type);
+      if (normalized === "like") return "fa-heart event-fa-like";
+      if (normalized === "follow") return "fa-user-plus event-fa-follow";
+      if (normalized === "share") return "fa-share-nodes event-fa-share";
+      return "fa-bolt event-fa-default";
     }
 
     function splitGiftSubtitleFirstLine(text, firstLineMaxChars = 8) {
@@ -2084,7 +2268,7 @@ const statusEl = document.getElementById("status");
         const username = payload.username || "Unknown";
         const ruleId = payload.event_id ?? "?";
         const giftName = payload.gift_name || "Gift";
-        const repeatCount = Math.max(1, Number(payload.repeat_count || 1));
+        const repeatCount = Math.max(1, Number(payload.repeatcount || 1));
         let detail = (currentLang === "id" ? "event #" : "event #") + esc(ruleId);
 
         if (eventType === "gift") {
@@ -2237,6 +2421,9 @@ const statusEl = document.getElementById("status");
       eventSoundEl.value = "";
       eventRunMCCommandEl.checked = true;
       eventRunShortcutEl.checked = false;
+      if (eventRepeatByGiftComboEl) {
+        eventRepeatByGiftComboEl.checked = true;
+      }
       eventShortcutKeysEl.value = "";
       eventShortcutHoldMsEl.value = "0";
       eventShortcutPicker.syncFromSelect();
@@ -2258,6 +2445,46 @@ const statusEl = document.getElementById("status");
     function closeEventModal() {
       eventModalEl.classList.remove("show");
       eventModalEl.setAttribute("aria-hidden", "true");
+    }
+
+    function openCreatePresetProfileModal() {
+      if (!createPresetProfileModalEl) return;
+      if (createPresetProfileNameEl) {
+        createPresetProfileNameEl.value = "";
+      }
+      createPresetProfileModalEl.classList.add("show");
+      createPresetProfileModalEl.setAttribute("aria-hidden", "false");
+      if (createPresetProfileNameEl) {
+        createPresetProfileNameEl.focus();
+      }
+    }
+
+    function closeCreatePresetProfileModal() {
+      if (!createPresetProfileModalEl) return;
+      createPresetProfileModalEl.classList.remove("show");
+      createPresetProfileModalEl.setAttribute("aria-hidden", "true");
+    }
+
+    function openRenamePresetProfileModal(currentProfileName) {
+      if (!renamePresetProfileModalEl) return;
+      const current = String(currentProfileName || "").trim();
+      renamePresetSourceProfile = current;
+      if (renamePresetProfileNameEl) {
+        renamePresetProfileNameEl.value = current;
+      }
+      renamePresetProfileModalEl.classList.add("show");
+      renamePresetProfileModalEl.setAttribute("aria-hidden", "false");
+      if (renamePresetProfileNameEl) {
+        renamePresetProfileNameEl.focus();
+        renamePresetProfileNameEl.select();
+      }
+    }
+
+    function closeRenamePresetProfileModal() {
+      if (!renamePresetProfileModalEl) return;
+      renamePresetProfileModalEl.classList.remove("show");
+      renamePresetProfileModalEl.setAttribute("aria-hidden", "true");
+      renamePresetSourceProfile = "";
     }
 
     function openHowToModal() {
@@ -2317,10 +2544,20 @@ const statusEl = document.getElementById("status");
       eventGiftPickerHostEl.hidden = !isGift;
       eventGiftPickerHostEl.style.display = isGift ? "" : "none";
       eventGiftPicker.setDisabled(!isGift);
+      if (eventRepeatByGiftComboWrapEl) {
+        eventRepeatByGiftComboWrapEl.hidden = !isGift;
+        eventRepeatByGiftComboWrapEl.style.display = isGift ? "" : "none";
+      }
       if (!isGift) {
         eventGiftEl.value = "";
+        if (eventRepeatByGiftComboEl) {
+          eventRepeatByGiftComboEl.checked = false;
+        }
         eventGiftPicker.syncFromSelect();
         return;
+      }
+      if (eventRepeatByGiftComboEl && !editingEventId) {
+        eventRepeatByGiftComboEl.checked = true;
       }
       eventGiftPicker.syncFromSelect();
     }
@@ -2459,12 +2696,15 @@ const statusEl = document.getElementById("status");
       }
       stopEventSlider();
 
-      const giftItems = (items || []).filter((item) => String(item.type || "").toLowerCase() === "gift");
+      const eventBoxItems = (items || []).filter((item) => {
+        const t = normalizeEventType(item.type);
+        return t === "gift" || t === "like" || t === "follow" || t === "share";
+      });
 
-      if (giftItems.length === 0) {
+      if (eventBoxItems.length === 0) {
         const empty = document.createElement("div");
         empty.className = "event-empty-state";
-        empty.textContent = t("ui.noGiftEventsYet");
+        empty.textContent = t("ui.noEventsYet");
         eventBoxRowsEl.appendChild(empty);
         resetEventLoopPosition(eventBoxRowsEl);
         syncEventSlideButtons(0);
@@ -2472,7 +2712,7 @@ const statusEl = document.getElementById("status");
         return;
       }
 
-      const sortedItems = sortEventItems(giftItems);
+      const sortedItems = sortEventItems(eventBoxItems);
       const visibleSize = getEventBoxVisibleSize();
       const pages = [];
       for (let i = 0; i < sortedItems.length; i += visibleSize) {
@@ -2484,12 +2724,21 @@ const statusEl = document.getElementById("status");
         slide.className = "event-box-slide";
 
         for (const item of pageItems) {
+          const eventType = normalizeEventType(item.type);
+          const isGift = eventType === "gift";
           const gift = findGiftByEventItem(item);
-          const title = String(item.title || item.gift_name || (gift && gift.nama_gift) || ("Gift #" + item.id));
+          const title = String(
+            item.title ||
+            item.gift_name ||
+            (gift && gift.nama_gift) ||
+            (getEventTypeCardLabel(eventType) + " #" + item.id)
+          );
           const localGiftImage = buildGiftImagePathFromEvent(item);
           const remoteGiftImage = resolveGiftImageRemote(gift);
-          const giftImage = localGiftImage || remoteGiftImage;
-          const subtitle = buildGiftBoxCaption(item);
+          const giftImage = isGift ? (localGiftImage || remoteGiftImage) : "";
+          const subtitle = isGift
+            ? buildGiftBoxCaption(item)
+            : (String(item.title || "").trim() || getEventTypeCardLabel(eventType));
 
           const card = document.createElement("article");
           card.className = "event-card event-card-gift";
@@ -2497,28 +2746,50 @@ const statusEl = document.getElementById("status");
           const frame = document.createElement("div");
           frame.className = "event-card-gift-frame";
 
-          if (giftImage) {
+          if (isGift && giftImage) {
             const img = document.createElement("img");
             img.className = "event-card-gift-image";
             img.src = giftImage;
             img.alt = title;
             img.loading = "lazy";
             img.addEventListener("error", () => {
-              if (remoteGiftImage && img.dataset.fallbackTried !== "1" && img.src !== remoteGiftImage) {
+              if (isGift && remoteGiftImage && img.dataset.fallbackTried !== "1" && img.src !== remoteGiftImage) {
                 img.dataset.fallbackTried = "1";
                 img.src = remoteGiftImage;
                 return;
               }
               const fallback = document.createElement("div");
               fallback.className = "event-card-gift-fallback";
-              fallback.innerHTML = "Gift<br>Image";
+              fallback.innerHTML = getEventTypeCardLabel(eventType) + "<br>Event";
               frame.replaceChildren(fallback);
             });
             frame.appendChild(img);
+          } else if (!isGift) {
+            const iconWrap = document.createElement("div");
+            iconWrap.className = "event-card-type-icon-wrap";
+
+            const icon = document.createElement("i");
+            icon.className = "fa-solid " + getEventTypeIconClass(eventType) + " event-card-type-icon";
+            icon.setAttribute("aria-hidden", "true");
+            iconWrap.appendChild(icon);
+
+            if (eventType === "like") {
+              const rawLike = String(item.label || "").trim();
+              const likeCount = Number(rawLike);
+              const likeText = Number.isFinite(likeCount) && likeCount > 0 ? String(Math.round(likeCount)) : rawLike;
+              if (likeText) {
+                const countEl = document.createElement("span");
+                countEl.className = "event-card-type-icon-count";
+                countEl.textContent = likeText;
+                iconWrap.appendChild(countEl);
+              }
+            }
+
+            frame.appendChild(iconWrap);
           } else {
             const fallback = document.createElement("div");
             fallback.className = "event-card-gift-fallback";
-            fallback.innerHTML = "Gift<br>Image";
+            fallback.innerHTML = getEventTypeCardLabel(eventType) + "<br>Event";
             frame.appendChild(fallback);
           }
 
@@ -2641,14 +2912,18 @@ const statusEl = document.getElementById("status");
       const mcPort = Math.max(1, Math.min(65535, Number(mcPortEl && mcPortEl.value ? mcPortEl.value : defaultPort) || defaultPort));
       const mcPassword = mcMode === "servertap" ? mcServerTapPasswordCache : mcRCONPasswordCache;
       const mcServerTapPath = String(mcServerTapPathEl && mcServerTapPathEl.value ? mcServerTapPathEl.value : "/v1/server/exec").trim();
+      const mcEnabled = !!(mcEnabledEl && mcEnabledEl.checked);
       const likeGoalTitle = String(likeGoalTitleEl && likeGoalTitleEl.value ? likeGoalTitleEl.value : "").trim();
       const likeGoalGoal = Math.max(1, Number(likeGoalValueEl && likeGoalValueEl.value ? likeGoalValueEl.value : 1) || 1);
       const likeGoalModeID = String(likeGoalModeEl && likeGoalModeEl.value ? likeGoalModeEl.value : "increase").toLowerCase() === "double" ? 2 : 1;
       const likeGoalTriggerEventID = Math.max(0, Number(likeGoalTriggerEventEl && likeGoalTriggerEventEl.value ? likeGoalTriggerEventEl.value : 0) || 0);
       const likeGoalEnabled = !!(likeGoalEnabledEl && likeGoalEnabledEl.checked);
+      const eventBoxPerRow = getEventBoxColumns();
       return {
         username,
+        active_profile: getSelectedPresetProfileName() || pendingActivePresetProfile || "",
         minecraft: {
+          enabled: mcEnabled,
           mode: mcMode,
           host: mcHost,
           port: mcPort,
@@ -2665,6 +2940,9 @@ const statusEl = document.getElementById("status");
           mode_id: likeGoalModeID,
           trigger_event_id: likeGoalTriggerEventID,
           enabled: likeGoalEnabled
+        },
+        event_box: {
+          per_row: eventBoxPerRow
         }
       };
     }
@@ -2675,6 +2953,16 @@ const statusEl = document.getElementById("status");
       const username = String(settings.username || "").trim();
       if (usernameEl && username) {
         usernameEl.value = username;
+      }
+      const activeProfile = String(settings.active_profile || "").trim();
+      if (activeProfile) {
+        pendingActivePresetProfile = activeProfile;
+        try {
+          localStorage.setItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY, activeProfile);
+        } catch (_) {}
+        if (presetProfileSelectEl && presetProfiles.some((p) => String(p && p.profile_name ? p.profile_name : "").trim() === activeProfile)) {
+          presetProfileSelectEl.value = activeProfile;
+        }
       }
 
       const mc = settings.minecraft || {};
@@ -2704,15 +2992,27 @@ const statusEl = document.getElementById("status");
       if (mcServerTapPathEl && typeof mc.servertap_path === "string" && mc.servertap_path.trim()) {
         mcServerTapPathEl.value = mc.servertap_path;
       }
+      if (mcEnabledEl) {
+        mcEnabledEl.checked = mc.enabled !== false;
+      }
       syncMinecraftConnectorModeUI();
 
       const goalState = settings.like_goal || {};
       if (goalState && typeof goalState === "object" && Object.keys(goalState).length > 0) {
         renderLikeGoalState(goalState);
       }
+      const eventBox = settings.event_box || {};
+      const eventBoxPerRow = Number(eventBox.per_row || 0);
+      if (eventBoxPerRow > 0) {
+        const appliedColumns = applyEventBoxColumns(eventBoxPerRow);
+        try {
+          localStorage.setItem(EVENT_BOX_PER_ROW_STORAGE_KEY, String(appliedColumns));
+        } catch (_) {}
+      }
     }
 
-    async function saveUnifiedSettings() {
+    async function saveUnifiedSettings(options = {}) {
+      const silent = !!options.silent;
       const payload = collectSettingsPayload();
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -2725,7 +3025,24 @@ const statusEl = document.getElementById("status");
       if (data.like_goal_state) {
         renderLikeGoalState(data.like_goal_state);
       }
-      setStatus(t("msg.settingsSaved"), true);
+      if (!silent) {
+        setStatus(t("msg.settingsSaved"), true);
+      }
+    }
+
+    function scheduleUnifiedSettingsAutosave() {
+      if (settingsAutosaveTimer) {
+        clearTimeout(settingsAutosaveTimer);
+      }
+      settingsAutosaveTimer = setTimeout(async () => {
+        settingsAutosaveTimer = null;
+        try {
+          await saveUnifiedSettings({ silent: true });
+          await persistActivePresetProfile({ silent: true });
+        } catch (err) {
+          setStatus(err.message || (currentLang === "id" ? "gagal menyimpan pengaturan" : "failed to save settings"), false);
+        }
+      }, 350);
     }
 
     async function loadUnifiedSettings(options = {}) {
@@ -2881,6 +3198,20 @@ const statusEl = document.getElementById("status");
         const nextPort = mode === "servertap" ? mcServerTapPortCache : mcRCONPortCache;
         mcPortEl.value = String(Math.max(1, Math.min(65535, Number(nextPort) || (mode === "servertap" ? 4567 : 25575))));
       }
+      syncMinecraftEnabledUI();
+    }
+
+    function syncMinecraftEnabledUI() {
+      const enabled = !!(mcEnabledEl && mcEnabledEl.checked);
+      if (mcModeEl) mcModeEl.disabled = !enabled;
+      if (mcHostEl) mcHostEl.disabled = !enabled;
+      if (mcPortEl) mcPortEl.disabled = !enabled;
+      if (mcPasswordEl) mcPasswordEl.disabled = !enabled;
+      if (mcServerTapPathEl) mcServerTapPathEl.disabled = !enabled;
+      if (mcConnectBtn) mcConnectBtn.disabled = !enabled;
+      if (mcDisconnectBtn) mcDisconnectBtn.disabled = !enabled;
+      if (mcCommandEl) mcCommandEl.disabled = !enabled;
+      if (mcSendBtn) mcSendBtn.disabled = !enabled;
     }
 
     function commitCurrentMinecraftPassword(modeOverride) {
@@ -2907,6 +3238,10 @@ const statusEl = document.getElementById("status");
     }
 
     mcConnectBtn.addEventListener("click", async () => {
+      if (mcEnabledEl && !mcEnabledEl.checked) {
+        setMCOutput(t("msg.mcConnectorDisabled"));
+        return;
+      }
       const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
       commitCurrentMinecraftPassword();
       commitCurrentMinecraftPort();
@@ -2932,6 +3267,10 @@ const statusEl = document.getElementById("status");
     });
 
     mcDisconnectBtn.addEventListener("click", async () => {
+      if (mcEnabledEl && !mcEnabledEl.checked) {
+        setMCOutput(t("msg.mcConnectorDisabled"));
+        return;
+      }
       try {
         const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
         const res = await fetch("/api/minecraft/disconnect", { method: "POST" });
@@ -2944,6 +3283,10 @@ const statusEl = document.getElementById("status");
     });
 
     mcSendBtn.addEventListener("click", async () => {
+      if (mcEnabledEl && !mcEnabledEl.checked) {
+        setMCOutput(t("msg.mcConnectorDisabled"));
+        return;
+      }
       const command = mcCommandEl.value.trim();
       if (!command) {
         setMCOutput(t("msg.emptyCommand"));
@@ -2976,6 +3319,19 @@ const statusEl = document.getElementById("status");
         commitCurrentMinecraftPort(prevMode);
         commitCurrentMinecraftPassword(prevMode);
         syncMinecraftConnectorModeUI();
+      });
+    }
+
+    if (mcEnabledEl) {
+      mcEnabledEl.addEventListener("change", async () => {
+        syncMinecraftEnabledUI();
+        if (!mcEnabledEl.checked) {
+          try {
+            await fetch("/api/minecraft/disconnect", { method: "POST" });
+          } catch (_) {
+            // ignore disconnect failure while disabling from UI
+          }
+        }
       });
     }
 
@@ -3062,7 +3418,7 @@ const statusEl = document.getElementById("status");
             type,
             username,
             gift_id: giftId,
-            repeat_count: repeatCount,
+            repeatcount: repeatCount,
             text
           })
         });
@@ -3093,6 +3449,7 @@ const statusEl = document.getElementById("status");
         title: eventTitleEl.value.trim(),
         label: eventLabelEl.value.trim(),
         gift_id: type === "gift" ? giftId : 0,
+        repeat_by_gift_combo: type === "gift" ? !!(eventRepeatByGiftComboEl && eventRepeatByGiftComboEl.checked) : false,
         sound_url: normalizeSoundURL(eventSoundEl.value.trim()),
         mc_command: eventMCCommandEl.value.trim(),
         run_mc_command: runMCCommand,
@@ -3131,6 +3488,7 @@ const statusEl = document.getElementById("status");
         resetEventForm();
         closeEventModal();
         await loadEventsTable();
+        await persistActivePresetProfile({ silent: true });
       } catch (err) {
         setStatus(err.message || (currentLang === "id" ? "gagal menyimpan event" : "failed to save event"), false);
       }
@@ -3145,36 +3503,129 @@ const statusEl = document.getElementById("status");
       openEventModal(false);
     });
 
-    if (exportEventsBtn) {
-      exportEventsBtn.addEventListener("click", async () => {
+    if (openCreatePresetProfileModalBtn) {
+      openCreatePresetProfileModalBtn.addEventListener("click", () => {
+        openCreatePresetProfileModal();
+      });
+    }
+
+    if (presetProfileSelectEl) {
+      presetProfileSelectEl.addEventListener("change", async () => {
+        const profileName = String(presetProfileSelectEl.value || "").trim();
+        if (!profileName) return;
         try {
-          await exportEventsJSON();
-          setStatus(t("msg.eventsExported"), true);
+          await applySelectedPresetProfile(profileName);
         } catch (err) {
-          setStatus(err.message || (currentLang === "id" ? "gagal mengekspor event" : "failed to export events"), false);
+          setStatus(err.message || (currentLang === "id" ? "gagal memuat profile preset" : "failed to load preset profile"), false);
         }
       });
     }
 
-    if (loadEventsBtn && eventsJsonFileEl) {
-      loadEventsBtn.addEventListener("click", () => {
-        eventsJsonFileEl.value = "";
-        eventsJsonFileEl.click();
-      });
-
-      eventsJsonFileEl.addEventListener("change", async () => {
-        const file = eventsJsonFileEl.files && eventsJsonFileEl.files[0];
-        if (!file) return;
+    if (savePresetProfileBtn) {
+      savePresetProfileBtn.addEventListener("click", async () => {
+        const profileName = getSelectedPresetProfileName();
+        if (!profileName) {
+          setStatus(t("msg.selectPresetProfileFirst"), false);
+          return;
+        }
         try {
-          const result = await loadEventsFromFile(file);
-          await loadEventsTable();
-          resetEventForm();
-          closeEventModal();
-          setStatus(t("msg.loadedEventCount", { count: String(result.count || 0) }), true);
+          await persistActivePresetProfile({ silent: false });
         } catch (err) {
-          setStatus(err.message || (currentLang === "id" ? "gagal memuat event" : "failed to load events"), false);
-        } finally {
-          eventsJsonFileEl.value = "";
+          setStatus(err.message || (currentLang === "id" ? "gagal menyimpan profile preset" : "failed to save preset profile"), false);
+        }
+      });
+    }
+
+    if (renamePresetProfileBtn && presetProfileSelectEl) {
+      renamePresetProfileBtn.addEventListener("click", () => {
+        const oldProfileName = String(presetProfileSelectEl.value || "").trim();
+        if (!oldProfileName) {
+          setStatus(t("msg.selectPresetProfileFirst"), false);
+          return;
+        }
+        openRenamePresetProfileModal(oldProfileName);
+      });
+    }
+
+    if (closeRenamePresetProfileModalBtn) {
+      closeRenamePresetProfileModalBtn.addEventListener("click", () => {
+        closeRenamePresetProfileModal();
+      });
+    }
+
+    if (cancelRenamePresetProfileBtn) {
+      cancelRenamePresetProfileBtn.addEventListener("click", () => {
+        closeRenamePresetProfileModal();
+      });
+    }
+
+    if (renamePresetProfileForm) {
+      renamePresetProfileForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const oldProfileName = String(renamePresetSourceProfile || "").trim();
+        let newProfileName = String(renamePresetProfileNameEl && renamePresetProfileNameEl.value ? renamePresetProfileNameEl.value : "").trim();
+        newProfileName = newProfileName.replace(/\.json$/i, "").replace(/^P-/i, "").trim();
+        if (!oldProfileName) {
+          setStatus(t("msg.selectPresetProfileFirst"), false);
+          closeRenamePresetProfileModal();
+          return;
+        }
+        if (!newProfileName) {
+          setStatus(t("msg.profileNameRequired"), false);
+          if (renamePresetProfileNameEl) renamePresetProfileNameEl.focus();
+          return;
+        }
+        try {
+          const result = await renamePresetProfile(oldProfileName, newProfileName);
+          await refreshPresetProfiles({ silent: false });
+          const selectedProfile = String(result.new_profile_name || newProfileName);
+          renderPresetProfileOptions(selectedProfile);
+          closeRenamePresetProfileModal();
+          setStatus(t("msg.presetProfileRenamed", {
+            oldName: String(result.old_profile_name || oldProfileName),
+            newName: selectedProfile
+          }), true);
+        } catch (err) {
+          setStatus(err.message || (currentLang === "id" ? "gagal rename profile preset" : "failed to rename preset profile"), false);
+        }
+      });
+    }
+
+    if (closeCreatePresetProfileModalBtn) {
+      closeCreatePresetProfileModalBtn.addEventListener("click", () => {
+        closeCreatePresetProfileModal();
+      });
+    }
+
+    if (cancelCreatePresetProfileBtn) {
+      cancelCreatePresetProfileBtn.addEventListener("click", () => {
+        closeCreatePresetProfileModal();
+      });
+    }
+
+    if (createPresetProfileForm) {
+      createPresetProfileForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        let profileName = String(createPresetProfileNameEl && createPresetProfileNameEl.value ? createPresetProfileNameEl.value : "").trim();
+        profileName = profileName.replace(/\.json$/i, "").replace(/^P-/i, "").trim();
+        if (!profileName) {
+          setStatus(t("msg.profileNameRequired"), false);
+          if (createPresetProfileNameEl) createPresetProfileNameEl.focus();
+          return;
+        }
+        try {
+          const result = await createPresetProfile(profileName);
+          await refreshPresetProfiles({ silent: false });
+          const selectedProfile = String(result.profile_name || profileName);
+          renderPresetProfileOptions(selectedProfile);
+          await applySelectedPresetProfile(selectedProfile);
+          closeCreatePresetProfileModal();
+          try {
+            localStorage.setItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY, selectedProfile);
+          } catch (_) {}
+          setStatus(t("msg.presetProfileCreated", { name: selectedProfile }), true);
+        } catch (err) {
+          setStatus(err.message || (currentLang === "id" ? "gagal membuat profile preset" : "failed to create preset profile"), false);
         }
       });
     }
@@ -3187,6 +3638,7 @@ const statusEl = document.getElementById("status");
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || (currentLang === "id" ? "gagal reset event" : "failed to reset events"));
           await loadEventsTable();
+          await persistActivePresetProfile({ silent: true });
           resetEventForm();
           closeEventModal();
           setStatus(t("msg.eventsReset"), true);
@@ -3230,6 +3682,22 @@ const statusEl = document.getElementById("status");
       }
     });
 
+    if (createPresetProfileModalEl) {
+      createPresetProfileModalEl.addEventListener("click", (e) => {
+        if (e.target === createPresetProfileModalEl) {
+          closeCreatePresetProfileModal();
+        }
+      });
+    }
+
+    if (renamePresetProfileModalEl) {
+      renamePresetProfileModalEl.addEventListener("click", (e) => {
+        if (e.target === renamePresetProfileModalEl) {
+          closeRenamePresetProfileModal();
+        }
+      });
+    }
+
     if (eventBoxModalEl) {
       eventBoxModalEl.addEventListener("click", (e) => {
         if (e.target === eventBoxModalEl) {
@@ -3248,6 +3716,14 @@ const statusEl = document.getElementById("status");
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (createPresetProfileModalEl && createPresetProfileModalEl.classList.contains("show")) {
+        closeCreatePresetProfileModal();
+        return;
+      }
+      if (renamePresetProfileModalEl && renamePresetProfileModalEl.classList.contains("show")) {
+        closeRenamePresetProfileModal();
+        return;
+      }
       if (howToModalEl && howToModalEl.classList.contains("show")) {
         closeHowToModal();
       }
@@ -3283,6 +3759,9 @@ const statusEl = document.getElementById("status");
           eventSoundEl.value = item.sound_url || "";
           eventRunMCCommandEl.checked = item.run_mc_command !== false;
           eventRunShortcutEl.checked = !!item.run_shortcut;
+          if (eventRepeatByGiftComboEl) {
+            eventRepeatByGiftComboEl.checked = item.repeat_by_gift_combo !== false;
+          }
           eventMCCommandEl.value = item.mc_command || "";
           eventShortcutKeysEl.value = normalizeShortcutSymbols(item.shortcut_keys);
           eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
@@ -3324,6 +3803,7 @@ const statusEl = document.getElementById("status");
             title: item.title || "",
             label: item.label || "",
             gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
+            repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo !== false : false,
             sound_url: normalizeSoundURL(item.sound_url || ""),
             mc_command: item.mc_command || "",
             run_mc_command: item.run_mc_command !== false,
@@ -3342,6 +3822,7 @@ const statusEl = document.getElementById("status");
 
           setStatus(t("msg.eventDuplicated"), true);
           await loadEventsTable();
+          await persistActivePresetProfile({ silent: true });
         } catch (err) {
           setStatus(err.message || (currentLang === "id" ? "gagal duplikasi event" : "failed to duplicate event"), false);
         }
@@ -3357,6 +3838,7 @@ const statusEl = document.getElementById("status");
           if (editingEventId === id) resetEventForm();
           setStatus(t("msg.eventDeleted"), true);
           await loadEventsTable();
+          await persistActivePresetProfile({ silent: true });
         } catch (err) {
           setStatus(err.message || (currentLang === "id" ? "gagal menghapus event" : "failed to delete event"), false);
         }
@@ -3399,6 +3881,7 @@ const statusEl = document.getElementById("status");
         const columns = applyEventBoxColumns(eventBoxPerRowEl.value);
         localStorage.setItem(EVENT_BOX_PER_ROW_STORAGE_KEY, String(columns));
         renderEventBoxes(currentEventItems);
+        scheduleUnifiedSettingsAutosave();
       };
       eventBoxPerRowEl.addEventListener("input", handleEventBoxPerRowChange);
       eventBoxPerRowEl.addEventListener("change", handleEventBoxPerRowChange);
@@ -3445,15 +3928,33 @@ const statusEl = document.getElementById("status");
       });
     }
 
-    if (appSettingsSaveBtn) {
-      appSettingsSaveBtn.addEventListener("click", async () => {
-        try {
-          await saveUnifiedSettings();
-        } catch (err) {
-          setStatus(err.message || (currentLang === "id" ? "gagal menyimpan pengaturan" : "failed to save settings"), false);
-        }
+    [
+      usernameEl,
+      mcModeEl,
+      mcEnabledEl,
+      mcHostEl,
+      mcPortEl,
+      mcPasswordEl,
+      mcServerTapPathEl,
+      likeGoalTitleEl,
+      likeGoalValueEl,
+      likeGoalModeEl,
+      likeGoalTriggerEventEl,
+      likeGoalEnabledEl
+    ].forEach((el) => {
+      if (!el) return;
+      el.addEventListener("change", () => {
+        scheduleUnifiedSettingsAutosave();
       });
-    }
+      if (el.tagName === "INPUT") {
+        const type = String(el.type || "").toLowerCase();
+        if (type !== "checkbox" && type !== "radio") {
+          el.addEventListener("input", () => {
+            scheduleUnifiedSettingsAutosave();
+          });
+        }
+      }
+    });
 
     setupGlobalButtonToasts();
 
@@ -3522,5 +4023,16 @@ const statusEl = document.getElementById("status");
     syncLabelHint();
     loadGiftOptions();
     loadEventsTable();
+    refreshPresetProfiles({ silent: true }).then(async () => {
+      const savedProfile = String(localStorage.getItem(ACTIVE_PRESET_PROFILE_STORAGE_KEY) || "").trim();
+      if (!savedProfile || !presetProfileSelectEl) return;
+      const exists = presetProfiles.some((p) => String(p && p.profile_name ? p.profile_name : "").trim() === savedProfile);
+      if (!exists) return;
+      presetProfileSelectEl.value = savedProfile;
+      try {
+        await applySelectedPresetProfile(savedProfile);
+      } catch (_) {
+      }
+    });
     loadLikeGoalState({ silent: true });
     loadUnifiedSettings({ silent: true }).catch(() => {});

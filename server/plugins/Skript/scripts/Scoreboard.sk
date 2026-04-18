@@ -154,6 +154,8 @@ every 1 second:
                         delete {win.countdown.lastshown::%uuid of loop-player%}
                         send title "&6&lWIN &e&lPLAYER!" with subtitle "&b&l%loop-player%" to players
                         broadcast "&6WIN Player: &e%loop-player%"
+                        add 1 to {win.last.id}
+                        set {win.last.uuid} to uuid of loop-player
                         add 1 to {win.total}
                         update_win_scoreboard()
                         # Kurangi diamond berdasarkan target saat ini, tidak reset total diamond.
@@ -312,38 +314,43 @@ command /winset <number>:
         broadcast "&eWIN score has been set to &a%arg-1%&e."
 
 # Menambahkan total kemenangan.
-command /addwin <number>:
+# Format disamakan dengan /DMplus: value, username/label, repeat.
+command /addwin <number> <text> <number>:
     trigger:
-        if arg-1 <= 0:
+        set {_total} to arg-1 * arg-3
+        if {_total} <= 0:
             send "&cWIN addition must be greater than 0."
             stop
 
         normalize_win_total()
-        add arg-1 to {win.total}
+        add {_total} to {win.total}
+        send title "&6&l%arg-2%" with subtitle "&a&lADD &e%{_total}% &fWin" to players
         update_win_scoreboard()
-        broadcast "&eWIN score increased by &a%arg-1%&e. Total: &6%{win.total}%&e."
+        broadcast "&eWIN score increased by &a%{_total}%&e. Total: &6%{win.total}%&e."
 
 # Mengurangi total kemenangan.
-command /minwin <number>:
+command /minwin <number> <text> <number>:
     trigger:
-        if arg-1 <= 0:
+        set {_total} to arg-1 * arg-3
+        if {_total} <= 0:
             send "&cWIN reduction must be greater than 0."
             stop
 
         normalize_win_total()
 
-        remove arg-1 from {win.total}
+        remove {_total} from {win.total}
+        send title "&6&l%arg-2%" with subtitle "&c&lTAKE &e%{_total}% &fWin" to players
 
         update_win_scoreboard()
-        broadcast "&eWIN score reduced by &c%arg-1%&e. Total: &6%{win.total}%&e."
+        broadcast "&eWIN score reduced by &c%{_total}%&e. Total: &6%{win.total}%&e."
 
 # Alias yang lebih jelas untuk mengurangi kemenangan.
-command /reducewin <number>:
+command /reducewin <number> <text> <number>:
     trigger:
-        execute player command "minwin %arg-1%"
+        execute player command "minwin %arg-1% %arg-2% %arg-3%"
 
 # Alias lain dengan nama yang lebih mirip plus/min.
-command /winmin <number>:
+command /winmin <number> <text> <number>:
     trigger:
-        execute player command "minwin %arg-1%"
+        execute player command "minwin %arg-1% %arg-2% %arg-3%"
 

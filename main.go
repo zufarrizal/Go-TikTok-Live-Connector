@@ -522,7 +522,8 @@ func (e *eventRecord) UnmarshalJSON(data []byte) error {
 	}
 	*e = eventRecord(aux.eventRecordAlias)
 	if aux.RepeatByGiftCombo == nil {
-		e.RepeatByGiftCombo = strings.TrimSpace(strings.ToLower(e.Type)) == "gift"
+		// Default gift execution mode is per-event (not combo total).
+		e.RepeatByGiftCombo = false
 	} else {
 		e.RepeatByGiftCombo = *aux.RepeatByGiftCombo
 	}
@@ -1312,6 +1313,9 @@ func (m *likeGoalManager) load() error {
 	next.UpdatedAt = settings.LikeGoal.UpdatedAt
 	normalizeLikeGoalState(&next)
 	m.state = next
+	if m.auto != nil {
+		m.auto.setLikeGoalTriggerEventID(m.state.TriggerEventID)
+	}
 	return m.saveLocked()
 }
 
@@ -1384,6 +1388,9 @@ func (m *likeGoalManager) Configure(title string, goal int, mode string, trigger
 	m.state.Goal = goal
 	m.state.Mode = mode
 	m.state.TriggerEventID = triggerEventID
+	if m.auto != nil {
+		m.auto.setLikeGoalTriggerEventID(m.state.TriggerEventID)
+	}
 	m.state.Enabled = enabled
 	if resetProgress || m.state.CurrentGoal <= 0 {
 		m.state.CurrentLikes = 0
@@ -1535,12 +1542,12 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 	}
 
 	vars := map[string]string{
-		"event_type":   "like_goal_test",
-		"username":     "LikeGoalTester",
-		"nickname":     "LikeGoalTester",
-		"follow":       "true",
-		"likes":        "1",
-		"total_likes":  strconv.Itoa(state.CurrentLikes),
+		"event_type":  "like_goal_test",
+		"username":    "LikeGoalTester",
+		"nickname":    "LikeGoalTester",
+		"follow":      "true",
+		"likes":       "1",
+		"total_likes": strconv.Itoa(state.CurrentLikes),
 		"repeatcount": "1",
 	}
 
@@ -1660,12 +1667,12 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 		}
 
 		vars := map[string]string{
-			"event_type":   "like_goal",
-			"username":     username,
-			"nickname":     nickname,
-			"follow":       follow,
-			"likes":        strconv.Itoa(likeEvent.Likes),
-			"total_likes":  strconv.Itoa(m.state.CurrentLikes),
+			"event_type":  "like_goal",
+			"username":    username,
+			"nickname":    nickname,
+			"follow":      follow,
+			"likes":       strconv.Itoa(likeEvent.Likes),
+			"total_likes": strconv.Itoa(m.state.CurrentLikes),
 			"repeatcount": "1",
 		}
 		if m.auto != nil {
@@ -1723,7 +1730,9 @@ type mcEventAutomation struct {
 	likeTotals map[string]int
 	// Tracks follow events already processed in the current live session.
 	followSeen map[string]struct{}
-	queue      chan queuedMCTrigger
+	// Rule IDs reserved for internal triggers (for example like-goal reached).
+	reservedRuleIDs map[int]struct{}
+	queue           chan queuedMCTrigger
 }
 
 type giftComboProgress struct {
@@ -1748,13 +1757,14 @@ type queuedMCTrigger struct {
 
 func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub) *mcEventAutomation {
 	a := &mcEventAutomation{
-		store:      store,
-		rcon:       rcon,
-		hub:        hub,
-		giftCombo:  make(map[int64]giftComboProgress),
-		likeTotals: make(map[string]int),
-		followSeen: make(map[string]struct{}),
-		queue:      make(chan queuedMCTrigger, 512),
+		store:           store,
+		rcon:            rcon,
+		hub:             hub,
+		giftCombo:       make(map[int64]giftComboProgress),
+		likeTotals:      make(map[string]int),
+		followSeen:      make(map[string]struct{}),
+		reservedRuleIDs: make(map[int]struct{}),
+		queue:           make(chan queuedMCTrigger, 512),
 	}
 	go a.processQueue()
 	return a
@@ -1781,7 +1791,7 @@ func (a *mcEventAutomation) processQueue() {
 			"gift_id":          job.giftID,
 			"gift_name":        job.vars["gift_name"],
 			"username":         job.vars["username"],
-			"repeatcount":     job.vars["repeatcount"],
+			"repeatcount":      job.vars["repeatcount"],
 			"sound_url":        job.rule.SoundURL,
 			"command":          job.command,
 			"run_mc_command":   runMCCommand,
@@ -1824,7 +1834,7 @@ func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
 		"gift_id":          job.giftID,
 		"gift_name":        job.vars["gift_name"],
 		"username":         job.vars["username"],
-		"repeatcount":     job.vars["repeatcount"],
+		"repeatcount":      job.vars["repeatcount"],
 		"sound_url":        job.rule.SoundURL,
 		"command":          job.command,
 		"run_mc_command":   job.runMCCommand,
@@ -1866,6 +1876,20 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	rules := a.store.rulesForTrigger(eventType, giftID)
 	if len(rules) == 0 {
 		return
+	}
+	reserved := a.reservedRuleIDsSnapshot()
+	if len(reserved) > 0 {
+		filtered := make([]eventRecord, 0, len(rules))
+		for _, rule := range rules {
+			if _, blocked := reserved[rule.ID]; blocked {
+				continue
+			}
+			filtered = append(filtered, rule)
+		}
+		rules = filtered
+		if len(rules) == 0 {
+			return
+		}
 	}
 
 	currentRepeatCount := loopCount
@@ -1963,6 +1987,28 @@ func (a *mcEventAutomation) resetSessionState() {
 	a.likeTotals = make(map[string]int)
 	a.followSeen = make(map[string]struct{})
 	a.mu.Unlock()
+}
+
+func (a *mcEventAutomation) setLikeGoalTriggerEventID(eventID int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.reservedRuleIDs = make(map[int]struct{})
+	if eventID > 0 {
+		a.reservedRuleIDs[eventID] = struct{}{}
+	}
+}
+
+func (a *mcEventAutomation) reservedRuleIDsSnapshot() map[int]struct{} {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.reservedRuleIDs) == 0 {
+		return nil
+	}
+	out := make(map[int]struct{}, len(a.reservedRuleIDs))
+	for id := range a.reservedRuleIDs {
+		out[id] = struct{}{}
+	}
+	return out
 }
 
 func ruleLabelMatches(rule eventRecord, vars map[string]string) bool {
@@ -2132,13 +2178,13 @@ func normalizeLiveEvent(ev any) (string, map[string]string, int, int) {
 			loopCount = 1
 		}
 		return "gift", map[string]string{
-			"event_type":   "gift",
-			"username":     username,
-			"nickname":     nickname,
-			"follow":       follow,
-			"gift_name":    e.Name,
-			"gift_id":      strconv.FormatInt(e.ID, 10),
-			"diamond":      strconv.Itoa(e.Diamonds),
+			"event_type":  "gift",
+			"username":    username,
+			"nickname":    nickname,
+			"follow":      follow,
+			"gift_name":   e.Name,
+			"gift_id":     strconv.FormatInt(e.ID, 10),
+			"diamond":     strconv.Itoa(e.Diamonds),
 			"repeatcount": strconv.Itoa(e.RepeatCount),
 		}, int(e.ID), loopCount
 	case gotiktoklive.UserEvent:
@@ -3056,7 +3102,7 @@ func main() {
 			if !runShortcut {
 				shortcutKeys = ""
 			}
-			repeatByGiftCombo := true
+			repeatByGiftCombo := false
 			if req.RepeatByGiftCombo != nil {
 				repeatByGiftCombo = *req.RepeatByGiftCombo
 			}
@@ -3165,7 +3211,7 @@ func main() {
 			if !runShortcut {
 				shortcutKeys = ""
 			}
-			repeatByGiftCombo := true
+			repeatByGiftCombo := false
 			if req.RepeatByGiftCombo != nil {
 				repeatByGiftCombo = *req.RepeatByGiftCombo
 			}
@@ -4038,23 +4084,23 @@ func main() {
 			return
 		}
 		cmd := applyCommandTemplate(item.MCCommand, map[string]string{
-			"event_type":   "test",
-			"username":     "TestPlayer",
-			"nickname":     "Test Player",
-			"comment":      "test comment",
-			"gift_name":    item.GiftName,
-			"gift_id":      strconv.Itoa(item.GiftID),
-			"diamond":      strconv.Itoa(item.Diamond),
+			"event_type":  "test",
+			"username":    "TestPlayer",
+			"nickname":    "Test Player",
+			"comment":     "test comment",
+			"gift_name":   item.GiftName,
+			"gift_id":     strconv.Itoa(item.GiftID),
+			"diamond":     strconv.Itoa(item.Diamond),
 			"repeatcount": "1",
 		})
 		shortcut := applyCommandTemplate(item.ShortcutKeys, map[string]string{
-			"event_type":   "test",
-			"username":     "TestPlayer",
-			"nickname":     "Test Player",
-			"comment":      "test comment",
-			"gift_name":    item.GiftName,
-			"gift_id":      strconv.Itoa(item.GiftID),
-			"diamond":      strconv.Itoa(item.Diamond),
+			"event_type":  "test",
+			"username":    "TestPlayer",
+			"nickname":    "Test Player",
+			"comment":     "test comment",
+			"gift_name":   item.GiftName,
+			"gift_id":     strconv.Itoa(item.GiftID),
+			"diamond":     strconv.Itoa(item.Diamond),
 			"repeatcount": "1",
 		})
 		out := ""

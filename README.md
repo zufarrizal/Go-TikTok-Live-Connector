@@ -180,14 +180,11 @@ Penggantian placeholder dilakukan oleh backend dengan `strings.ReplaceAll` per k
 
 ## Gift Combo Behavior
 
-Khusus grouped gift (`GroupID != 0`):
+Khusus grouped gift (`GroupID != 0`), perilakunya mengikuti opsi `Repeat by Gift Combo`:
 
-- event ditahan sampai `RepeatEnd=true`
-- backend hitung total efektif combo
-- rule dipicu sekali setelah combo selesai
-- `{repeatcount}` selalu pakai total final combo
-
-Tujuannya supaya command tidak dieksekusi berkali-kali untuk combo yang sama.
+- `OFF` (default): trigger per event gift (delta), jadi combo `1,2,3` diproses jadi `1,1,1`
+- `ON`: event ditahan sampai `RepeatEnd=true`, rule dipicu sekali di akhir combo
+- saat `ON`, `{repeatcount}` pakai total final combo
 
 ## Event List Box (UI)
 

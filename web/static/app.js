@@ -2435,7 +2435,7 @@ const statusEl = document.getElementById("status");
       eventRunMCCommandEl.checked = true;
       eventRunShortcutEl.checked = false;
       if (eventRepeatByGiftComboEl) {
-        eventRepeatByGiftComboEl.checked = true;
+        eventRepeatByGiftComboEl.checked = false;
       }
       if (eventShowInExportEl) {
         eventShowInExportEl.checked = true;
@@ -2573,7 +2573,7 @@ const statusEl = document.getElementById("status");
         return;
       }
       if (eventRepeatByGiftComboEl && !editingEventId) {
-        eventRepeatByGiftComboEl.checked = true;
+        eventRepeatByGiftComboEl.checked = false;
       }
       eventGiftPicker.syncFromSelect();
     }
@@ -3781,7 +3781,7 @@ const statusEl = document.getElementById("status");
           eventRunMCCommandEl.checked = item.run_mc_command !== false;
           eventRunShortcutEl.checked = !!item.run_shortcut;
           if (eventRepeatByGiftComboEl) {
-            eventRepeatByGiftComboEl.checked = item.repeat_by_gift_combo !== false;
+            eventRepeatByGiftComboEl.checked = item.repeat_by_gift_combo === true;
           }
           if (eventShowInExportEl) {
             eventShowInExportEl.checked = item.show_in_export !== false;
@@ -3827,7 +3827,7 @@ const statusEl = document.getElementById("status");
             title: item.title || "",
             label: item.label || "",
             gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
-            repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo !== false : false,
+            repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo === true : false,
             show_in_export: item.show_in_export !== false,
             sound_url: normalizeSoundURL(item.sound_url || ""),
             mc_command: item.mc_command || "",
@@ -3889,7 +3889,7 @@ const statusEl = document.getElementById("status");
           title: item.title || "",
           label: item.label || "",
           gift_id: item.type === "gift" ? Number(item.gift_id || 0) : 0,
-          repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo !== false : false,
+          repeat_by_gift_combo: item.type === "gift" ? item.repeat_by_gift_combo === true : false,
           show_in_export: nextValue,
           sound_url: normalizeSoundURL(item.sound_url || ""),
           mc_command: item.mc_command || "",

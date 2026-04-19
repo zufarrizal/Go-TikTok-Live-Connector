@@ -219,7 +219,7 @@ command /tnt <number> <text> <number>:
             send title "&c&l%arg-2%" with subtitle "&6&lSUMMON &cTNT &ex%{_total}%" to loop-player
             loop {_total} times:
                 play sound "entity.experience_orb.pickup" to loop-player
-                execute console command "execute at %{_p}% run summon tnt ~ ~1 ~ {fuse:40}"
+                execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:50}"
                 wait 2 ticks
 
 # Menjatuhkan TNT secara acak 3 blok di atas pemain dalam area 5x5.

@@ -1873,12 +1873,8 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	comboRepeatCount := loopCount
 	if eventType == "gift" {
 		currentRepeatCount, comboReady, comboRepeatCount = a.normalizeGiftCounts(ev, loopCount)
-		// Grouped gift streaks should only be processed once at combo end.
-		if !comboReady {
-			return
-		}
 	}
-	if currentRepeatCount <= 0 {
+	if eventType != "gift" && currentRepeatCount <= 0 {
 		return
 	}
 
@@ -1889,8 +1885,18 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 		}
 		repeatCount := currentRepeatCount
 		if eventType == "gift" {
-			// For gift events, always use final combo total.
-			repeatCount = resolveGiftRepeatCount(currentRepeatCount, comboRepeatCount)
+			if rule.RepeatByGiftCombo {
+				// Combo mode: execute once when combo total is final/ready.
+				if !comboReady {
+					continue
+				}
+				repeatCount = resolveGiftRepeatCount(currentRepeatCount, comboRepeatCount)
+			} else {
+				// Per-event mode: use effective event count (delta for grouped gifts).
+				if repeatCount <= 0 {
+					continue
+				}
+			}
 		}
 		if repeatCount <= 0 {
 			repeatCount = 1
@@ -2020,9 +2026,13 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 		}
 	}
 
-	// Non-grouped gifts are treated as standalone events.
-	if g.GroupID == 0 {
+	// Non-streak gifts should be processed as standalone events, even if GroupID is present.
+	if g.Type != 1 {
 		return current, true, current
+	}
+	// Streak gifts without GroupID still rely on RepeatEnd for combo-final mode.
+	if g.GroupID == 0 {
+		return current, g.RepeatEnd, current
 	}
 
 	a.mu.Lock()

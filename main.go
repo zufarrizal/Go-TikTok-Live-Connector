@@ -1848,6 +1848,15 @@ func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
 }
 
 func (a *mcEventAutomation) HandleLiveEvent(ev any) {
+	a.handleLiveEvent(ev, false)
+}
+
+func (a *mcEventAutomation) HandleSimulatorEvent(ev any) {
+	// Simulator should be able to replay follow events for the same username.
+	a.handleLiveEvent(ev, true)
+}
+
+func (a *mcEventAutomation) handleLiveEvent(ev any, allowDuplicateFollow bool) {
 	if !a.shouldProcessEvent(ev) {
 		return
 	}
@@ -1855,7 +1864,7 @@ func (a *mcEventAutomation) HandleLiveEvent(ev any) {
 	if eventType == "" {
 		return
 	}
-	if eventType == "follow" && !a.markFollowSeen(vars["username"], vars["nickname"]) {
+	if eventType == "follow" && !allowDuplicateFollow && !a.markFollowSeen(vars["username"], vars["nickname"]) {
 		return
 	}
 	if eventType == "like" {
@@ -4315,7 +4324,7 @@ func main() {
 			"time":      time.Now().Format(time.RFC3339),
 		}))
 
-		autoMC.HandleLiveEvent(ev)
+		autoMC.HandleSimulatorEvent(ev)
 		likeGoal.HandleLiveEvent(ev)
 		writeJSON(w, http.StatusOK, resp)
 	}

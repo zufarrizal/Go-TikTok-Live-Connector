@@ -44,8 +44,8 @@ pause
 
 ## Command Item dan Equipment
 
-- `/DMplus <number> <text> <number>`
-- `/DMmin <number> <text> <number>`
+- `/dmplus <number> <text> <number>`
+- `/dmmin <number> <text> <number>`
 - `/ega <number> <text> <number>`
 - `/armor`
 - `/tools`

@@ -1,5 +1,4 @@
-# Teleport pemenang ke Y tertinggi di X/Z lokasi saat menang.
-
+﻿
 every 1 tick:
     if {win.last.id} is set:
         if {win.teleport.last.id} is not {win.last.id}:

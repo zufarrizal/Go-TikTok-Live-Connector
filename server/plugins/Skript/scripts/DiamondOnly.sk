@@ -1,9 +1,4 @@
-# Whitelist inventory:
-# - diamond
-# - enchanted golden apple
-# - armor
-# - tools
-
+﻿
 function is_allowed_item(it: item) :: boolean:
     if {_it} is diamond:
         return true

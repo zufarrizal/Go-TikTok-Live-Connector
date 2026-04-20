@@ -1,12 +1,9 @@
-# Menambah jangkauan pukul sword lebih dari 3 blok ke depan.
-# Rentang tambahan: >3 blok sampai 11 blok.
-
+﻿
 on left click:
     set {_toolName} to "%type of player's tool%"
     if {_toolName} does not contain "sword":
         stop
 
-    # Cooldown singkat agar tidak multi-hit dari satu spam klik.
     if {sword.reach.cooldown::%uuid of player%} is set:
         stop
     set {sword.reach.cooldown::%uuid of player%} to true
@@ -16,14 +13,12 @@ on left click:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
 
-    # Pastikan target masih hidup/valid sebelum diproses.
     if {_target} is dead:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
 
     set {_dist} to distance between player and {_target}
 
-    # Jarak normal melee vanilla sekitar 3 blok, jadi tambahan hanya berlaku di atas itu.
     if {_dist} <= 3:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
@@ -32,8 +27,6 @@ on left click:
         delete {sword.reach.cooldown::%uuid of player%}
         stop
 
-    # Damage reach mengikuti Strength pemain:
-    # base 4 + (3 per level Strength).
     set {_reachDamage} to 4
     set {_strengthLevel} to potion level of strength of player
     if {_strengthLevel} is set:

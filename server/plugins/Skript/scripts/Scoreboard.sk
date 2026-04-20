@@ -1,6 +1,4 @@
-# Diamond balance scoreboard (can go negative)
-# Formula: diamond inventory - diamond debt
-
+﻿
 function normalize_win_total():
     if {win.total} is not set:
         set {win.total} to 0
@@ -29,34 +27,29 @@ function format_three_digits(n: number) :: text:
 
     return {_text}
 
-# Memperbarui baris scoreboard global untuk total kemenangan.
 function update_win_scoreboard():
     normalize_win_total()
     normalize_win_target()
     if {scoreboard.win.line} is set:
-        # Hapus entri lama agar sidebar tidak menumpuk baris usang.
         execute console command "scoreboard players reset %{scoreboard.win.line}% diamond_count"
-    set {_line} to "§6§lWIN:§f%{win.total}%§7/§e%{win.target}%"
+    set {_line} to "Â§6Â§lWIN:Â§f%{win.total}%Â§7/Â§e%{win.target}%"
     set {scoreboard.win.line} to {_line}
     execute console command "scoreboard players set %{_line}% diamond_count 1"
 
-# Memperbarui baris scoreboard yang menampilkan balance diamond pemain.
 function update_player_scoreboard(p: player):
     set {_count} to {diamond.balance::%uuid of {_p}%}
     if {_count} is not set:
         set {_count} to 0
     set {_countText} to format_three_digits({_count})
     set {_targetText} to format_three_digits({diamond.target})
-    # Simpan nilai terakhir untuk mendeteksi perubahan di tick berikutnya.
     set {diamond.lastscore::%uuid of {_p}%} to {_count}
     if {scoreboard.diamond.line} is set:
         execute console command "scoreboard players reset %{scoreboard.diamond.line}% diamond_count"
     execute console command "scoreboard players reset %{_p}% diamond_count"
-    set {_line} to "§b§lDiamond:§f%{_countText}%§7/§e%{_targetText}%"
+    set {_line} to "Â§bÂ§lDiamond:Â§f%{_countText}%Â§7/Â§e%{_targetText}%"
     set {scoreboard.diamond.line} to {_line}
     execute console command "scoreboard players set %{_line}% diamond_count 2"
 
-# Inisialisasi objective scoreboard saat skrip dimuat.
 on load:
     if {diamond.target} is not set:
         set {diamond.target} to 256
@@ -74,7 +67,6 @@ on load:
     loop all players:
         update_player_scoreboard(loop-player)
 
-# Sinkronkan scoreboard dan variabel pemain saat join.
 on join:
     if {diamond.debt::%uuid of player%} is not set:
         set {diamond.debt::%uuid of player%} to 0
@@ -87,7 +79,6 @@ on join:
     set {diamond.balance::%uuid of player%} to (amount of diamond in player's inventory) - {diamond.debt::%uuid of player%}
     update_player_scoreboard(player)
 
-# Hitung ulang balance, lunasi debt, dan cek syarat menang secara berkala.
 every 10 ticks:
     loop all players:
         if {diamond.debt::%uuid of loop-player%} is not set:
@@ -96,13 +87,11 @@ every 10 ticks:
         set {_debt} to {diamond.debt::%uuid of loop-player%}
         set {_inv} to amount of diamond in loop-player's inventory
 
-        # If player still has debt, inventory diamonds are used to pay debt first.
         if {_debt} > 0:
             set {_use} to {_inv}
             if {_use} > {_debt}:
                 set {_use} to {_debt}
             if {_use} > 0:
-                # Diamond di inventory otomatis dipakai dulu untuk menutup debt.
                 remove {_use} of diamond from loop-player's inventory
                 remove {_use} from {diamond.debt::%uuid of loop-player%}
                 remove {_use} from {_inv}
@@ -116,14 +105,12 @@ every 10 ticks:
         if {diamond.lastscore::%uuid of loop-player%} is not {_count}:
             update_player_scoreboard(loop-player)
 
-        # Auto-start countdown when balance reaches target
         if {_count} >= {_target}:
             if {win.countdown::%uuid of loop-player%} is not set:
                 set {win.countdown::%uuid of loop-player%} to 15
         else:
             delete {win.countdown::%uuid of loop-player%}
 
-# Jalankan countdown kemenangan jika pemain bertahan di target.
 every 1 second:
     loop all players:
         if {win.countdown::%uuid of loop-player%} is set:
@@ -146,7 +133,6 @@ every 1 second:
                     if {win.countdown.zero::%uuid of loop-player%} is not set:
                         set {win.countdown.zero::%uuid of loop-player%} to true
                     else:
-                        # Saat countdown selesai, catat kemenangan lalu kurangi diamond sesuai target.
                         delete {win.countdown::%uuid of loop-player%}
                         delete {win.countdown.slow::%uuid of loop-player%}
                         delete {win.countdown.slowticks::%uuid of loop-player%}
@@ -158,7 +144,6 @@ every 1 second:
                         set {win.last.uuid} to uuid of loop-player
                         add 1 to {win.total}
                         update_win_scoreboard()
-                        # Kurangi diamond berdasarkan target saat ini, tidak reset total diamond.
                         remove {_target} of diamond from loop-player's inventory
                         set {_bal} to (amount of diamond in loop-player's inventory) - {diamond.debt::%uuid of loop-player%}
                         set {diamond.balance::%uuid of loop-player%} to {_bal}
@@ -178,9 +163,6 @@ every 1 second:
                         delete {win.countdown.slowticks::%uuid of loop-player%}
                         remove 1 from {win.countdown::%uuid of loop-player%}
 
-# Firework global saat WIN target terpenuhi.
-# Berjalan terus sampai win target lebih besar dari current win.
-# Efek muncul random di sekitar player setiap 5 tick.
 every 5 ticks:
     normalize_win_total()
     normalize_win_target()
@@ -215,9 +197,7 @@ every 5 ticks:
             delete {win.firework.active}
             broadcast "&eWIN celebration stopped. Increase current win to reach target again."
 
-# Reduce diamond balance (can go negative)
-# Format disamakan dengan /diamondplus: value, username/label, repeat.
-command /DMmin <number> <text> <number>:
+command /dmmin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
         if {_total} <= 0:
@@ -247,7 +227,6 @@ command /DMmin <number> <text> <number>:
             update_player_scoreboard(loop-player)
             play sound "entity.experience_orb.pickup" to loop-player
 
-# Mengubah target diamond yang diperlukan untuk menang.
 command /dmset <number>:
     trigger:
         if arg-1 <= 0:
@@ -261,14 +240,12 @@ command /dmset <number>:
             update_player_scoreboard(loop-player)
         broadcast "&eDiamond win target set to &a%arg-1%&e."
 
-# Reset total kemenangan menjadi 0.
 command /winreset:
     trigger:
         set {win.total} to 0
         update_win_scoreboard()
         broadcast "&eWIN score has been reset to &a0&e."
 
-# Menetapkan target WIN global.
 command /setwintarget <number>:
     trigger:
         if arg-1 <= 0:
@@ -279,7 +256,6 @@ command /setwintarget <number>:
         update_win_scoreboard()
         broadcast "&eWIN target has been set to &a%{win.target}%&e."
 
-# Menambahkan target WIN global.
 command /addwintarget <number>:
     trigger:
         if arg-1 <= 0:
@@ -291,7 +267,6 @@ command /addwintarget <number>:
         update_win_scoreboard()
         broadcast "&eWIN target increased by &a%arg-1%&e. Target: &6%{win.target}%&e."
 
-# Mengurangi target WIN global.
 command /minwintarget <number>:
     trigger:
         if arg-1 <= 0:
@@ -305,7 +280,6 @@ command /minwintarget <number>:
         update_win_scoreboard()
         broadcast "&eWIN target reduced by &c%arg-1%&e. Target: &6%{win.target}%&e."
 
-# Menetapkan total kemenangan ke nilai tertentu.
 command /winset <number>:
     trigger:
         set {win.total} to arg-1
@@ -313,8 +287,6 @@ command /winset <number>:
         update_win_scoreboard()
         broadcast "&eWIN score has been set to &a%arg-1%&e."
 
-# Menambahkan total kemenangan.
-# Format disamakan dengan /DMplus: value, username/label, repeat.
 command /addwin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -328,7 +300,6 @@ command /addwin <number> <text> <number>:
         update_win_scoreboard()
         broadcast "&eWIN score increased by &a%{_total}%&e. Total: &6%{win.total}%&e."
 
-# Mengurangi total kemenangan.
 command /minwin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -344,12 +315,10 @@ command /minwin <number> <text> <number>:
         update_win_scoreboard()
         broadcast "&eWIN score reduced by &c%{_total}%&e. Total: &6%{win.total}%&e."
 
-# Alias yang lebih jelas untuk mengurangi kemenangan.
 command /reducewin <number> <text> <number>:
     trigger:
         execute player command "minwin %arg-1% %arg-2% %arg-3%"
 
-# Alias lain dengan nama yang lebih mirip plus/min.
 command /winmin <number> <text> <number>:
     trigger:
         execute player command "minwin %arg-1% %arg-2% %arg-3%"

@@ -1,6 +1,4 @@
-# dm {value} {username} {repeat}
-# Memberikan diamond ke semua pemain berdasarkan hasil perkalian nilai dan repeat.
-command /DMplus <number> <text> <number> :
+﻿command /dmplus <number> <text> <number> :
     trigger:
         set {_total} to arg-1 * arg-3
         send title "&6&l%arg-2%" with subtitle "&b&lGIVE &e%{_total}% &fDiamonds" to players
@@ -8,16 +6,12 @@ command /DMplus <number> <text> <number> :
             play sound "entity.experience_orb.pickup" to loop-player
             give {_total} of diamond to loop-player
 
-# join {username} {follow}
-# Broadcast user TikTok yang join live beserta status follow-nya.
 command /join <text>:
     trigger:
         set {_username} to arg-1
         send "&8[&dTikTok&8] &f@&e%{_username}% &ajoined live" to all players
         play sound "entity.experience_orb.pickup" to players
 
-# follow {username}
-# Broadcast user TikTok yang mulai follow live.
 command /follow <text>:
     trigger:
         set {_username} to arg-1
@@ -25,8 +19,6 @@ command /follow <text>:
         loop all players:
             play sound "entity.player.levelup" to loop-player
 
-# ttchat {username} {comment}
-# Broadcast comment TikTok ke chat Minecraft.
 command /ttchat <text> <text>:
     trigger:
         set {_username} to arg-1
@@ -35,7 +27,6 @@ command /ttchat <text> <text>:
         loop all players:
             play sound "entity.experience_orb.pickup" to loop-player
 
-# Memberikan enchanted golden apple ke semua pemain.
 command /ega <number> <text> <number> :
     trigger:
         set {_total} to arg-1 * arg-3
@@ -44,7 +35,6 @@ command /ega <number> <text> <number> :
             play sound "entity.experience_orb.pickup" to loop-player
             give {_total} of enchanted golden apple to loop-player
 
-# Summon zombie di dekat setiap pemain.
 command /zombie <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -57,7 +47,6 @@ command /zombie <number> <text> <number>:
                 spawn 1 zombie at {_loc}
                 wait 2 ticks
 
-# Summon skeleton di dekat setiap pemain.
 command /skeleton <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -70,7 +59,6 @@ command /skeleton <number> <text> <number>:
                 spawn 1 skeleton at {_loc}
                 wait 2 ticks
 
-# Summon spider di dekat setiap pemain.
 command /spider <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -83,7 +71,6 @@ command /spider <number> <text> <number>:
                 spawn 1 spider at {_loc}
                 wait 2 ticks
 
-# Summon creeper di dekat setiap pemain.
 command /creeper <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -96,7 +83,6 @@ command /creeper <number> <text> <number>:
                 spawn 1 creeper at {_loc}
                 wait 2 ticks
 
-# Membuat jebakan jaring laba-laba 15x15 setinggi 2 block di sekitar kaki pemain.
 command /spidertrap <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -108,7 +94,6 @@ command /spidertrap <number> <text> <number>:
                 execute console command "execute at %{_p}% run fill ~-7 ~ ~-7 ~7 ~1 ~7 minecraft:cobweb outline"
                 wait 2 ticks
 
-# Membuat jebakan lava 15x15 setinggi 2 block di sekitar kaki pemain.
 command /lavatrap <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -120,7 +105,6 @@ command /lavatrap <number> <text> <number>:
                 execute console command "execute at %{_p}% run fill ~-7 ~ ~-7 ~7 ~1 ~7 minecraft:lava outline"
                 wait 2 ticks
 
-# Summon witch di dekat setiap pemain.
 command /witch <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -133,7 +117,6 @@ command /witch <number> <text> <number>:
                 spawn 1 witch at {_loc}
                 wait 2 ticks
 
-# Summon wither lewat command execute di posisi pemain.
 command /wither <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -145,7 +128,6 @@ command /wither <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:wither ~ ~1 ~"
                 wait 2 ticks
 
-# Summon enderman di dekat setiap pemain.
 command /enderman <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -158,7 +140,6 @@ command /enderman <number> <text> <number>:
                 spawn 1 enderman at {_loc}
                 wait 2 ticks
 
-# Summon blaze di dekat setiap pemain.
 command /blaze <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -171,7 +152,6 @@ command /blaze <number> <text> <number>:
                 spawn 1 blaze at {_loc}
                 wait 2 ticks
 
-# Summon wither skeleton di dekat setiap pemain.
 command /witherskeleton <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -184,7 +164,6 @@ command /witherskeleton <number> <text> <number>:
                 spawn 1 wither skeleton at {_loc}
                 wait 2 ticks
 
-# Summon evoker di dekat setiap pemain.
 command /evoker <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -197,7 +176,6 @@ command /evoker <number> <text> <number>:
                 spawn 1 evoker at {_loc}
                 wait 2 ticks
 
-# Summon ravager di dekat setiap pemain.
 command /ravager <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -210,7 +188,6 @@ command /ravager <number> <text> <number>:
                 spawn 1 ravager at {_loc}
                 wait 2 ticks
 
-# Summon TNT aktif dengan fuse 30 tick.
 command /tnt <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -222,7 +199,6 @@ command /tnt <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:30}"
                 wait 2 ticks
 
-# Menjatuhkan TNT secara acak 3 blok di atas pemain dalam area 5x5.
 command /tntrain <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -236,7 +212,6 @@ command /tntrain <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon tnt ~%{_x}% ~3 ~%{_z}% {fuse:30}"
                 wait 2 ticks
 
-# Memasukkan pemain ke tengah lalu membuat penjara TNT 5x5 di sekelilingnya.
 command /tntprison <number> <text> <number>:
     trigger:
         loop all players:
@@ -251,7 +226,6 @@ command /tntprison <number> <text> <number>:
             execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:30}"
             play sound "entity.experience_orb.pickup" to {_p}
 
-# Kombinasi creeper charged dan TNT untuk mode chaos.
 command /nightmare <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -264,7 +238,6 @@ command /nightmare <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon tnt ~ ~1 ~ {fuse:30}"
                 wait 2 ticks
 
-# Summon bogged di dekat setiap pemain.
 command /bogged <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -276,7 +249,6 @@ command /bogged <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:bogged ~ ~1 ~"
                 wait 2 ticks
 
-# Summon breeze di dekat setiap pemain.
 command /breeze <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -288,7 +260,6 @@ command /breeze <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:breeze ~ ~1 ~"
                 wait 2 ticks
 
-# Summon creaking di dekat setiap pemain.
 command /creaking <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -300,7 +271,6 @@ command /creaking <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:creaking ~ ~1 ~"
                 wait 2 ticks
 
-# Summon elder guardian di dekat setiap pemain.
 command /elderguardian <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -312,7 +282,6 @@ command /elderguardian <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:elder_guardian ~ ~1 ~"
                 wait 2 ticks
 
-# Summon endermite di dekat setiap pemain.
 command /endermite <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -324,7 +293,6 @@ command /endermite <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:endermite ~ ~1 ~"
                 wait 2 ticks
 
-# Summon ghast di dekat setiap pemain.
 command /ghast <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -336,7 +304,6 @@ command /ghast <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:ghast ~ ~1 ~"
                 wait 2 ticks
 
-# Summon guardian di dekat setiap pemain.
 command /guardian <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -348,7 +315,6 @@ command /guardian <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:guardian ~ ~1 ~"
                 wait 2 ticks
 
-# Summon hoglin di dekat setiap pemain.
 command /hoglin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -360,7 +326,6 @@ command /hoglin <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:hoglin ~ ~1 ~"
                 wait 2 ticks
 
-# Summon husk di dekat setiap pemain.
 command /husk <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -372,7 +337,6 @@ command /husk <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:husk ~ ~1 ~"
                 wait 2 ticks
 
-# Summon magma cube di dekat setiap pemain.
 command /magmacube <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -384,7 +348,6 @@ command /magmacube <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:magma_cube ~ ~1 ~"
                 wait 2 ticks
 
-# Summon parched di dekat setiap pemain.
 command /parched <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -396,7 +359,6 @@ command /parched <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:parched ~ ~1 ~"
                 wait 2 ticks
 
-# Summon phantom di dekat setiap pemain.
 command /phantom <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -408,7 +370,6 @@ command /phantom <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:phantom ~ ~1 ~"
                 wait 2 ticks
 
-# Summon piglin brute di dekat setiap pemain.
 command /piglinbrute <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -420,7 +381,6 @@ command /piglinbrute <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:piglin_brute ~ ~1 ~"
                 wait 2 ticks
 
-# Summon pillager di dekat setiap pemain.
 command /pillager <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -432,7 +392,6 @@ command /pillager <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:pillager ~ ~1 ~"
                 wait 2 ticks
 
-# Summon shulker di dekat setiap pemain.
 command /shulker <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -444,7 +403,6 @@ command /shulker <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:shulker ~ ~1 ~"
                 wait 2 ticks
 
-# Summon silverfish di dekat setiap pemain.
 command /silverfish <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -456,7 +414,6 @@ command /silverfish <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:silverfish ~ ~1 ~"
                 wait 2 ticks
 
-# Summon slime di dekat setiap pemain.
 command /slime <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -468,7 +425,6 @@ command /slime <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:slime ~ ~1 ~"
                 wait 2 ticks
 
-# Summon stray di dekat setiap pemain.
 command /stray <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -480,7 +436,6 @@ command /stray <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:stray ~ ~1 ~"
                 wait 2 ticks
 
-# Summon vex di dekat setiap pemain.
 command /vex <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -492,7 +447,6 @@ command /vex <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:vex ~ ~1 ~"
                 wait 2 ticks
 
-# Summon vindicator di dekat setiap pemain.
 command /vindicator <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -504,7 +458,6 @@ command /vindicator <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:vindicator ~ ~1 ~"
                 wait 2 ticks
 
-# Summon warden di dekat setiap pemain.
 command /warden <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -516,7 +469,6 @@ command /warden <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:warden ~ ~1 ~"
                 wait 2 ticks
 
-# Summon zoglin di dekat setiap pemain.
 command /zoglin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -528,7 +480,6 @@ command /zoglin <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:zoglin ~ ~1 ~"
                 wait 2 ticks
 
-# Summon zombie villager di dekat setiap pemain.
 command /zombievillager <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -540,7 +491,6 @@ command /zombievillager <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:zombie_villager ~ ~1 ~"
                 wait 2 ticks
 
-# Summon cave spider di dekat setiap pemain.
 command /cavespider <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -552,7 +502,6 @@ command /cavespider <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:cave_spider ~ ~1 ~"
                 wait 2 ticks
 
-# Summon drowned di dekat setiap pemain.
 command /drowned <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -564,7 +513,6 @@ command /drowned <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:drowned ~ ~1 ~"
                 wait 2 ticks
 
-# Summon piglin di dekat setiap pemain.
 command /piglin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -576,7 +524,6 @@ command /piglin <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:piglin ~ ~1 ~"
                 wait 2 ticks
 
-# Summon zombified piglin di dekat setiap pemain.
 command /zombifiedpiglin <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -588,7 +535,6 @@ command /zombifiedpiglin <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:zombified_piglin ~ ~1 ~"
                 wait 2 ticks
 
-# Efek firework visual saat TNT meledak (tanpa suara firework).
 on explode:
     if event-entity is not set:
         stop

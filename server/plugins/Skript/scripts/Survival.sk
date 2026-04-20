@@ -540,6 +540,54 @@ command /zombievillager <number> <text> <number>:
                 execute console command "execute at %{_p}% run summon minecraft:zombie_villager ~ ~1 ~"
                 wait 2 ticks
 
+# Summon cave spider di dekat setiap pemain.
+command /cavespider <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&6&l%arg-2%" with subtitle "&8&lSUMMON &7Cave Spider &ex%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon minecraft:cave_spider ~ ~1 ~"
+                wait 2 ticks
+
+# Summon drowned di dekat setiap pemain.
+command /drowned <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&6&l%arg-2%" with subtitle "&3&lSUMMON &bDrowned &ex%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon minecraft:drowned ~ ~1 ~"
+                wait 2 ticks
+
+# Summon piglin di dekat setiap pemain.
+command /piglin <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&6&l%arg-2%" with subtitle "&6&lSUMMON &ePiglin &ex%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon minecraft:piglin ~ ~1 ~"
+                wait 2 ticks
+
+# Summon zombified piglin di dekat setiap pemain.
+command /zombifiedpiglin <number> <text> <number>:
+    trigger:
+        set {_total} to arg-1 * arg-3
+        loop all players:
+            set {_p} to loop-player
+            send title "&6&l%arg-2%" with subtitle "&2&lSUMMON &aZombified Piglin &ex%{_total}%" to loop-player
+            loop {_total} times:
+                play sound "entity.experience_orb.pickup" to loop-player
+                execute console command "execute at %{_p}% run summon minecraft:zombified_piglin ~ ~1 ~"
+                wait 2 ticks
+
 # Efek firework visual saat TNT meledak (tanpa suara firework).
 on explode:
     if event-entity is not set:

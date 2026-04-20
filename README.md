@@ -1,98 +1,68 @@
 # TikStream
 
-Bridge event TikTok Live ke aksi Minecraft (RCON + keyboard shortcut) dengan backend Go dan dashboard web.
+Bridge event TikTok Live ke aksi otomatis (Minecraft command + keyboard shortcut) dengan backend Go dan dashboard web.
 
-## Ringkasan
+README ini fokus ke kode aplikasi utama dan web UI. Detail isi folder `server/` tidak dibahas.
 
-Project ini berisi:
+## Ringkasan Fitur
 
-- Backend Go untuk:
-  - connect/track TikTok Live
-  - menyimpan dan mengeksekusi rule event (`events.json`)
-  - kirim command ke Minecraft via RCON
-  - trigger keyboard shortcut (Windows)
-  - stream history realtime via SSE
-- Dashboard web (embedded di binary) untuk:
-  - connect TikTok
-  - refresh daftar gift
-  - CRUD event rule
-  - export/load/reset event JSON
-  - upload sound trigger
-  - test event/simulator
-  - kontrol RCON
-  - export Event List Box ke PNG slides
-- Folder `server/` (Paper + Skript + plugin tambahan) untuk sisi gameplay Minecraft.
-
-## Fitur Utama
-
-- TikTok tracker dengan auto reconnect.
-- Filtering username via allowlist GitHub (license gate saat `/start`).
+- Tracking TikTok Live dengan auto reconnect.
+- License gate saat `POST /start` berbasis allowlist username dari GitHub.
 - Otomasi event:
-  - `gift`, `join`, `follow`, `comment`, `like`, `share`
-- Eksekusi aksi event:
-  - MC command (`run_mc_command`)
-  - keyboard shortcut (`run_shortcut`, Windows-only)
-  - atau keduanya bersamaan
-- Penanganan gift combo grouped (`RepeatEnd`) agar `repeatcount` final akurat.
-- Gift catalog sync + cache:
-  - `gift-list.json`
-  - image cache di `giftimage/`
-- SSE `/events` untuk log realtime di dashboard.
-- Event import/export/reset dari UI + endpoint API.
+  - `gift`, `join`, `follow`, `comment`, `like`, `share`, `other`
+- Aksi per event:
+  - jalankan command ke connector Minecraft (`run_mc_command`)
+  - jalankan shortcut keyboard (`run_shortcut`, Windows-only)
+  - atau keduanya
+- Gift catalog:
+  - refresh per username (`/api/gifts/refresh`)
+  - simpan ke `gift-list.json`
+  - cache gambar ke `giftimage/`
+- SSE realtime (`/events`) untuk status, log event, dan update like goal.
+- CRUD event + test event + preset profile (`P-*.json`) dari dashboard.
+- Like Goal (OBS overlay) dengan endpoint khusus dan halaman `/overlay/like-goal`.
+- Event List Box (gift cards) + export PNG slides.
+- UI bilingual (Indonesia/English).
 
 ## Teknologi
 
-- Go `1.25.0`
-- `github.com/steampoweredtaco/gotiktoklive v0.0.4`
+- Go `1.25.0` (sesuai `go.mod`)
+- `github.com/steampoweredtaco/gotiktoklive v0.0.4` (di-`replace` ke `./third_party/gotiktoklive`)
 - `github.com/gorcon/rcon v1.4.0`
-- HTML/CSS/Vanilla JS
+- HTML, CSS, Vanilla JS
 
 ## Struktur Proyek
 
 - `main.go`
-  - server HTTP
+  - HTTP server + SSE
   - TikTok stream controller
-  - event automation
-  - RCON manager
-  - simulator endpoint
-- `web/index.html`, `web/static/app.js`, `web/static/styles.css`
-  - dashboard UI
-- `server/`
-  - `paper.jar`, `eula.txt`, `server.properties`, `start-server.bat`
-  - `plugins/Skript-2.14.3.jar`
-  - `plugins/ServerTap-0.6.1.jar`
-  - `plugins/Skript/` untuk script `.sk` dan konfigurasi Skript
-
-## Aturan Commit (`.gitignore`)
-
-Saat ini `.gitignore` memakai mode whitelist:
-
-- Default semua file di-ignore (`*`)
-- Semua folder boleh ditelusuri (`!*/`)
-- Semua file berekstensi `.sk` selalu boleh di-commit (`!*.sk`)
-
-Selain aturan `.sk`, file yang diizinkan untuk di-commit adalah:
-
-- `.gitignore`
-- `LICENSE`
-- `README.md`
-- `go.mod`
-- `go.sum`
-- `main.go`
-- `server/eula.txt`
-- `server/paper.jar`
-- `server/plugins/ServerTap-0.6.1.jar`
-- `server/plugins/Skript-2.14.3.jar`
-- `server/server.properties`
-- `server/start-server.bat`
+  - automation engine
+  - connector Minecraft (RCON + ServerTap mode)
+  - API settings, event, gift, simulator, like goal
+- `shortcut_windows.go`, `shortcut_nonwindows.go`
+  - eksekusi keyboard shortcut per OS
 - `web/index.html`
+  - dashboard utama
 - `web/overlay-like-goal.html`
+  - halaman overlay like goal
 - `web/static/app.js`
+  - seluruh logic frontend dashboard
 - `web/static/overlay-like-goal.js`
+  - logic realtime overlay
 - `web/static/styles.css`
-- `web/static/vendor/html2canvas.min.js`
-
-File baru selain daftar di atas hanya akan ikut commit jika berekstensi `.sk`.
+  - styling dashboard + overlay
+- `gift-list.json`
+  - cache daftar gift
+- `giftimage/`
+  - cache gambar gift
+- `sounds/`
+  - upload audio trigger
+- `settings.json`
+  - unified settings aplikasi
+- `P-Default.json`, `P-*.json`
+  - default/preset event profile
+- `third_party/gotiktoklive/`
+  - dependency lokal untuk client TikTok Live
 
 ## Menjalankan Aplikasi
 
@@ -100,27 +70,26 @@ File baru selain daftar di atas hanya akan ikut commit jika berekstensi `.sk`.
 go run .
 ```
 
-Perilaku server web:
+Perilaku listener:
 
-- mencoba bind ke `127.0.0.1:8080`
-- jika port 8080 terpakai, fallback ke port random kosong
-- URL final dicetak ke log (`Web ready at http://127.0.0.1:<port>`)
-- browser dibuka otomatis
+- bind ke `127.0.0.1:${PORT}`
+- default `PORT=8080`
+- jika `VERCEL` atau `AWS_LAMBDA_FUNCTION_NAME` terdeteksi: host jadi `0.0.0.0`
+- URL dicetak ke log: `Web ready at http://<host>:<port>`
+- browser dibuka otomatis (kecuali mode serverless)
+- jika port gagal dibind, aplikasi `exit` (tidak ada fallback ke random port)
 
-## Alur Operasional
+## Alur Penggunaan Dashboard
 
-1. Jalankan backend Go.
-2. Buka dashboard dari URL yang tampil di log.
-3. Isi username TikTok.
-4. Tombol `Start`:
-   - refresh gift list by username (`/api/gifts/refresh`)
-5. Tombol `Connect`:
-   - mulai tracking live (`/start`)
-   - endpoint ini wajib lolos allowlist username (license gate)
-6. Event live masuk -> dicocokkan ke `events.json` -> enqueue -> eksekusi aksi.
-7. Log trigger/status/error tampil realtime melalui SSE `/events`.
+1. Isi username TikTok.
+2. Klik `Start` untuk refresh gift list berdasarkan username (`/api/gifts/refresh`).
+3. Klik `Connect` untuk mulai tracking live (`/start`).
+4. Atur connector Minecraft (`rcon` atau `servertap`) lalu connect bila diperlukan.
+5. Buat/edit event rule.
+6. Pantau history realtime di panel `History` (SSE `/events`).
+7. Gunakan `Event Simulator` atau tombol `Run` per event untuk pengujian.
 
-## Format Rule Event (`events.json`)
+## Format Event Rule
 
 Contoh item:
 
@@ -133,8 +102,10 @@ Contoh item:
   "gift_id": 10716,
   "gift_name": "Blow a kiss",
   "diamond": 1,
-  "sound_url": "/static/sounds/faaah.mp3",
-  "mc_command": "tnt 10 {username} {repeatcount}",
+  "repeat_by_gift_combo": false,
+  "show_in_export": true,
+  "sound_url": "/static/sounds/example.mp3",
+  "mc_command": "say {username}",
   "run_mc_command": true,
   "run_shortcut": false,
   "shortcut_keys": "",
@@ -142,29 +113,19 @@ Contoh item:
 }
 ```
 
-Field penting:
+Catatan validasi penting:
 
-- `type`: `gift | join | follow | comment | like | share`
-- `title`: judul untuk Event List Box
-- `label`:
-  - `comment`: substring match komentar
-  - `like`: harus angka, exact match terhadap `likes`
-- `gift_id`: wajib untuk tipe `gift` (harus ada di `gift-list.json`)
-- `mc_command`: command template (boleh multi-line)
-- `run_mc_command`: jalankan command ke RCON
-- `run_shortcut`: jalankan shortcut keyboard
-- `shortcut_keys`: wajib jika `run_shortcut=true`
-- `shortcut_hold_ms`: 0-10000
-
-Catatan kompatibilitas:
-
-- Jika data lama punya `run_mc_command=false` dan `run_shortcut=false`, backend otomatis fallback `run_mc_command=true`.
+- `type`: `join | comment | like | gift | share | follow | other`
+- `label` untuk `like` harus angka `>= 0`
+- `gift_id` (jika diisi) harus ada di `gift-list.json`
+- minimal satu aksi wajib aktif: `run_mc_command` atau `run_shortcut`
+- jika `run_mc_command=true`, `mc_command` wajib terisi
+- jika `run_shortcut=true`, `shortcut_keys` wajib terisi
+- `shortcut_hold_ms`: `0..10000`
 
 ## Placeholder Template
 
-Template command/shortcut memakai format `{key}`.
-
-Placeholder yang disuplai event live:
+Didukung pada `mc_command` dan `shortcut_keys`:
 
 - `{playername}`
 - `{username}`
@@ -176,46 +137,85 @@ Placeholder yang disuplai event live:
 - `{likecount}`
 - `{totallikecount}`
 
-Penggantian placeholder dilakukan oleh backend dengan `strings.ReplaceAll` per key.
+## Repeat by Gift Combo
 
-## Gift Combo Behavior
+Khusus event `gift`:
 
-Khusus grouped gift (`GroupID != 0`), perilakunya mengikuti opsi `Repeat by Gift Combo`:
+- `repeat_by_gift_combo=false`:
+  - trigger per event (delta repeat count)
+- `repeat_by_gift_combo=true`:
+  - tunggu hingga combo selesai (`RepeatEnd=true`)
+  - trigger sekali dengan `repeatcount` final combo
 
-- `OFF` (default): trigger per event gift (delta), jadi combo `1,2,3` diproses jadi `1,1,1`
-- `ON`: event ditahan sampai `RepeatEnd=true`, rule dipicu sekali di akhir combo
-- saat `ON`, `{repeatcount}` pakai total final combo
+## Settings dan Data Runtime
 
-## Event List Box (UI)
+File utama:
 
-- menampilkan event bertipe `gift` saja
-- auto slide
-- pagination + tombol `Prev/Next`
-- layout slide saat ini: grid `5 x 4` (20 card/slide)
-- tombol `Save PNG Slides` untuk export gambar slide
+- `settings.json` menyimpan:
+  - `username`
+  - `active_profile`
+  - `minecraft` (`enabled`, `mode`, `host`, `rcon_port`, `servertap_port`, `rcon_password`, `servertap_password`, `servertap_path`)
+  - `like_goal`
+  - `event_box`
+- event default tersimpan di `P-Default.json`
+- preset profile memakai pola `P-<Nama>.json`
+- upload audio tersimpan di `sounds/`
+- cache gambar gift tersimpan di `giftimage/`
+
+Penentuan root data:
+
+- jika `APP_DATA_DIR` di-set, semua file runtime dipakai dari folder itu
+- jika runtime serverless, dipakai `${TMP}/tikstream`
+- selain itu pakai lokasi file yang tersedia dari `cwd`/direktori executable
+
+## Like Goal
+
+- API:
+  - `GET/PUT /api/like-goal`
+  - `POST /api/like-goal/reset`
+  - `POST /api/like-goal/test`
+- Overlay:
+  - halaman `GET /overlay/like-goal`
+  - stream update dari SSE `/events` (`type=like_goal_state`)
+- Mode:
+  - `increase`
+  - `double`
 
 ## Endpoint API
 
-### Halaman dan State
+Halaman, state, stream:
 
 - `GET /`
+- `GET /overlay/like-goal`
 - `GET /state`
 - `POST /start`
 - `POST /stop`
 - `GET /events` (SSE)
 
-### Event Rule
+Settings:
+
+- `GET /api/settings`
+- `PUT /api/settings`
+
+Event:
 
 - `GET /api/events`
 - `POST /api/events`
 - `PUT /api/events/{id}`
 - `DELETE /api/events/{id}`
-- `GET /api/events/export`
 - `POST /api/events/load`
 - `POST /api/events/reset`
 - `POST /api/events/test/{id}`
 
-### Gift dan Asset
+Preset profile:
+
+- `GET /api/events/profiles`
+- `POST /api/events/create-profile`
+- `POST /api/events/load-profile`
+- `POST /api/events/save-profile`
+- `POST /api/events/rename-profile`
+
+Gift, asset, sound:
 
 - `GET /api/gifts`
 - `POST /api/gifts/refresh`
@@ -223,19 +223,26 @@ Khusus grouped gift (`GroupID != 0`), perilakunya mengikuti opsi `Repeat by Gift
 - `GET /giftimage/...`
 - `GET /static/...`
 
-### Minecraft RCON
+Minecraft connector:
+
+- `GET /api/minecraft/status`
+- `POST /api/minecraft/connect`
+- `POST /api/minecraft/disconnect`
+- `POST /api/minecraft/command`
+
+Alias legacy (tetap tersedia):
 
 - `GET /api/minecraft/rcon/status`
 - `POST /api/minecraft/rcon/connect`
 - `POST /api/minecraft/rcon/disconnect`
 - `POST /api/minecraft/rcon/command`
 
-### Simulator
+Simulator:
 
 - `POST /api/test/event`
-- `POST /api/test/gift` (alias ke handler yang sama)
+- `POST /api/test/gift` (alias handler yang sama)
 
-`/api/test/event` mendukung tipe:
+`/api/test/event` menerima `type`:
 
 - `gift`
 - `chat`
@@ -252,60 +259,26 @@ Khusus grouped gift (`GroupID != 0`), perilakunya mengikuti opsi `Repeat by Gift
 - `room_banner`
 - `intro`
 
-## Gift Refresh Source Fallback
+## Gift Refresh Fallback
 
-`/api/gifts/refresh` memakai urutan fallback:
+Urutan sumber `/api/gifts/refresh`:
 
-1. `live_room` (via room aktif)
-2. `web_fallback` (webcast gift list)
-3. `local_cache` (`gift-list.json` lokal)
+1. `live_room`
+2. `web_fallback`
+3. `local_cache` (`gift-list.json`)
 
-Response juga mengembalikan metadata `source`, `region`, `room_id`.
+Response memuat metadata: `source`, `region`, `room_id`.
 
-## RCON dan Keyboard Shortcut
+## License Gate
 
-- RCON config default dibaca dari `server/server.properties`.
-- Bisa override manual dari dashboard (`host`, `port`, `password`) saat connect.
-- `mc_command` bisa multi-line, backend eksekusi per baris non-kosong.
-- Keyboard shortcut hanya didukung di Windows (`runtime.GOOS == windows`).
+Saat `POST /start`, username wajib lolos allowlist:
 
-## License Gate (Penting)
-
-Endpoint `POST /start` melakukan validasi username ke allowlist remote:
-
-- default source:
+- URL default:
   - `https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt`
 - cache TTL: 30 detik
-- jika gagal/tidak terdaftar -> `403` dengan pesan pembelian license
+- jika gagal/tidak terdaftar: HTTP `403`
 
-Artinya, tracker live tidak akan start sebelum username lolos allowlist.
+## Catatan Platform
 
-## Testing
-
-Jalankan test Go:
-
-```bash
-go test ./...
-```
-
-Test tanpa live TikTok:
-
-- pakai panel `Event Simulator` di UI
-- atau panggil endpoint `/api/test/event`
-- atau tombol `Run` pada event row (`/api/events/test/{id}`)
-
-## Catatan Data Runtime
-
-File runtime seperti `events.json`, `gift-list.json`, `giftimage/`, `sounds/`, dan file data server lain tidak akan ikut commit kecuali ditambahkan ke whitelist `.gitignore` atau berformat `.sk`.
-
-Saran:
-
-- backup berkala file konfigurasi penting
-- jika event gift gagal dibuat, pastikan `gift-list.json` sudah ter-refresh
-- jika aksi command gagal, cek status RCON di dashboard
-
-## Dependency Management
-
-- Project ini memakai Go Modules (`go.mod` + `go.sum`).
-- Folder `vendor/` tidak wajib ada di root untuk penggunaan normal.
-- Gunakan `go mod vendor` hanya jika memang butuh mode vendor (misalnya build offline atau kebijakan CI tertentu).
+- Keyboard shortcut hanya didukung Windows.
+- Di OS non-Windows, trigger shortcut akan error: `keyboard shortcut is only supported on Windows`.

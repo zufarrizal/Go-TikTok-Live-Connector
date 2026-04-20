@@ -210,7 +210,7 @@ command /ravager <number> <text> <number>:
                 spawn 1 ravager at {_loc}
                 wait 2 ticks
 
-# Summon TNT aktif dengan fuse 40 tick.
+# Summon TNT aktif dengan fuse 30 tick.
 command /tnt <number> <text> <number>:
     trigger:
         set {_total} to arg-1 * arg-3
@@ -219,7 +219,7 @@ command /tnt <number> <text> <number>:
             send title "&c&l%arg-2%" with subtitle "&6&lSUMMON &cTNT &ex%{_total}%" to loop-player
             loop {_total} times:
                 play sound "entity.experience_orb.pickup" to loop-player
-                execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:40}"
+                execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:30}"
                 wait 2 ticks
 
 # Menjatuhkan TNT secara acak 3 blok di atas pemain dalam area 5x5.
@@ -233,7 +233,7 @@ command /tntrain <number> <text> <number>:
                 set {_x} to random integer between -2 and 2
                 set {_z} to random integer between -2 and 2
                 play sound "entity.experience_orb.pickup" to loop-player
-                execute console command "execute at %{_p}% run summon tnt ~%{_x}% ~3 ~%{_z}% {fuse:40}"
+                execute console command "execute at %{_p}% run summon tnt ~%{_x}% ~3 ~%{_z}% {fuse:30}"
                 wait 2 ticks
 
 # Memasukkan pemain ke tengah lalu membuat penjara TNT 5x5 di sekelilingnya.
@@ -248,7 +248,7 @@ command /tntprison <number> <text> <number>:
             execute console command "execute at %{_p}% run fill ~-8 ~-2 ~-8 ~8 ~14 ~8 air"
             execute console command "execute at %{_p}% run fill ~-8 ~-2 ~-8 ~8 ~14 ~8 tnt hollow"
             execute console command "execute at %{_p}% run fill ~-7 ~-1 ~-7 ~7 ~13 ~7 tnt hollow"
-            execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:40}"
+            execute console command "execute at %{_p}% run summon tnt ~ ~ ~ {fuse:30}"
             play sound "entity.experience_orb.pickup" to {_p}
 
 # Kombinasi creeper charged dan TNT untuk mode chaos.

@@ -1726,6 +1726,8 @@ type mcEventAutomation struct {
 	mu    sync.Mutex
 	// Tracks grouped gift combo progression by TikTok GroupID.
 	giftCombo map[int64]giftComboProgress
+	// Tracks streak gifts without GroupID to suppress duplicate final packets in per-event mode.
+	giftComboNoGroup map[string]int
 	// Tracks cumulative like counts per username for this runtime session.
 	likeTotals map[string]int
 	// Tracks follow events already processed in the current live session.
@@ -1757,21 +1759,30 @@ type queuedMCTrigger struct {
 
 func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub) *mcEventAutomation {
 	a := &mcEventAutomation{
-		store:           store,
-		rcon:            rcon,
-		hub:             hub,
-		giftCombo:       make(map[int64]giftComboProgress),
-		likeTotals:      make(map[string]int),
-		followSeen:      make(map[string]struct{}),
-		reservedRuleIDs: make(map[int]struct{}),
-		queue:           make(chan queuedMCTrigger, 512),
+		store:            store,
+		rcon:             rcon,
+		hub:              hub,
+		giftCombo:        make(map[int64]giftComboProgress),
+		giftComboNoGroup: make(map[string]int),
+		likeTotals:       make(map[string]int),
+		followSeen:       make(map[string]struct{}),
+		reservedRuleIDs:  make(map[int]struct{}),
+		queue:            make(chan queuedMCTrigger, 1000),
 	}
 	go a.processQueue()
 	return a
 }
 
 func (a *mcEventAutomation) processQueue() {
+	const triggerInterval = 500 * time.Millisecond
+	var lastProcessedAt time.Time
 	for job := range a.queue {
+		if !lastProcessedAt.IsZero() {
+			if wait := triggerInterval - time.Since(lastProcessedAt); wait > 0 {
+				time.Sleep(wait)
+			}
+		}
+		lastProcessedAt = time.Now()
 		commandOut := ""
 		var commandErr error
 		mcEnabled := a.rcon.Enabled()
@@ -1993,6 +2004,7 @@ func (a *mcEventAutomation) markFollowSeen(username string, nickname string) boo
 func (a *mcEventAutomation) resetSessionState() {
 	a.mu.Lock()
 	a.giftCombo = make(map[int64]giftComboProgress)
+	a.giftComboNoGroup = make(map[string]int)
 	a.likeTotals = make(map[string]int)
 	a.followSeen = make(map[string]struct{})
 	a.mu.Unlock()
@@ -2087,7 +2099,27 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 	}
 	// Streak gifts without GroupID still rely on RepeatEnd for combo-final mode.
 	if g.GroupID == 0 {
-		return current, g.RepeatEnd, current
+		key := giftNoGroupComboKey(g)
+		if key == "" {
+			return current, g.RepeatEnd, current
+		}
+		a.mu.Lock()
+		prev := a.giftComboNoGroup[key]
+		perEvent := current
+		if prev > 0 {
+			if current > prev {
+				perEvent = current - prev
+			} else if current == prev {
+				perEvent = 0
+			}
+		}
+		if g.RepeatEnd {
+			delete(a.giftComboNoGroup, key)
+		} else {
+			a.giftComboNoGroup[key] = current
+		}
+		a.mu.Unlock()
+		return perEvent, g.RepeatEnd, current
 	}
 
 	a.mu.Lock()
@@ -2095,12 +2127,13 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 
 	state := a.giftCombo[g.GroupID]
 	// Some gift streams appear to reuse GroupID across separate combos.
-	// When the repeat counter restarts (or goes backwards), treat it as a new combo
+	// When the repeat counter goes backwards, treat it as a new combo
 	// instead of carrying over state from the previous one.
-	if state.Last > 0 && current <= state.Last {
-		if current == 1 || current < state.Last {
-			state = giftComboProgress{}
-		}
+	//
+	// Keep equal counters as the same combo, because single gifts commonly emit
+	// a second/final packet with the same RepeatCount (for example 1 -> 1 with RepeatEnd=true).
+	if state.Last > 0 && current < state.Last {
+		state = giftComboProgress{}
 	}
 	prevLast := state.Last
 	if state.Last > 0 && current > state.Last {
@@ -2141,6 +2174,17 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 	}
 	delete(a.giftCombo, g.GroupID)
 	return perEvent, true, total
+}
+
+func giftNoGroupComboKey(g gotiktoklive.GiftEvent) string {
+	username := normalizeUsername(safeUsernameFromUser(g.User))
+	if username == "" {
+		username = strconv.FormatInt(g.ToUserID, 10)
+	}
+	if username == "" {
+		return ""
+	}
+	return username + "|" + strconv.FormatInt(g.ID, 10)
 }
 
 func resolveGiftRepeatCount(currentRepeatCount int, comboRepeatCount int) int {

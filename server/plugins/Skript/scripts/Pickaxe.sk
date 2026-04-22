@@ -51,8 +51,9 @@
                 set {_block} to block at {_loc}
                 if {_block} is not bedrock:
                     if {_block} is not cobweb:
-                        if {_block} is not air:
-                            set {_drops::*} to drops of {_block}
-                            set block at {_loc} to air
-                            loop {_drops::*}:
-                                drop loop-value-4 at {_loc}
+                        if {_block} is not tnt:
+                            if {_block} is not air:
+                                set {_drops::*} to drops of {_block}
+                                set block at {_loc} to air
+                                loop {_drops::*}:
+                                    drop loop-value-4 at {_loc}

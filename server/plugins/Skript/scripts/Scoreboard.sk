@@ -32,7 +32,7 @@ function update_win_scoreboard():
     normalize_win_target()
     if {scoreboard.win.line} is set:
         execute console command "scoreboard players reset %{scoreboard.win.line}% diamond_count"
-    set {_line} to "Â§6Â§lWIN:Â§f%{win.total}%Â§7/Â§e%{win.target}%"
+    set {_line} to colored "&6&lWIN:&f%{win.total}%&7/&e%{win.target}%"
     set {scoreboard.win.line} to {_line}
     execute console command "scoreboard players set %{_line}% diamond_count 1"
 
@@ -46,7 +46,7 @@ function update_player_scoreboard(p: player):
     if {scoreboard.diamond.line} is set:
         execute console command "scoreboard players reset %{scoreboard.diamond.line}% diamond_count"
     execute console command "scoreboard players reset %{_p}% diamond_count"
-    set {_line} to "Â§bÂ§lDiamond:Â§f%{_countText}%Â§7/Â§e%{_targetText}%"
+    set {_line} to colored "&b&lDiamond:&f%{_countText}%&7/&e%{_targetText}%"
     set {scoreboard.diamond.line} to {_line}
     execute console command "scoreboard players set %{_line}% diamond_count 2"
 

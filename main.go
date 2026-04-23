@@ -1504,8 +1504,12 @@ func (m *likeGoalManager) SyncFromUsername(username string, reasonLive string, r
 		m.mu.Lock()
 		m.awaitingLiveBaseline = true
 		m.mu.Unlock()
-		_, err = m.SyncAbsoluteLikes(0, reasonOffline)
-		return err
+		if strings.TrimSpace(reasonOffline) != "" {
+			m.mu.Lock()
+			m.broadcastStateLocked(reasonOffline)
+			m.mu.Unlock()
+		}
+		return nil
 	}
 	if hasTotalLikes {
 		_, err = m.SyncAbsoluteLikes(totalLikes, reasonLive)
@@ -1589,15 +1593,20 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 		if !syncEvent.Live {
 			m.mu.Lock()
 			m.awaitingLiveBaseline = true
+			m.broadcastStateLocked("live_offline")
 			m.mu.Unlock()
-			_, _ = m.SyncAbsoluteLikes(0, "live_offline")
 			return
 		}
 		if syncEvent.HasTotalLikes {
-			_, _ = m.SyncAbsoluteLikes(syncEvent.TotalLikes, "live_room_sync")
 			m.mu.Lock()
-			m.awaitingLiveBaseline = false
+			canAcceptZeroBaseline := m.state.CurrentLikes <= 0
 			m.mu.Unlock()
+			if syncEvent.TotalLikes > 0 || canAcceptZeroBaseline {
+				_, _ = m.SyncAbsoluteLikes(syncEvent.TotalLikes, "live_room_sync")
+				m.mu.Lock()
+				m.awaitingLiveBaseline = false
+				m.mu.Unlock()
+			}
 		}
 		return
 	}

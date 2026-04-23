@@ -59,6 +59,7 @@ on load:
     delete {scoreboard.diamond.line}
     delete {scoreboard.win.line}
     delete {win.firework.active}
+    delete {addwin.firework.seconds}
     execute console command "scoreboard objectives remove diamond_count"
     execute console command "scoreboard objectives add diamond_count dummy SCOREBOARD"
     execute console command "scoreboard objectives modify diamond_count numberformat blank"
@@ -110,6 +111,20 @@ every 10 ticks:
                 set {win.countdown::%uuid of loop-player%} to 15
         else:
             delete {win.countdown::%uuid of loop-player%}
+
+every 1 tick:
+    loop all players:
+        set {_id} to uuid of loop-player
+        if {freeze.seconds::%{_id}%} is set:
+            if {freeze.seconds::%{_id}%} > 0:
+                if {freeze.lockloc::%{_id}%} is set:
+                    teleport loop-player to {freeze.lockloc::%{_id}%}
+                else:
+                    set {freeze.lockloc::%{_id}%} to location of loop-player
+            else:
+                delete {freeze.lockloc::%{_id}%}
+        else:
+            delete {freeze.lockloc::%{_id}%}
 
 every 1 second:
     loop all players:
@@ -163,6 +178,24 @@ every 1 second:
                         delete {win.countdown.slowticks::%uuid of loop-player%}
                         remove 1 from {win.countdown::%uuid of loop-player%}
 
+    loop all players:
+        set {_id} to uuid of loop-player
+        if {dancefloor.protect.seconds::%{_id}%} is set:
+            remove 1 from {dancefloor.protect.seconds::%{_id}%}
+            if {dancefloor.protect.seconds::%{_id}%} <= 0:
+                delete {dancefloor.protect.seconds::%{_id}%}
+                delete {dancefloor.center::%{_id}%}
+        if {freeze.seconds::%{_id}%} is set:
+            remove 1 from {freeze.seconds::%{_id}%}
+            if {freeze.seconds::%{_id}%} <= 0:
+                delete {freeze.seconds::%{_id}%}
+                delete {freeze.lockloc::%{_id}%}
+
+    if {addwin.firework.seconds} is set:
+        remove 1 from {addwin.firework.seconds}
+        if {addwin.firework.seconds} <= 0:
+            delete {addwin.firework.seconds}
+
 every 5 ticks:
     normalize_win_total()
     normalize_win_target()
@@ -196,6 +229,29 @@ every 5 ticks:
         if {win.firework.active} is set:
             delete {win.firework.active}
             broadcast "&eWIN celebration stopped. Increase current win to reach target again."
+
+    if {addwin.firework.seconds} is set:
+        if {addwin.firework.seconds} > 0:
+            loop all players:
+                set {_arx1} to random integer between -3 and 3
+                set {_ary1} to random integer between 1 and 4
+                set {_arz1} to random integer between -3 and 3
+                execute console command "execute at %loop-player% run particle dust{color:[1.0,0.1,0.1],scale:1.4} ~%{_arx1}% ~%{_ary1}% ~%{_arz1}% 0.35 0.35 0.35 0.08 45 force @a"
+
+                set {_arx2} to random integer between -3 and 3
+                set {_ary2} to random integer between 1 and 4
+                set {_arz2} to random integer between -3 and 3
+                execute console command "execute at %loop-player% run particle dust{color:[1.0,0.9,0.0],scale:1.4} ~%{_arx2}% ~%{_ary2}% ~%{_arz2}% 0.35 0.35 0.35 0.08 45 force @a"
+
+                set {_arx3} to random integer between -3 and 3
+                set {_ary3} to random integer between 1 and 4
+                set {_arz3} to random integer between -3 and 3
+                execute console command "execute at %loop-player% run particle dust{color:[0.1,1.0,0.1],scale:1.4} ~%{_arx3}% ~%{_ary3}% ~%{_arz3}% 0.35 0.35 0.35 0.08 45 force @a"
+
+                set {_arx4} to random integer between -3 and 3
+                set {_ary4} to random integer between 1 and 4
+                set {_arz4} to random integer between -3 and 3
+                execute console command "execute at %loop-player% run particle dust{color:[1.0,1.0,1.0],scale:1.4} ~%{_arx4}% ~%{_ary4}% ~%{_arz4}% 0.35 0.35 0.35 0.08 45 force @a"
 
 command /dmmin <number> <text> <number>:
     trigger:
@@ -298,6 +354,71 @@ command /addwin <number> <text> <number>:
         add {_total} to {win.total}
         send title "&6&l%arg-2%" with subtitle "&a&lADD &e%{_total}% &fWin" to players
         update_win_scoreboard()
+        set {addwin.firework.seconds} to 14
+
+        # addwin only: teleport players to top Y + 1, clear 15x15x15, then build 15x15 dance floor
+        loop all players:
+            set {_tpLoc} to location of loop-player
+            set {_topBlock} to highest block at {_tpLoc}
+            set y-coordinate of {_tpLoc} to y-coordinate of {_topBlock}
+            add 1 to y-coordinate of {_tpLoc}
+            teleport loop-player to {_tpLoc}
+
+            execute console command "execute at %loop-player% run fill ~-7 ~-1 ~-7 ~7 ~13 ~7 minecraft:air replace"
+            execute console command "execute at %loop-player% run fill ~-7 ~-1 ~-7 ~7 ~-1 ~7 minecraft:sea_lantern replace"
+            execute console command "execute at %loop-player% run fill ~-8 ~-2 ~-8 ~-6 ~-2 ~-6 minecraft:iron_block replace"
+            execute console command "execute at %loop-player% run fill ~6 ~-2 ~-8 ~8 ~-2 ~-6 minecraft:iron_block replace"
+            execute console command "execute at %loop-player% run fill ~-8 ~-2 ~6 ~-6 ~-2 ~8 minecraft:iron_block replace"
+            execute console command "execute at %loop-player% run fill ~6 ~-2 ~6 ~8 ~-2 ~8 minecraft:iron_block replace"
+            execute console command "execute at %loop-player% run setblock ~-7 ~-1 ~-7 minecraft:beacon replace"
+            execute console command "execute at %loop-player% run setblock ~7 ~-1 ~-7 minecraft:beacon replace"
+            execute console command "execute at %loop-player% run setblock ~-7 ~-1 ~7 minecraft:beacon replace"
+            execute console command "execute at %loop-player% run setblock ~7 ~-1 ~7 minecraft:beacon replace"
+            set {dancefloor.protect.seconds::%uuid of loop-player%} to 15
+            set {dancefloor.center::%uuid of loop-player%} to location of loop-player
+            set {freeze.seconds::%uuid of loop-player%} to 1
+            set {freeze.lockloc::%uuid of loop-player%} to location of loop-player
+
+        # blink dance floor: random block per tile (not one block type for whole floor), 15 seconds total
+        loop 38 times:
+            loop all players:
+                set {_p} to loop-player
+                execute console command "execute at %{_p}% run fill ~-7 ~-1 ~-7 ~7 ~-1 ~7 minecraft:air replace"
+                set {_x} to -7
+                while {_x} <= 7:
+                    set {_z} to -7
+                    while {_z} <= 7:
+                        set {_rnd} to random integer between 1 and 6
+                        if {_rnd} = 1:
+                            set {_danceBlock} to "minecraft:sea_lantern"
+                        else if {_rnd} = 2:
+                            set {_danceBlock} to "minecraft:glowstone"
+                        else if {_rnd} = 3:
+                            set {_danceBlock} to "minecraft:shroomlight"
+                        else if {_rnd} = 4:
+                            set {_danceBlock} to "minecraft:ochre_froglight"
+                        else if {_rnd} = 5:
+                            set {_danceBlock} to "minecraft:pearlescent_froglight"
+                        else:
+                            set {_danceBlock} to "minecraft:verdant_froglight"
+
+                        execute console command "execute at %{_p}% run setblock ~%{_x}% ~-1 ~%{_z}% %{_danceBlock}% replace"
+                        add 1 to {_z}
+                    add 1 to {_x}
+                execute console command "execute at %{_p}% run setblock ~-7 ~-1 ~-7 minecraft:beacon replace"
+                execute console command "execute at %{_p}% run setblock ~7 ~-1 ~-7 minecraft:beacon replace"
+                execute console command "execute at %{_p}% run setblock ~-7 ~-1 ~7 minecraft:beacon replace"
+                execute console command "execute at %{_p}% run setblock ~7 ~-1 ~7 minecraft:beacon replace"
+            wait 8 ticks
+
+        # remove temporary arena after 15 seconds
+        loop all players:
+            execute console command "execute at %loop-player% run fill ~-8 ~-2 ~-8 ~8 ~13 ~8 minecraft:air replace"
+            delete {dancefloor.protect.seconds::%uuid of loop-player%}
+            delete {dancefloor.center::%uuid of loop-player%}
+            delete {freeze.seconds::%uuid of loop-player%}
+            delete {freeze.lockloc::%uuid of loop-player%}
+
         broadcast "&eWIN score increased by &a%{_total}%&e. Total: &6%{win.total}%&e."
 
 command /minwin <number> <text> <number>:
@@ -323,3 +444,27 @@ command /winmin <number> <text> <number>:
     trigger:
         execute player command "minwin %arg-1% %arg-2% %arg-3%"
 
+on break:
+    set {_bLoc} to location of event-block
+    loop all players:
+        set {_id} to uuid of loop-player
+        if {dancefloor.protect.seconds::%{_id}%} is set:
+            if {dancefloor.protect.seconds::%{_id}%} > 0:
+                set {_center} to {dancefloor.center::%{_id}%}
+                if {_center} is set:
+                    if world of {_bLoc} is world of {_center}:
+                        set {_minX} to (x-coordinate of {_center}) - 8
+                        set {_maxX} to (x-coordinate of {_center}) + 8
+                        set {_minY} to (y-coordinate of {_center}) - 2
+                        set {_maxY} to (y-coordinate of {_center}) + 13
+                        set {_minZ} to (z-coordinate of {_center}) - 8
+                        set {_maxZ} to (z-coordinate of {_center}) + 8
+
+                        if x-coordinate of {_bLoc} >= {_minX}:
+                            if x-coordinate of {_bLoc} <= {_maxX}:
+                                if y-coordinate of {_bLoc} >= {_minY}:
+                                    if y-coordinate of {_bLoc} <= {_maxY}:
+                                        if z-coordinate of {_bLoc} >= {_minZ}:
+                                            if z-coordinate of {_bLoc} <= {_maxZ}:
+                                                cancel event
+                                                stop

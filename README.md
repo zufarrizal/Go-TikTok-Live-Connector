@@ -109,7 +109,8 @@ Contoh item:
   "run_mc_command": true,
   "run_shortcut": false,
   "shortcut_keys": "",
-  "shortcut_hold_ms": 0
+  "shortcut_hold_ms": 0,
+  "run_duration_ms": 0
 }
 ```
 
@@ -122,6 +123,7 @@ Catatan validasi penting:
 - jika `run_mc_command=true`, `mc_command` wajib terisi
 - jika `run_shortcut=true`, `shortcut_keys` wajib terisi
 - `shortcut_hold_ms`: `0..10000`
+- `run_duration_ms`: `0..600000`
 
 ## Placeholder Template
 
@@ -145,7 +147,8 @@ Khusus event `gift`:
   - trigger per event (delta repeat count)
 - `repeat_by_gift_combo=true`:
   - tunggu hingga combo selesai (`RepeatEnd=true`)
-  - trigger sekali dengan `repeatcount` final combo
+  - trigger dijalankan berurutan satu per satu sesuai total akhir combo
+  - setiap trigger memakai `repeatcount=1`
 
 ## Settings dan Data Runtime
 

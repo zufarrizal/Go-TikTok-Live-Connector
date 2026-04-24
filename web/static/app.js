@@ -14,6 +14,7 @@ const statusEl = document.getElementById("status");
     const mcPortEl = document.getElementById("mcPort");
     const mcPasswordEl = document.getElementById("mcPassword");
     const mcServerTapPathEl = document.getElementById("mcServerTapPath");
+    const mcRconRowEl = document.querySelector(".mc-rcon-row");
     const mcConnectBtn = document.getElementById("mcConnectBtn");
     const mcDisconnectBtn = document.getElementById("mcDisconnectBtn");
     const mcCommandEl = document.getElementById("mcCommand");
@@ -93,6 +94,7 @@ const statusEl = document.getElementById("status");
     const shortcutRowEl = document.getElementById("shortcutRow");
     const eventShortcutKeysEl = document.getElementById("eventShortcutKeys");
     const eventShortcutHoldMsEl = document.getElementById("eventShortcutHoldMs");
+    const eventRunDurationMsEl = document.getElementById("eventRunDurationMs");
     const resetEventBtn = document.getElementById("resetEventBtn");
     const eventRowsEl = document.getElementById("eventRows");
     const eventBoxRowsEl = document.getElementById("eventBoxRows");
@@ -714,6 +716,7 @@ const statusEl = document.getElementById("status");
       if (eventLabelEl) eventLabelEl.placeholder = currentLang === "id" ? "Label/filter rule (opsional)" : "Rule label/filter (optional)";
       if (eventSoundEl) eventSoundEl.placeholder = currentLang === "id" ? "URL/path suara (opsional, contoh /static/sounds/trigger.mp3)" : "Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)";
       if (eventShortcutHoldMsEl) eventShortcutHoldMsEl.placeholder = currentLang === "id" ? "Tahan" : "Hold";
+      if (eventRunDurationMsEl) eventRunDurationMsEl.placeholder = currentLang === "id" ? "Durasi jalan" : "Run duration";
       if (createPresetProfileModalTitleEl) createPresetProfileModalTitleEl.textContent = t("ui.createProfile");
       if (createPresetProfileNameEl) createPresetProfileNameEl.placeholder = currentLang === "id" ? "Nama profile (tanpa P-)" : "Profile name (without P-)";
       if (renamePresetProfileModalTitleEl) renamePresetProfileModalTitleEl.textContent = t("ui.renameProfile");
@@ -1300,8 +1303,10 @@ const statusEl = document.getElementById("status");
 
     function normalizeEventType(type) {
       const value = String(type || "").trim().toLowerCase();
+      if (value === "user_join") return "join";
       if (value === "user_follow") return "follow";
       if (value === "user_share") return "share";
+      if (value === "chat") return "comment";
       return value;
     }
 
@@ -1317,6 +1322,8 @@ const statusEl = document.getElementById("status");
     function getEventTypeIconClass(type) {
       const normalized = normalizeEventType(type);
       if (normalized === "like") return "fa-heart event-fa-like";
+      if (normalized === "join") return "fa-right-to-bracket event-fa-join";
+      if (normalized === "comment") return "fa-comment event-fa-comment";
       if (normalized === "follow") return "fa-user-plus event-fa-follow";
       if (normalized === "share") return "fa-share-nodes event-fa-share";
       return "fa-bolt event-fa-default";
@@ -2426,6 +2433,17 @@ const statusEl = document.getElementById("status");
       showFloatingToast(message, detectToastType(message), TOAST_DURATION_MS);
     }
 
+    function normalizeRunDurationMs(value) {
+      if (value === null || value === undefined || value === "") {
+        return 1000;
+      }
+      const n = Number(value);
+      if (!Number.isFinite(n)) {
+        return 1000;
+      }
+      return Math.max(0, Math.min(600000, Math.round(n)));
+    }
+
     function resetEventForm() {
       editingEventId = null;
       eventForm.reset();
@@ -2442,6 +2460,7 @@ const statusEl = document.getElementById("status");
       }
       eventShortcutKeysEl.value = "";
       eventShortcutHoldMsEl.value = "0";
+      if (eventRunDurationMsEl) eventRunDurationMsEl.value = "1000";
       eventShortcutPicker.syncFromSelect();
       eventModalTitleEl.textContent = t("ui.eventModalAdd");
       refreshEventGiftOptions();
@@ -2652,6 +2671,8 @@ const statusEl = document.getElementById("status");
 
       const sortedItems = sortEventItems(items);
       for (const item of sortedItems) {
+        const eventType = normalizeEventType(item.type);
+        const isGiftEvent = eventType === "gift";
         const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
         const shortcutLabel = normalizeShortcutSymbols(item.shortcut_keys);
         const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
@@ -2660,11 +2681,18 @@ const statusEl = document.getElementById("status");
         const remoteGiftImage = resolveGiftImageRemote(gift);
         const giftImage = localGiftImage || remoteGiftImage;
         const giftName = String(item.gift_name || "").trim();
-        const giftNameText = giftName || "-";
+        const typeAsGiftName = String(item.type || "").trim();
+        const giftNameText = giftName || typeAsGiftName || "-";
         const giftThumbHTML = giftImage
           ? "<img class=\"event-table-gift-thumb\" src=\"" + esc(giftImage) + "\" alt=\"" + esc(giftNameText) + "\" loading=\"lazy\"" +
             (remoteGiftImage ? " data-fallback-src=\"" + esc(remoteGiftImage) + "\"" : "") + ">"
-          : "<span class=\"event-table-gift-thumb-fallback\">IMG</span>";
+          : (
+            isGiftEvent
+              ? "<span class=\"event-table-gift-thumb-fallback\">IMG</span>"
+              : "<span class=\"event-table-type-icon-wrap\" aria-hidden=\"true\">" +
+                "<i class=\"fa-solid " + esc(getEventTypeIconClass(eventType)) + " event-table-type-icon\"></i>" +
+              "</span>"
+          );
         const showInExport = item.show_in_export !== false;
         const showInExportHTML = "<input type=\"checkbox\" class=\"event-show-export-toggle\" data-id=\"" + item.id + "\"" + (showInExport ? " checked" : "") + ">";
         const tr = document.createElement("tr");
@@ -3201,6 +3229,9 @@ const statusEl = document.getElementById("status");
     function syncMinecraftConnectorModeUI() {
       const mode = String(mcModeEl && mcModeEl.value ? mcModeEl.value : "rcon").toLowerCase() === "servertap" ? "servertap" : "rcon";
       activeMinecraftMode = mode;
+      if (mcRconRowEl) {
+        mcRconRowEl.dataset.mode = mode;
+      }
       if (mcPasswordEl) {
         mcPasswordEl.placeholder = mode === "servertap"
           ? (currentLang === "id" ? "Token ServerTap (opsional)" : "ServerTap token (optional)")
@@ -3464,6 +3495,7 @@ const statusEl = document.getElementById("status");
       const runShortcut = !!eventRunShortcutEl.checked;
       const shortcutKeys = normalizeShortcutSymbols(eventShortcutKeysEl.value);
       const shortcutHoldMs = Math.max(0, Math.min(10000, Number(eventShortcutHoldMsEl.value || 0)));
+      const runDurationMs = normalizeRunDurationMs(eventRunDurationMsEl && eventRunDurationMsEl.value);
       const payload = {
         type: type,
         title: eventTitleEl.value.trim(),
@@ -3476,7 +3508,8 @@ const statusEl = document.getElementById("status");
         run_mc_command: runMCCommand,
         run_shortcut: runShortcut,
         shortcut_keys: shortcutKeys,
-        shortcut_hold_ms: shortcutHoldMs
+        shortcut_hold_ms: shortcutHoldMs,
+        run_duration_ms: runDurationMs
       };
       if (!payload.type) {
         setStatus(currentLang === "id" ? "tipe event wajib diisi" : "event type is required", false);
@@ -3789,6 +3822,9 @@ const statusEl = document.getElementById("status");
           eventMCCommandEl.value = item.mc_command || "";
           eventShortcutKeysEl.value = normalizeShortcutSymbols(item.shortcut_keys);
           eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
+          if (eventRunDurationMsEl) {
+            eventRunDurationMsEl.value = String(normalizeRunDurationMs(item.run_duration_ms));
+          }
           eventShortcutPicker.syncFromSelect();
           syncExecutionModeFields();
           eventTypeEl.focus();
@@ -3834,7 +3870,8 @@ const statusEl = document.getElementById("status");
             run_mc_command: item.run_mc_command !== false,
             run_shortcut: !!item.run_shortcut,
             shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
-            shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0))
+            shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0)),
+            run_duration_ms: normalizeRunDurationMs(item.run_duration_ms)
           };
 
           const createRes = await fetch("/api/events", {
@@ -3896,7 +3933,8 @@ const statusEl = document.getElementById("status");
           run_mc_command: item.run_mc_command !== false,
           run_shortcut: !!item.run_shortcut,
           shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
-          shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0))
+          shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0)),
+          run_duration_ms: normalizeRunDurationMs(item.run_duration_ms)
         };
 
         const updateRes = await fetch("/api/events/" + id, {

@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TikStream</title>
+  <link rel="icon" type="image/svg+xml" href="/static/app-logo.svg">
+  <link rel="shortcut icon" href="/static/app-logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Montserrat:wght@700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -13,7 +15,10 @@
 <body>
   <main class="wrap">
     <header class="head">
-      <h1 class="title">TikStream</h1>
+      <h1 class="title">
+        <img class="app-logo-icon" src="/static/app-logo.svg" alt="TikStream logo">
+        <span>TikStream</span>
+      </h1>
       <div class="head-actions">
         <button id="languageToggleBtn" type="button" aria-label="Toggle language" title="Switch language">
           <img id="languageFlagIcon" src="/static/flags/id.svg" alt="Indonesia flag">
@@ -215,10 +220,18 @@
             <select id="eventGift" class="native-gift-select" aria-label="Gift"></select>
           </div>
 
-          <div class="sound-picker full">
-            <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" autocomplete="off" aria-label="Sound URL or path">
-            <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
-            <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac">
+          <div class="sound-duration-row full">
+            <div class="sound-picker">
+              <input id="eventSound" type="text" placeholder="Sound URL/path (optional, e.g. /static/sounds/trigger.mp3)" autocomplete="off" aria-label="Sound URL or path">
+              <label id="pickEventSoundBtn" for="eventSoundFile" class="sound-picker-btn">Upload Sound</label>
+              <input id="eventSoundFile" class="visually-hidden-file" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac">
+            </div>
+            <div class="run-duration-inline">
+              <div class="shortcut-hold-wrap">
+                <input id="eventRunDurationMs" type="number" min="0" max="600000" step="100" value="1000" placeholder="Run Duration" aria-label="Event run duration in milliseconds">
+                <span class="shortcut-hold-suffix">ms</span>
+              </div>
+            </div>
           </div>
 
           <div class="execution-mode full">

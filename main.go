@@ -508,6 +508,7 @@ type eventRecord struct {
 	RunShortcut       bool   `json:"run_shortcut"`
 	ShortcutKeys      string `json:"shortcut_keys"`
 	ShortcutHold      int    `json:"shortcut_hold_ms"`
+	RunDurationMs     int    `json:"run_duration_ms"`
 }
 
 func (e *eventRecord) UnmarshalJSON(data []byte) error {
@@ -516,6 +517,7 @@ func (e *eventRecord) UnmarshalJSON(data []byte) error {
 		eventRecordAlias
 		RepeatByGiftCombo *bool `json:"repeat_by_gift_combo"`
 		ShowInExport      *bool `json:"show_in_export"`
+		RunDurationMs     *int  `json:"run_duration_ms"`
 	}{}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -531,6 +533,11 @@ func (e *eventRecord) UnmarshalJSON(data []byte) error {
 		e.ShowInExport = true
 	} else {
 		e.ShowInExport = *aux.ShowInExport
+	}
+	if aux.RunDurationMs == nil {
+		e.RunDurationMs = 1000
+	} else {
+		e.RunDurationMs = *aux.RunDurationMs
 	}
 	return nil
 }
@@ -1066,6 +1073,12 @@ func normalizeEventExecutionMode(item *eventRecord) {
 	if item.ShortcutHold > 10000 {
 		item.ShortcutHold = 10000
 	}
+	if item.RunDurationMs < 0 {
+		item.RunDurationMs = 0
+	}
+	if item.RunDurationMs > 600000 {
+		item.RunDurationMs = 600000
+	}
 	if item.RunShortcut && item.ShortcutKeys == "" {
 		item.RunShortcut = false
 	}
@@ -1088,7 +1101,7 @@ func (s *eventStore) nextIDLocked() int {
 	return maxID + 1
 }
 
-func (s *eventStore) create(eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) create(eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int, runDurationMs int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1108,6 +1121,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, repeatBy
 		RunShortcut:       runShortcut,
 		ShortcutKeys:      strings.TrimSpace(shortcutKeys),
 		ShortcutHold:      shortcutHold,
+		RunDurationMs:     runDurationMs,
 	}
 	normalizeEventExecutionMode(&item)
 	s.items = append(s.items, item)
@@ -1117,7 +1131,7 @@ func (s *eventStore) create(eventType, title, label string, giftID int, repeatBy
 	return item, nil
 }
 
-func (s *eventStore) update(id int, eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int) (eventRecord, error) {
+func (s *eventStore) update(id int, eventType, title, label string, giftID int, repeatByGiftCombo bool, showInExport bool, giftName string, diamond int, soundURL string, mcCommand string, runMCCommand bool, runShortcut bool, shortcutKeys string, shortcutHold int, runDurationMs int) (eventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1137,6 +1151,7 @@ func (s *eventStore) update(id int, eventType, title, label string, giftID int, 
 			s.items[i].RunShortcut = runShortcut
 			s.items[i].ShortcutKeys = strings.TrimSpace(shortcutKeys)
 			s.items[i].ShortcutHold = shortcutHold
+			s.items[i].RunDurationMs = runDurationMs
 			normalizeEventExecutionMode(&s.items[i])
 			if err := s.saveLocked(); err != nil {
 				return eventRecord{}, err
@@ -1563,6 +1578,7 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 			vars:         vars,
 			command:      applyCommandTemplate(rule.MCCommand, vars),
 			runMCCommand: rule.RunMCCommand,
+			runDuration:  time.Duration(rule.RunDurationMs) * time.Millisecond,
 			shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, vars),
 			shortcutHold: rule.ShortcutHold,
 			runShortcut:  rule.RunShortcut,
@@ -1692,6 +1708,7 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 				vars:         vars,
 				command:      applyCommandTemplate(rule.MCCommand, vars),
 				runMCCommand: rule.RunMCCommand,
+				runDuration:  time.Duration(rule.RunDurationMs) * time.Millisecond,
 				shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, vars),
 				shortcutHold: rule.ShortcutHold,
 				runShortcut:  rule.RunShortcut,
@@ -1760,6 +1777,7 @@ type queuedMCTrigger struct {
 	vars         map[string]string
 	command      string
 	runMCCommand bool
+	runDuration  time.Duration
 	shortcutKeys string
 	shortcutHold int
 	runShortcut  bool
@@ -1783,15 +1801,7 @@ func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub)
 }
 
 func (a *mcEventAutomation) processQueue() {
-	const triggerInterval = 500 * time.Millisecond
-	var lastProcessedAt time.Time
 	for job := range a.queue {
-		if !lastProcessedAt.IsZero() {
-			if wait := triggerInterval - time.Since(lastProcessedAt); wait > 0 {
-				time.Sleep(wait)
-			}
-		}
-		lastProcessedAt = time.Now()
 		commandOut := ""
 		var commandErr error
 		mcEnabled := a.rcon.Enabled()
@@ -1802,6 +1812,9 @@ func (a *mcEventAutomation) processQueue() {
 		var shortcutErr error
 		if job.runShortcut {
 			shortcutErr = executeKeyboardShortcut(job.shortcutKeys, job.shortcutHold)
+		}
+		if job.runDuration > 0 {
+			time.Sleep(job.runDuration)
 		}
 		triggerPayload := map[string]any{
 			"type":             "trigger",
@@ -1817,6 +1830,7 @@ func (a *mcEventAutomation) processQueue() {
 			"run_mc_command":   runMCCommand,
 			"mc_enabled":       mcEnabled,
 			"run_shortcut":     job.runShortcut,
+			"run_duration_ms":  int(job.runDuration / time.Millisecond),
 			"shortcut_keys":    job.shortcutKeys,
 			"shortcut_hold_ms": job.shortcutHold,
 			"output":           commandOut,
@@ -1859,6 +1873,7 @@ func (a *mcEventAutomation) enqueueTrigger(job queuedMCTrigger) {
 		"command":          job.command,
 		"run_mc_command":   job.runMCCommand,
 		"run_shortcut":     job.runShortcut,
+		"run_duration_ms":  int(job.runDuration / time.Millisecond),
 		"shortcut_keys":    job.shortcutKeys,
 		"shortcut_hold_ms": job.shortcutHold,
 		"queued_at":        job.queuedAt.Format(time.RFC3339),
@@ -1937,13 +1952,19 @@ func (a *mcEventAutomation) handleLiveEvent(ev any, allowDuplicateFollow bool) {
 			jobVars[k] = v
 		}
 		repeatCount := currentRepeatCount
+		repeatExecutions := 1
 		if eventType == "gift" {
 			if rule.RepeatByGiftCombo {
-				// Combo mode: execute once when combo total is final/ready.
+				// Combo mode: wait until combo final/ready, then execute one by one.
 				if !comboReady {
 					continue
 				}
-				repeatCount = resolveGiftRepeatCount(currentRepeatCount, comboRepeatCount)
+				repeatExecutions = resolveGiftRepeatCount(currentRepeatCount, comboRepeatCount)
+				if repeatExecutions <= 0 {
+					continue
+				}
+				// Each queued trigger represents one gift event.
+				repeatCount = 1
 			} else {
 				// Per-event mode: use effective event count (delta for grouped gifts).
 				if repeatCount <= 0 {
@@ -1958,18 +1979,21 @@ func (a *mcEventAutomation) handleLiveEvent(ev any, allowDuplicateFollow bool) {
 		if !ruleLabelMatches(rule, jobVars) {
 			continue
 		}
-		a.enqueueTrigger(queuedMCTrigger{
-			rule:         rule,
-			eventType:    eventType,
-			giftID:       giftID,
-			vars:         jobVars,
-			command:      applyCommandTemplate(rule.MCCommand, jobVars),
-			runMCCommand: rule.RunMCCommand,
-			shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, jobVars),
-			shortcutHold: rule.ShortcutHold,
-			runShortcut:  rule.RunShortcut,
-			queuedAt:     time.Now(),
-		})
+		for i := 0; i < repeatExecutions; i++ {
+			a.enqueueTrigger(queuedMCTrigger{
+				rule:         rule,
+				eventType:    eventType,
+				giftID:       giftID,
+				vars:         jobVars,
+				command:      applyCommandTemplate(rule.MCCommand, jobVars),
+				runMCCommand: rule.RunMCCommand,
+				runDuration:  time.Duration(rule.RunDurationMs) * time.Millisecond,
+				shortcutKeys: applyCommandTemplate(rule.ShortcutKeys, jobVars),
+				shortcutHold: rule.ShortcutHold,
+				runShortcut:  rule.RunShortcut,
+				queuedAt:     time.Now(),
+			})
+		}
 	}
 }
 
@@ -3125,6 +3149,7 @@ func main() {
 				RunShortcut       *bool  `json:"run_shortcut"`
 				ShortcutKeys      string `json:"shortcut_keys"`
 				ShortcutHold      int    `json:"shortcut_hold_ms"`
+				RunDurationMs     *int   `json:"run_duration_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -3159,6 +3184,14 @@ func main() {
 			}
 			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
+				return
+			}
+			runDurationMs := 1000
+			if req.RunDurationMs != nil {
+				runDurationMs = *req.RunDurationMs
+			}
+			if runDurationMs < 0 || runDurationMs > 600000 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "run_duration_ms must be between 0 and 600000"})
 				return
 			}
 			if !runShortcut {
@@ -3202,7 +3235,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold, runDurationMs)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -3234,6 +3267,7 @@ func main() {
 				RunShortcut       *bool  `json:"run_shortcut"`
 				ShortcutKeys      string `json:"shortcut_keys"`
 				ShortcutHold      int    `json:"shortcut_hold_ms"`
+				RunDurationMs     *int   `json:"run_duration_ms"`
 			}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -3268,6 +3302,14 @@ func main() {
 			}
 			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
+				return
+			}
+			runDurationMs := 1000
+			if req.RunDurationMs != nil {
+				runDurationMs = *req.RunDurationMs
+			}
+			if runDurationMs < 0 || runDurationMs > 600000 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "run_duration_ms must be between 0 and 600000"})
 				return
 			}
 			if !runShortcut {
@@ -3311,7 +3353,7 @@ func main() {
 				giftName = gift.NamaGift
 				diamond = gift.Diamond
 			}
-			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold)
+			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold, runDurationMs)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -4174,6 +4216,9 @@ func main() {
 		if item.RunShortcut {
 			shortcutErr = executeKeyboardShortcut(shortcut, item.ShortcutHold)
 		}
+		if item.RunDurationMs > 0 {
+			time.Sleep(time.Duration(item.RunDurationMs) * time.Millisecond)
+		}
 		if cmdErr != nil || shortcutErr != nil {
 			errText := ""
 			if cmdErr != nil {
@@ -4194,6 +4239,7 @@ func main() {
 			"command":          cmd,
 			"run_mc_command":   item.RunMCCommand,
 			"run_shortcut":     item.RunShortcut,
+			"run_duration_ms":  item.RunDurationMs,
 			"shortcut_keys":    shortcut,
 			"shortcut_hold_ms": item.ShortcutHold,
 			"output":           out,

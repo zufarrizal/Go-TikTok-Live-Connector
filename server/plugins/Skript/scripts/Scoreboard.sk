@@ -354,7 +354,7 @@ command /addwin <number> <text> <number>:
         add {_total} to {win.total}
         send title "&6&l%arg-2%" with subtitle "&a&lADD &e%{_total}% &fWin" to players
         update_win_scoreboard()
-        set {addwin.firework.seconds} to 14
+        set {addwin.firework.seconds} to 15
 
         # addwin only: teleport players to top Y + 1, clear 15x15x15, then build 15x15 dance floor
         loop all players:

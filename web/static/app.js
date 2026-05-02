@@ -93,6 +93,7 @@ const statusEl = document.getElementById("status");
     const eventMCCommandEl = document.getElementById("eventMCCommand");
     const shortcutRowEl = document.getElementById("shortcutRow");
     const eventShortcutKeysEl = document.getElementById("eventShortcutKeys");
+    const eventShortcutPressCountEl = document.getElementById("eventShortcutPressCount");
     const eventShortcutHoldMsEl = document.getElementById("eventShortcutHoldMs");
     const eventRunDurationMsEl = document.getElementById("eventRunDurationMs");
     const resetEventBtn = document.getElementById("resetEventBtn");
@@ -2459,6 +2460,7 @@ const statusEl = document.getElementById("status");
         eventShowInExportEl.checked = true;
       }
       eventShortcutKeysEl.value = "";
+      if (eventShortcutPressCountEl) eventShortcutPressCountEl.value = "1";
       eventShortcutHoldMsEl.value = "0";
       if (eventRunDurationMsEl) eventRunDurationMsEl.value = "1000";
       eventShortcutPicker.syncFromSelect();
@@ -2606,6 +2608,7 @@ const statusEl = document.getElementById("status");
       eventMCCommandEl.style.display = runMC ? "" : "none";
       eventShortcutKeysEl.required = runShortcut;
       eventShortcutPicker.setDisabled(!runShortcut);
+      if (eventShortcutPressCountEl) eventShortcutPressCountEl.disabled = !runShortcut;
       eventShortcutHoldMsEl.disabled = !runShortcut;
       if (shortcutRowEl) {
         shortcutRowEl.hidden = !runShortcut;
@@ -2674,8 +2677,9 @@ const statusEl = document.getElementById("status");
         const eventType = normalizeEventType(item.type);
         const isGiftEvent = eventType === "gift";
         const holdMs = Math.max(0, Number(item.shortcut_hold_ms || 0));
+        const pressCount = Math.max(1, Number(item.shortcut_press_count || 1));
         const shortcutLabel = normalizeShortcutSymbols(item.shortcut_keys);
-        const shortcutView = shortcutLabel ? (shortcutLabel + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
+        const shortcutView = shortcutLabel ? (shortcutLabel + (pressCount > 1 ? (" (" + pressCount + "x)") : "") + (holdMs > 0 ? (" (" + holdMs + "ms)") : "")) : "";
         const gift = findGiftByEventItem(item);
         const localGiftImage = buildGiftImagePathFromEvent(item);
         const remoteGiftImage = resolveGiftImageRemote(gift);
@@ -3494,6 +3498,7 @@ const statusEl = document.getElementById("status");
       const runMCCommand = !!eventRunMCCommandEl.checked;
       const runShortcut = !!eventRunShortcutEl.checked;
       const shortcutKeys = normalizeShortcutSymbols(eventShortcutKeysEl.value);
+      const shortcutPressCount = Math.max(1, Math.min(100, Number((eventShortcutPressCountEl && eventShortcutPressCountEl.value) || 1)));
       const shortcutHoldMs = Math.max(0, Math.min(10000, Number(eventShortcutHoldMsEl.value || 0)));
       const runDurationMs = normalizeRunDurationMs(eventRunDurationMsEl && eventRunDurationMsEl.value);
       const payload = {
@@ -3508,6 +3513,7 @@ const statusEl = document.getElementById("status");
         run_mc_command: runMCCommand,
         run_shortcut: runShortcut,
         shortcut_keys: shortcutKeys,
+        shortcut_press_count: shortcutPressCount,
         shortcut_hold_ms: shortcutHoldMs,
         run_duration_ms: runDurationMs
       };
@@ -3821,6 +3827,7 @@ const statusEl = document.getElementById("status");
           }
           eventMCCommandEl.value = item.mc_command || "";
           eventShortcutKeysEl.value = normalizeShortcutSymbols(item.shortcut_keys);
+          if (eventShortcutPressCountEl) eventShortcutPressCountEl.value = String(Math.max(1, Number(item.shortcut_press_count || 1)));
           eventShortcutHoldMsEl.value = String(Math.max(0, Number(item.shortcut_hold_ms || 0)));
           if (eventRunDurationMsEl) {
             eventRunDurationMsEl.value = String(normalizeRunDurationMs(item.run_duration_ms));
@@ -3870,6 +3877,7 @@ const statusEl = document.getElementById("status");
             run_mc_command: item.run_mc_command !== false,
             run_shortcut: !!item.run_shortcut,
             shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
+            shortcut_press_count: Math.max(1, Number(item.shortcut_press_count || 1)),
             shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0)),
             run_duration_ms: normalizeRunDurationMs(item.run_duration_ms)
           };
@@ -3933,6 +3941,7 @@ const statusEl = document.getElementById("status");
           run_mc_command: item.run_mc_command !== false,
           run_shortcut: !!item.run_shortcut,
           shortcut_keys: normalizeShortcutSymbols(item.shortcut_keys),
+          shortcut_press_count: Math.max(1, Number(item.shortcut_press_count || 1)),
           shortcut_hold_ms: Math.max(0, Number(item.shortcut_hold_ms || 0)),
           run_duration_ms: normalizeRunDurationMs(item.run_duration_ms)
         };

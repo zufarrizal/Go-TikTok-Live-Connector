@@ -244,6 +244,10 @@
               <select id="eventShortcutKeys" class="native-gift-select" aria-label="Shortcut keys"></select>
             </div>
             <div class="shortcut-hold-wrap">
+              <input id="eventShortcutPressCount" type="number" min="1" max="100" step="1" value="1" placeholder="Count" aria-label="Shortcut press count">
+              <span class="shortcut-hold-suffix">x</span>
+            </div>
+            <div class="shortcut-hold-wrap">
               <input id="eventShortcutHoldMs" type="number" min="0" max="10000" step="10" value="0" placeholder="Hold" aria-label="Shortcut hold in milliseconds">
               <span class="shortcut-hold-suffix">ms</span>
             </div>

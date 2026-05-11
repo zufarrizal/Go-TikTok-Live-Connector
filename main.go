@@ -1946,6 +1946,29 @@ func (a *mcEventAutomation) handleLiveEvent(ev any, allowDuplicateFollow bool) {
 	if len(rules) == 0 {
 		return
 	}
+	if eventType == "gift" {
+		// When combo mode is configured for this gift trigger set, suppress non-combo
+		// rules so execution only follows combo-final totals.
+		hasComboRule := false
+		for _, rule := range rules {
+			if rule.RepeatByGiftCombo {
+				hasComboRule = true
+				break
+			}
+		}
+		if hasComboRule {
+			comboOnly := make([]eventRecord, 0, len(rules))
+			for _, rule := range rules {
+				if rule.RepeatByGiftCombo {
+					comboOnly = append(comboOnly, rule)
+				}
+			}
+			rules = comboOnly
+			if len(rules) == 0 {
+				return
+			}
+		}
+	}
 	reserved := a.reservedRuleIDsSnapshot()
 	if len(reserved) > 0 {
 		filtered := make([]eventRecord, 0, len(rules))
@@ -2221,10 +2244,10 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 		return perEvent, false, 0
 	}
 
+	// In combo-final mode, use the final cumulative max as total.
+	// This avoids double-trigger on single-gift streak packets like 1 -> 1 (RepeatEnd=true),
+	// where summing packets would incorrectly produce total=2.
 	total := state.Max
-	if !state.SawIncrease {
-		total = state.Sum
-	}
 	if total <= 0 {
 		total = current
 	}
@@ -2830,6 +2853,9 @@ func executeCommands(rcon *mcRCONManager, raw string) (string, error) {
 
 func main() {
 	initAppPaths()
+	if err := ensureAdminPrivileges(); err != nil {
+		log.Fatal(err)
+	}
 
 	hub := newEventHub()
 	store, err := newEventStore(appEventsPath)
@@ -5833,12 +5859,30 @@ func findGiftArray(payload map[string]any) ([]any, bool) {
 
 func extractGiftImageURLs(gift map[string]any) []string {
 	var urls []string
-	if image, ok := gift["image"].(map[string]any); ok {
-		if rawList, ok := image["url_list"]; ok {
-			urls = append(urls, toStringSlice(rawList)...)
+	appendMapURLs := func(m map[string]any) {
+		if m == nil {
+			return
 		}
-		if rawList, ok := image["urlList"]; ok {
-			urls = append(urls, toStringSlice(rawList)...)
+		for _, key := range []string{"url_list", "urlList"} {
+			if rawList, ok := m[key]; ok {
+				urls = append(urls, toStringSlice(rawList)...)
+			}
+		}
+		for _, key := range []string{"url", "uri"} {
+			if rawValue, ok := m[key]; ok {
+				if s := normalizeGiftImageURL(anyToString(rawValue)); s != "" {
+					urls = append(urls, s)
+				}
+			}
+		}
+	}
+
+	if image, ok := gift["image"].(map[string]any); ok {
+		appendMapURLs(image)
+	}
+	for _, key := range []string{"icon", "preview_image", "previewImage", "dynamic_image", "dynamicImage"} {
+		if m, ok := gift[key].(map[string]any); ok {
+			appendMapURLs(m)
 		}
 	}
 	if rawImages, ok := gift["images"].([]any); ok {
@@ -5847,15 +5891,49 @@ func extractGiftImageURLs(gift map[string]any) []string {
 			if !ok {
 				continue
 			}
-			if rawList, ok := item["url_list"]; ok {
-				urls = append(urls, toStringSlice(rawList)...)
-			}
-			if rawList, ok := item["urlList"]; ok {
-				urls = append(urls, toStringSlice(rawList)...)
-			}
+			appendMapURLs(item)
 		}
 	}
-	return urls
+
+	if raw := gift["image_url"]; raw != nil {
+		if s := normalizeGiftImageURL(anyToString(raw)); s != "" {
+			urls = append(urls, s)
+		}
+	}
+	if raw := gift["imageUrl"]; raw != nil {
+		if s := normalizeGiftImageURL(anyToString(raw)); s != "" {
+			urls = append(urls, s)
+		}
+	}
+
+	dedup := make(map[string]struct{}, len(urls))
+	out := make([]string, 0, len(urls))
+	for _, raw := range urls {
+		u := normalizeGiftImageURL(raw)
+		if u == "" {
+			continue
+		}
+		if _, exists := dedup[u]; exists {
+			continue
+		}
+		dedup[u] = struct{}{}
+		out = append(out, u)
+	}
+	return out
+}
+
+func normalizeGiftImageURL(raw string) string {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return ""
+	}
+	if strings.HasPrefix(u, "//") {
+		return "https:" + u
+	}
+	if strings.HasPrefix(strings.ToLower(u), "http://") || strings.HasPrefix(strings.ToLower(u), "https://") {
+		return u
+	}
+	return ""
 }
 
 func toStringSlice(raw any) []string {

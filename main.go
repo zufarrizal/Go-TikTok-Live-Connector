@@ -594,7 +594,9 @@ func newMCRCONManagerFromProperties(path string) *mcRCONManager {
 		},
 		propPath: path,
 	}
-	_ = m.refreshFromPropertiesLocked()
+	if err := m.refreshFromPropertiesLocked(); err != nil {
+		log.Printf("warning: initial server.properties refresh failed: %v", err)
+	}
 	return m
 }
 
@@ -644,7 +646,9 @@ func (m *mcRCONManager) refreshFromPropertiesLocked() error {
 func (m *mcRCONManager) Status() map[string]any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_ = m.refreshFromPropertiesLocked()
+	if err := m.refreshFromPropertiesLocked(); err != nil {
+		log.Printf("warning: server.properties refresh failed in Status(): %v", err)
+	}
 	return map[string]any{
 		"enabled":         m.cfg.Enabled,
 		"mode":            normalizeMinecraftMode(m.cfg.Mode),
@@ -915,7 +919,12 @@ func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 			contentType = "application/x-www-form-urlencoded"
 			body = []byte(url.Values{"command": []string{command}}.Encode())
 		} else {
-			body, _ = json.Marshal(map[string]any{"command": command})
+			var marshalErr error
+		body, marshalErr = json.Marshal(map[string]any{"command": command})
+		if marshalErr != nil {
+			lastErr = marshalErr
+			continue
+		}
 		}
 
 		req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
@@ -936,8 +945,12 @@ func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 			lastErr = err
 			continue
 		}
-		raw, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		raw, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("failed to read servertap response: %w", readErr)
+			continue
+		}
 
 		if resp.StatusCode >= 400 {
 			msg := strings.TrimSpace(string(raw))
@@ -1634,7 +1647,9 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 			canAcceptZeroBaseline := m.state.CurrentLikes <= 0
 			m.mu.Unlock()
 			if syncEvent.TotalLikes > 0 || canAcceptZeroBaseline {
-				_, _ = m.SyncAbsoluteLikes(syncEvent.TotalLikes, "live_room_sync")
+				if _, err := m.SyncAbsoluteLikes(syncEvent.TotalLikes, "live_room_sync"); err != nil {
+					log.Printf("warning: failed to sync absolute likes during live_room_sync: %v", err)
+				}
 				m.mu.Lock()
 				m.awaitingLiveBaseline = false
 				m.mu.Unlock()
@@ -1661,7 +1676,9 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 			changed := m.applyAbsoluteLikesLocked(likeEvent.TotalLikes)
 			m.awaitingLiveBaseline = false
 			if changed {
-				_ = m.saveLocked()
+				if err := m.saveLocked(); err != nil {
+					log.Printf("warning: failed to save like goal state during baseline init: %v", err)
+				}
 				m.broadcastStateLocked("baseline_initialized")
 			}
 		}
@@ -1754,7 +1771,9 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 	}
 
 	normalizeLikeGoalState(&m.state)
-	_ = m.saveLocked()
+	if err := m.saveLocked(); err != nil {
+		log.Printf("warning: failed to save like goal state after like event: %v", err)
+	}
 	if triggerCount > 0 {
 		m.broadcastStateLocked("goal_reached")
 		return
@@ -2869,26 +2888,38 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init like goal store: %v", err)
 	}
-	if settings, err := loadUnifiedSettings(appSettings); err == nil {
+	if settings, err := loadUnifiedSettings(appSettings); err != nil {
+		log.Printf("warning: failed to load unified settings on startup: %v", err)
+	} else {
 		activeProfile := strings.TrimSpace(settings.ActiveProfile)
 		if activeProfile == "" {
 			activeProfile = "Default"
 			settings.ActiveProfile = activeProfile
-			_ = saveUnifiedSettings(appSettings, settings)
+			if saveErr := saveUnifiedSettings(appSettings, settings); saveErr != nil {
+				log.Printf("warning: failed to save default active profile to settings: %v", saveErr)
+			}
 		}
 		if _, profileAbs, _, pathErr := resolvePresetProfilePath(activeProfile); pathErr == nil {
 			store.setPath(profileAbs)
 			if body, readErr := os.ReadFile(profileAbs); readErr == nil {
-				if parsed, parseErr := parseEventRecordsPayload(body); parseErr == nil {
-					if normalized, normErr := normalizeImportedEvents(parsed); normErr == nil {
-						if replaceErr := store.replaceAll(normalized); replaceErr == nil {
-							log.Printf("active preset profile loaded on startup: %s (%d event(s))", activeProfile, len(normalized))
-						}
-					}
+				if parsed, parseErr := parseEventRecordsPayload(body); parseErr != nil {
+					log.Printf("warning: failed to parse preset profile %s: %v", activeProfile, parseErr)
+				} else if normalized, normErr := normalizeImportedEvents(parsed); normErr != nil {
+					log.Printf("warning: failed to normalize preset profile %s: %v", activeProfile, normErr)
+				} else if replaceErr := store.replaceAll(normalized); replaceErr != nil {
+					log.Printf("warning: failed to replace event store with preset profile %s: %v", activeProfile, replaceErr)
+				} else {
+					log.Printf("active preset profile loaded on startup: %s (%d event(s))", activeProfile, len(normalized))
 				}
 			} else if errors.Is(readErr, os.ErrNotExist) {
-				_ = store.replaceAll([]eventRecord{})
+				if clearErr := store.replaceAll([]eventRecord{}); clearErr != nil {
+					log.Printf("warning: failed to clear event store for missing profile %s: %v", activeProfile, clearErr)
+				}
+			} else {
+				log.Printf("warning: failed to read preset profile %s: %v", activeProfile, readErr)
 			}
+		} else {
+			log.Printf("warning: failed to resolve preset profile path %s: %v", activeProfile, pathErr)
 		}
 		mcRCON.SetEnabled(settings.Minecraft.Enabled)
 		if strings.TrimSpace(settings.Username) != "" {
@@ -2944,7 +2975,9 @@ func main() {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(b)
+		if _, err := w.Write(b); err != nil {
+			log.Printf("warning: failed to write index.html response: %v", err)
+		}
 	})
 
 	http.HandleFunc("/overlay/like-goal", func(w http.ResponseWriter, r *http.Request) {
@@ -2961,7 +2994,9 @@ func main() {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(b)
+		if _, err := w.Write(b); err != nil {
+			log.Printf("warning: failed to write overlay response: %v", err)
+		}
 	})
 
 	http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
@@ -3104,7 +3139,7 @@ func main() {
 		}
 		allowed, allowErr := usernameAllowlist.isAllowed(req.Username)
 		if allowErr != nil {
-			_ = allowErr
+			log.Printf("warning: username allowlist check failed for %q: %v", req.Username, allowErr)
 			writeJSON(w, http.StatusForbidden, map[string]any{
 				"error": "You have not purchased a license. Contact +6285156560055",
 			})
@@ -3122,9 +3157,13 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
-		if settings, err := loadUnifiedSettings(appSettings); err == nil {
+		if settings, err := loadUnifiedSettings(appSettings); err != nil {
+			log.Printf("warning: failed to load settings to persist username: %v", err)
+		} else {
 			settings.Username = strings.TrimSpace(strings.TrimPrefix(req.Username, "@"))
-			_ = saveUnifiedSettings(appSettings, settings)
+			if saveErr := saveUnifiedSettings(appSettings, settings); saveErr != nil {
+				log.Printf("warning: failed to persist username to settings: %v", saveErr)
+			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
@@ -3836,10 +3875,14 @@ func main() {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to rename preset profile"})
 			return
 		}
-		if settings, err := loadUnifiedSettings(appSettings); err == nil {
+		if settings, err := loadUnifiedSettings(appSettings); err != nil {
+			log.Printf("warning: failed to load settings after profile rename: %v", err)
+		} else {
 			if strings.EqualFold(strings.TrimSpace(settings.ActiveProfile), oldProfileName) {
 				settings.ActiveProfile = newProfileName
-				_ = saveUnifiedSettings(appSettings, settings)
+				if saveErr := saveUnifiedSettings(appSettings, settings); saveErr != nil {
+					log.Printf("warning: failed to update active profile in settings after rename: %v", saveErr)
+				}
 				store.setPath(newAbs)
 			}
 		}
@@ -4556,7 +4599,9 @@ func openBrowser(targetURL string) error {
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("warning: failed to write JSON response: %v", err)
+	}
 }
 
 func profileNameFromFileName(fileName string) (string, bool) {
@@ -4991,12 +5036,16 @@ func isServerlessRuntime() bool {
 
 func writableDataRoot() string {
 	if v := strings.TrimSpace(os.Getenv("APP_DATA_DIR")); v != "" {
-		_ = os.MkdirAll(v, 0755)
+		if err := os.MkdirAll(v, 0755); err != nil {
+			log.Printf("warning: failed to create APP_DATA_DIR %s: %v", v, err)
+		}
 		return v
 	}
 	if isServerlessRuntime() {
 		root := filepath.Join(os.TempDir(), "tikstream")
-		_ = os.MkdirAll(root, 0755)
+		if err := os.MkdirAll(root, 0755); err != nil {
+			log.Printf("warning: failed to create serverless data root %s: %v", root, err)
+		}
 		return root
 	}
 	return ""

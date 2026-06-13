@@ -113,7 +113,7 @@ func (a *githubUsernameAllowlist) refresh() error {
 		return fmt.Errorf("failed to fetch username allowlist: status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return fmt.Errorf("failed to read username allowlist: %w", err)
 	}
@@ -646,14 +646,13 @@ func (m *mcRCONManager) Status() map[string]any {
 	defer m.mu.Unlock()
 	_ = m.refreshFromPropertiesLocked()
 	return map[string]any{
-		"enabled":         m.cfg.Enabled,
-		"mode":            normalizeMinecraftMode(m.cfg.Mode),
-		"host":            m.cfg.Host,
-		"port":            m.cfg.Port,
-		"servertap_path":  m.cfg.ServerTapPath,
-		"connected":       m.connected,
-		"last_error":      m.lastError,
-		"properties_path": m.propPath,
+		"enabled":        m.cfg.Enabled,
+		"mode":           normalizeMinecraftMode(m.cfg.Mode),
+		"host":           m.cfg.Host,
+		"port":           m.cfg.Port,
+		"servertap_path": m.cfg.ServerTapPath,
+		"connected":      m.connected,
+		"last_error":     m.lastError,
 	}
 }
 
@@ -936,7 +935,7 @@ func (m *mcRCONManager) executeServerTapLocked(command string) (string, error) {
 			lastErr = err
 			continue
 		}
-		raw, _ := io.ReadAll(resp.Body)
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 		_ = resp.Body.Close()
 
 		if resp.StatusCode >= 400 {
@@ -3052,6 +3051,7 @@ func main() {
 			if settings.LikeGoal.Mode != "increase" && settings.LikeGoal.Mode != "double" {
 				settings.LikeGoal.Mode = "increase"
 			}
+			redactSettingsPasswords(&settings)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"settings":        settings,
 				"like_goal_state": likeState,
@@ -3080,6 +3080,7 @@ func main() {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save settings"})
 				return
 			}
+			redactSettingsPasswords(&req)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"ok":              true,
 				"settings":        req,
@@ -3487,7 +3488,6 @@ func main() {
 			"ok":           true,
 			"profile_name": profileName,
 			"file_name":    fileName,
-			"file_path":    targetAbs,
 		})
 	})
 
@@ -3531,9 +3531,8 @@ func main() {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				writeJSON(w, http.StatusOK, map[string]any{
-					"ok":       true,
-					"base_dir": baseDir,
-					"items":    []map[string]any{},
+					"ok":    true,
+					"items": []map[string]any{},
 				})
 				return
 			}
@@ -3558,7 +3557,6 @@ func main() {
 				continue
 			}
 
-			filePath := filepath.Join(baseDir, name)
 			info, infoErr := entry.Info()
 			if infoErr != nil {
 				continue
@@ -3567,7 +3565,6 @@ func main() {
 			items = append(items, map[string]any{
 				"profile_name": profileName,
 				"file_name":    name,
-				"file_path":    filePath,
 				"size":         info.Size(),
 				"modified_at":  info.ModTime().Format(time.RFC3339),
 			})
@@ -3579,9 +3576,8 @@ func main() {
 		})
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":       true,
-			"base_dir": baseDir,
-			"items":    items,
+			"ok":    true,
+			"items": items,
 		})
 	})
 
@@ -3639,7 +3635,6 @@ func main() {
 			"ok":           true,
 			"profile_name": profileName,
 			"file_name":    fileName,
-			"file_path":    targetAbs,
 		})
 	})
 
@@ -4557,6 +4552,23 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+const redactedPlaceholder = "********"
+
+func redactSettingsPasswords(s *unifiedSettingsJSON) {
+	if s == nil {
+		return
+	}
+	if s.Minecraft.Password != "" {
+		s.Minecraft.Password = redactedPlaceholder
+	}
+	if s.Minecraft.RCONPassword != "" {
+		s.Minecraft.RCONPassword = redactedPlaceholder
+	}
+	if s.Minecraft.ServerTapToken != "" {
+		s.Minecraft.ServerTapToken = redactedPlaceholder
+	}
 }
 
 func profileNameFromFileName(fileName string) (string, bool) {
@@ -5673,7 +5685,7 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 			lastErr = err
 			continue
 		}
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 		_ = resp.Body.Close()
 		if readErr != nil {
 			lastErr = readErr
@@ -6150,7 +6162,7 @@ func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {
 			continue
 		}
 
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 		_ = resp.Body.Close()
 		if readErr != nil {
 			errs = append(errs, fmt.Sprintf("gift %d: %v", gifts[i].ID, readErr))

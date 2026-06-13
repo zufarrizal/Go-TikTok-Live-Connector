@@ -9,3 +9,7 @@ func executeKeyboardShortcut(shortcut string, holdMS int) error {
 	_ = holdMS
 	return fmt.Errorf("keyboard shortcut is only supported on Windows")
 }
+
+func ensureAdminPrivileges() error {
+	return nil
+}

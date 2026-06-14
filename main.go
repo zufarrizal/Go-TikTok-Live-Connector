@@ -174,6 +174,22 @@ func (h *eventHub) broadcast(msg string) {
 	}
 }
 
+func (h *eventHub) broadcastStatus(message string) {
+	h.broadcast(mustJSON(map[string]any{
+		"type":    "status",
+		"message": message,
+		"time":    time.Now().Format(time.RFC3339),
+	}))
+}
+
+func (h *eventHub) broadcastError(errMsg string) {
+	h.broadcast(mustJSON(map[string]any{
+		"type":  "error",
+		"error": errMsg,
+		"time":  time.Now().Format(time.RFC3339),
+	}))
+}
+
 type streamController struct {
 	mu       sync.Mutex
 	hub      *eventHub
@@ -194,7 +210,7 @@ func newStreamController(hub *eventHub, onEvent func(any), rcon *mcRCONManager) 
 }
 
 func (c *streamController) Start(username string) error {
-	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	username = stripUsernamePrefix(username)
 	if username == "" {
 		return fmt.Errorf("username is required")
 	}
@@ -215,11 +231,7 @@ func (c *streamController) Start(username string) error {
 	c.username = username
 	c.mu.Unlock()
 
-	c.hub.broadcast(mustJSON(map[string]any{
-		"type":    "status",
-		"message": "Starting @" + username + "...",
-		"time":    time.Now().Format(time.RFC3339),
-	}))
+	c.hub.broadcastStatus("Starting @" + username + "...")
 	go c.run(ctx, session, username)
 	return nil
 }
@@ -239,11 +251,7 @@ func (c *streamController) Stop() {
 	c.username = ""
 	c.mu.Unlock()
 
-	c.hub.broadcast(mustJSON(map[string]any{
-		"type":    "status",
-		"message": "Stopped",
-		"time":    time.Now().Format(time.RFC3339),
-	}))
+	c.hub.broadcastStatus("Stopped")
 }
 
 func (c *streamController) State() (bool, string) {
@@ -270,11 +278,7 @@ func (c *streamController) broadcastReconnect(username string) {
 	if c.rcon != nil {
 		c.rcon.Disconnect()
 	}
-	c.hub.broadcast(mustJSON(map[string]any{
-		"type":    "status",
-		"message": fmt.Sprintf("Disconnected from @%s. Reconnecting in %ds...", username, int(streamReconnectDelay/time.Second)),
-		"time":    time.Now().Format(time.RFC3339),
-	}))
+	c.hub.broadcastStatus(fmt.Sprintf("Disconnected from @%s. Reconnecting in %ds...", username, int(streamReconnectDelay/time.Second)))
 }
 
 func (c *streamController) broadcastRCONStatus(username string) {
@@ -302,11 +306,7 @@ func (c *streamController) restartRCONForTikTokConnect(username string) {
 	}
 	restarted, err := c.rcon.RestartAfterDelay(rconReconnectDelayOnTikTokConnect)
 	if err != nil {
-		c.hub.broadcast(mustJSON(map[string]any{
-			"type":  "error",
-			"error": fmt.Sprintf("failed to reconnect RCON before connecting @%s: %v", username, err),
-			"time":  time.Now().Format(time.RFC3339),
-		}))
+		c.hub.broadcastError(fmt.Sprintf("failed to reconnect RCON before connecting @%s: %v", username, err))
 		return
 	}
 	if restarted {
@@ -315,11 +315,7 @@ func (c *streamController) restartRCONForTikTokConnect(username string) {
 		if strings.TrimSpace(mode) == "" {
 			mode = "rcon"
 		}
-		c.hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": fmt.Sprintf("Minecraft connector (%s) disconnected for %ds and reconnected before connecting @%s", mode, int(rconReconnectDelayOnTikTokConnect/time.Second), username),
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		c.hub.broadcastStatus(fmt.Sprintf("Minecraft connector (%s) disconnected for %ds and reconnected before connecting @%s", mode, int(rconReconnectDelayOnTikTokConnect/time.Second), username))
 	}
 }
 
@@ -327,11 +323,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 	defer func() {
 		if r := recover(); r != nil && c.isCurrentSession(session) {
 			c.setLive(session, nil)
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("tracker panic for @%s: %v", username, r),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastError(fmt.Sprintf("tracker panic for @%s: %v", username, r))
 			c.broadcastReconnect(username)
 			if sleepOrCancel(ctx, streamReconnectDelay) {
 				go c.run(ctx, session, username)
@@ -346,11 +338,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 
 		tiktok, err := gotiktoklive.NewTikTok()
 		if err != nil {
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": err.Error(),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastError(err.Error())
 			c.broadcastReconnect(username)
 			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
@@ -360,11 +348,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 
 		_, _, totalLikes, hasTotalLikes, isLive, infoErr := resolveLiveInfoFromUsername(tiktok, username)
 		if infoErr != nil {
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": infoErr.Error(),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastError(infoErr.Error())
 		}
 		if c.onEvent != nil {
 			c.onEvent(likeGoalSyncEvent{
@@ -376,11 +360,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 			})
 		}
 		if !isLive {
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":    "status",
-				"message": fmt.Sprintf("@%s is not live yet. Rechecking in %ds...", username, int(streamReconnectDelay/time.Second)),
-				"time":    time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastStatus(fmt.Sprintf("@%s is not live yet. Rechecking in %ds...", username, int(streamReconnectDelay/time.Second)))
 			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
 			}
@@ -389,11 +369,7 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 
 		live, err := tiktok.TrackUser(username)
 		if err != nil {
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": err.Error(),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastError(err.Error())
 			c.broadcastReconnect(username)
 			if !sleepOrCancel(ctx, streamReconnectDelay) {
 				return
@@ -403,40 +379,20 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 		c.restartRCONForTikTokConnect(username)
 		c.setLive(session, live)
 
-		c.hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": "Connected to @" + username,
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		c.hub.broadcastStatus("Connected to @" + username)
 		c.broadcastRCONStatus(username)
 		if gifts, err := fetchGiftCatalog(tiktok, live.ID, username); err != nil {
-			c.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": "failed to fetch gift catalog: " + err.Error(),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			c.hub.broadcastError("failed to fetch gift catalog: " + err.Error())
 		} else {
 			downloadedCount, downloadErrs := downloadGiftImages(appGiftImage, gifts)
 			if len(downloadErrs) > 0 {
-				c.hub.broadcast(mustJSON(map[string]any{
-					"type":  "error",
-					"error": fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")),
-					"time":  time.Now().Format(time.RFC3339),
-				}))
+				c.hub.broadcastError(fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")))
 			}
 			outFile, saveErr := saveGiftListJSON(appGiftList, username, gifts)
 			if saveErr != nil {
-				c.hub.broadcast(mustJSON(map[string]any{
-					"type":  "error",
-					"error": "failed to save gift list json: " + saveErr.Error(),
-					"time":  time.Now().Format(time.RFC3339),
-				}))
+				c.hub.broadcastError("failed to save gift list json: " + saveErr.Error())
 			} else {
-				c.hub.broadcast(mustJSON(map[string]any{
-					"type":    "status",
-					"message": fmt.Sprintf("Gift list saved to %s and downloaded %d gift image(s) to %s", outFile, downloadedCount, appGiftImage),
-					"time":    time.Now().Format(time.RFC3339),
-				}))
+				c.hub.broadcastStatus(fmt.Sprintf("Gift list saved to %s and downloaded %d gift image(s) to %s", outFile, downloadedCount, appGiftImage))
 			}
 			c.hub.broadcast(mustJSON(map[string]any{
 				"type":     "gift_catalog",
@@ -1518,7 +1474,7 @@ func (m *likeGoalManager) SyncAbsoluteLikes(totalLikes int, reason string) (like
 }
 
 func (m *likeGoalManager) SyncFromUsername(username string, reasonLive string, reasonOffline string) error {
-	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	username = stripUsernamePrefix(username)
 	if username == "" {
 		return nil
 	}
@@ -1561,11 +1517,7 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 
 	if triggerEventID <= 0 {
 		if m.hub != nil {
-			m.hub.broadcast(mustJSON(map[string]any{
-				"type":    "status",
-				"message": "Like goal test sent (no trigger event configured)",
-				"time":    time.Now().Format(time.RFC3339),
-			}))
+			m.hub.broadcastStatus("Like goal test sent (no trigger event configured)")
 		}
 		return state, nil
 	}
@@ -1603,11 +1555,7 @@ func (m *likeGoalManager) TriggerTest() (likeGoalState, error) {
 	}
 
 	if m.hub != nil {
-		m.hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": "Like goal test sent (progress unchanged)",
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		m.hub.broadcastStatus("Like goal test sent (progress unchanged)")
 	}
 	return state, nil
 }
@@ -1698,11 +1646,7 @@ func (m *likeGoalManager) HandleLiveEvent(ev any) {
 		if !ok {
 			m.state.Enabled = false
 			if m.hub != nil {
-				m.hub.broadcast(mustJSON(map[string]any{
-					"type":  "error",
-					"error": fmt.Sprintf("like goal trigger event #%d not found", m.state.TriggerEventID),
-					"time":  time.Now().Format(time.RFC3339),
-				}))
+				m.hub.broadcastError(fmt.Sprintf("like goal trigger event #%d not found", m.state.TriggerEventID))
 			}
 			break
 		}
@@ -1864,19 +1808,11 @@ func (a *mcEventAutomation) processQueue() {
 		}
 		if commandErr != nil {
 			triggerPayload["command_error"] = commandErr.Error()
-			a.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("auto MC command failed (event #%d): %v", job.rule.ID, commandErr),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			a.hub.broadcastError(fmt.Sprintf("auto MC command failed (event #%d): %v", job.rule.ID, commandErr))
 		}
 		if shortcutErr != nil {
 			triggerPayload["shortcut_error"] = shortcutErr.Error()
-			a.hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("auto keyboard shortcut failed (event #%d): %v", job.rule.ID, shortcutErr),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			a.hub.broadcastError(fmt.Sprintf("auto keyboard shortcut failed (event #%d): %v", job.rule.ID, shortcutErr))
 		}
 		a.hub.broadcast(mustJSON(triggerPayload))
 	}
@@ -2050,7 +1986,7 @@ func (a *mcEventAutomation) addLikeTotal(username string, delta int) (int, int) 
 	if delta <= 0 {
 		delta = 1
 	}
-	key := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(username, "@")))
+	key := normalizeUsername(username)
 	if key == "" {
 		key = "testplayer"
 	}
@@ -2464,7 +2400,7 @@ func normalizeUsernameCandidate(name string) string {
 			name = strings.TrimSpace(name[idx+1:])
 		}
 	}
-	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
+	name = stripUsernamePrefix(name)
 	if slash := strings.Index(name, "/"); slash >= 0 {
 		name = strings.TrimSpace(name[:slash])
 	}
@@ -2474,7 +2410,7 @@ func normalizeUsernameCandidate(name string) string {
 	if h := strings.Index(name, "#"); h >= 0 {
 		name = strings.TrimSpace(name[:h])
 	}
-	name = strings.TrimSpace(strings.TrimPrefix(name, "@"))
+	name = stripUsernamePrefix(name)
 	return name
 }
 
@@ -2523,7 +2459,7 @@ func usernameFromTikTokProfileURL(raw string) string {
 				rest = rest[:p]
 			}
 		}
-		return strings.TrimSpace(strings.TrimPrefix(rest, "@"))
+		return stripUsernamePrefix(rest)
 	}
 	return ""
 }
@@ -2894,11 +2830,7 @@ func main() {
 		if strings.TrimSpace(settings.Username) != "" {
 			go func(username string) {
 				if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {
-					hub.broadcast(mustJSON(map[string]any{
-						"type":  "error",
-						"error": "failed to sync like goal on startup: " + syncErr.Error(),
-						"time":  time.Now().Format(time.RFC3339),
-					}))
+					hub.broadcastError("failed to sync like goal on startup: " + syncErr.Error())
 				}
 			}(settings.Username)
 		}
@@ -2965,8 +2897,7 @@ func main() {
 	})
 
 	http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		running, username := ctrl.State()
@@ -3002,7 +2933,7 @@ func main() {
 			}
 			if strings.TrimSpace(settings.Username) == "" {
 				if strings.TrimSpace(runtimeUsername) != "" {
-					settings.Username = strings.TrimSpace(strings.TrimPrefix(runtimeUsername, "@"))
+					settings.Username = stripUsernamePrefix(runtimeUsername)
 				}
 			}
 			if strings.TrimSpace(settings.Minecraft.Host) == "" {
@@ -3058,8 +2989,7 @@ func main() {
 			})
 		case http.MethodPut:
 			var req unifiedSettingsJSON
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			if !decodeJSONBody(w, r, &req) {
 				return
 			}
 			normalizeUnifiedSettings(&req)
@@ -3091,15 +3021,13 @@ func main() {
 	})
 
 	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			Username string `json:"username"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		allowed, allowErr := usernameAllowlist.isAllowed(req.Username)
@@ -3123,15 +3051,14 @@ func main() {
 			return
 		}
 		if settings, err := loadUnifiedSettings(appSettings); err == nil {
-			settings.Username = strings.TrimSpace(strings.TrimPrefix(req.Username, "@"))
+			settings.Username = stripUsernamePrefix(req.Username)
 			_ = saveUnifiedSettings(appSettings, settings)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
 
 	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		ctrl.Stop()
@@ -3188,115 +3115,15 @@ func main() {
 			sort.Slice(items, func(i, j int) bool { return items[i].ID > items[j].ID })
 			writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
-			var req struct {
-				Type               string `json:"type"`
-				Title              string `json:"title"`
-				Label              string `json:"label"`
-				GiftID             int    `json:"gift_id"`
-				RepeatByGiftCombo  *bool  `json:"repeat_by_gift_combo"`
-				ShowInExport       *bool  `json:"show_in_export"`
-				SoundURL           string `json:"sound_url"`
-				MCCommand          string `json:"mc_command"`
-				RunMCCommand       *bool  `json:"run_mc_command"`
-				RunShortcut        *bool  `json:"run_shortcut"`
-				ShortcutKeys       string `json:"shortcut_keys"`
-				ShortcutHold       int    `json:"shortcut_hold_ms"`
-				ShortcutPressCount int    `json:"shortcut_press_count"`
-				RunDurationMs      *int   `json:"run_duration_ms"`
-			}
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			var req eventRequest
+			if !decodeJSONBody(w, r, &req) {
 				return
 			}
-			req.Type = strings.TrimSpace(strings.ToLower(req.Type))
-			if !isAllowedEventType(req.Type) {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share/follow/other"})
+			v, ok := validateEventRequest(w, &req)
+			if !ok {
 				return
 			}
-			req.Title = strings.TrimSpace(req.Title)
-			req.Label = strings.TrimSpace(req.Label)
-			if req.Type == "like" && req.Label != "" {
-				n, err := strconv.Atoi(req.Label)
-				if err != nil || n < 0 {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "like label must be a number >= 0"})
-					return
-				}
-			}
-			runMCCommand := true
-			if req.RunMCCommand != nil {
-				runMCCommand = *req.RunMCCommand
-			}
-			runShortcut := false
-			if req.RunShortcut != nil {
-				runShortcut = *req.RunShortcut
-			}
-			shortcutKeys := strings.TrimSpace(req.ShortcutKeys)
-			if runShortcut && shortcutKeys == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_keys is required when run_shortcut=true"})
-				return
-			}
-			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
-				return
-			}
-			shortcutPressCount := req.ShortcutPressCount
-			if shortcutPressCount <= 0 {
-				shortcutPressCount = 1
-			}
-			if shortcutPressCount > 100 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_press_count must be between 1 and 100"})
-				return
-			}
-			runDurationMs := 1000
-			if req.RunDurationMs != nil {
-				runDurationMs = *req.RunDurationMs
-			}
-			if runDurationMs < 0 || runDurationMs > 600000 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "run_duration_ms must be between 0 and 600000"})
-				return
-			}
-			if !runShortcut {
-				shortcutKeys = ""
-			}
-			repeatByGiftCombo := false
-			if req.RepeatByGiftCombo != nil {
-				repeatByGiftCombo = *req.RepeatByGiftCombo
-			}
-			if req.Type != "gift" {
-				repeatByGiftCombo = false
-			}
-			showInExport := true
-			if req.ShowInExport != nil {
-				showInExport = *req.ShowInExport
-			}
-			if !runMCCommand && !runShortcut {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
-				return
-			}
-			if runMCCommand && strings.TrimSpace(req.MCCommand) == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required when run_mc_command=true"})
-				return
-			}
-			req.SoundURL = strings.TrimSpace(req.SoundURL)
-			giftID := 0
-			giftName := ""
-			diamond := 0
-			if req.Type == "gift" && req.GiftID > 0 {
-				gifts, err := loadGiftListJSON(appGiftList)
-				if err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
-					return
-				}
-				gift, ok := findGiftByID(gifts, req.GiftID)
-				if !ok {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
-					return
-				}
-				giftID = gift.ID
-				giftName = gift.NamaGift
-				diamond = gift.Diamond
-			}
-			item, err := store.create(req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold, shortcutPressCount, runDurationMs)
+			item, err := store.create(v.Type, v.Title, v.Label, v.GiftID, v.RepeatByGiftCombo, v.ShowInExport, v.GiftName, v.Diamond, v.SoundURL, v.MCCommand, v.RunMCCommand, v.RunShortcut, v.ShortcutKeys, v.ShortcutHold, v.ShortcutPressCount, v.RunDurationMs)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
@@ -3315,115 +3142,15 @@ func main() {
 		}
 		switch r.Method {
 		case http.MethodPut:
-			var req struct {
-				Type               string `json:"type"`
-				Title              string `json:"title"`
-				Label              string `json:"label"`
-				GiftID             int    `json:"gift_id"`
-				RepeatByGiftCombo  *bool  `json:"repeat_by_gift_combo"`
-				ShowInExport       *bool  `json:"show_in_export"`
-				SoundURL           string `json:"sound_url"`
-				MCCommand          string `json:"mc_command"`
-				RunMCCommand       *bool  `json:"run_mc_command"`
-				RunShortcut        *bool  `json:"run_shortcut"`
-				ShortcutKeys       string `json:"shortcut_keys"`
-				ShortcutHold       int    `json:"shortcut_hold_ms"`
-				ShortcutPressCount int    `json:"shortcut_press_count"`
-				RunDurationMs      *int   `json:"run_duration_ms"`
-			}
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			var req eventRequest
+			if !decodeJSONBody(w, r, &req) {
 				return
 			}
-			req.Type = strings.TrimSpace(strings.ToLower(req.Type))
-			if !isAllowedEventType(req.Type) {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share/follow/other"})
+			v, ok := validateEventRequest(w, &req)
+			if !ok {
 				return
 			}
-			req.Title = strings.TrimSpace(req.Title)
-			req.Label = strings.TrimSpace(req.Label)
-			if req.Type == "like" && req.Label != "" {
-				n, err := strconv.Atoi(req.Label)
-				if err != nil || n < 0 {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "like label must be a number >= 0"})
-					return
-				}
-			}
-			runMCCommand := true
-			if req.RunMCCommand != nil {
-				runMCCommand = *req.RunMCCommand
-			}
-			runShortcut := false
-			if req.RunShortcut != nil {
-				runShortcut = *req.RunShortcut
-			}
-			shortcutKeys := strings.TrimSpace(req.ShortcutKeys)
-			if runShortcut && shortcutKeys == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_keys is required when run_shortcut=true"})
-				return
-			}
-			if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
-				return
-			}
-			shortcutPressCount := req.ShortcutPressCount
-			if shortcutPressCount <= 0 {
-				shortcutPressCount = 1
-			}
-			if shortcutPressCount > 100 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_press_count must be between 1 and 100"})
-				return
-			}
-			runDurationMs := 1000
-			if req.RunDurationMs != nil {
-				runDurationMs = *req.RunDurationMs
-			}
-			if runDurationMs < 0 || runDurationMs > 600000 {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "run_duration_ms must be between 0 and 600000"})
-				return
-			}
-			if !runShortcut {
-				shortcutKeys = ""
-			}
-			repeatByGiftCombo := false
-			if req.RepeatByGiftCombo != nil {
-				repeatByGiftCombo = *req.RepeatByGiftCombo
-			}
-			if req.Type != "gift" {
-				repeatByGiftCombo = false
-			}
-			showInExport := true
-			if req.ShowInExport != nil {
-				showInExport = *req.ShowInExport
-			}
-			if !runMCCommand && !runShortcut {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
-				return
-			}
-			if runMCCommand && strings.TrimSpace(req.MCCommand) == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required when run_mc_command=true"})
-				return
-			}
-			req.SoundURL = strings.TrimSpace(req.SoundURL)
-			giftID := 0
-			giftName := ""
-			diamond := 0
-			if req.Type == "gift" && req.GiftID > 0 {
-				gifts, err := loadGiftListJSON(appGiftList)
-				if err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
-					return
-				}
-				gift, ok := findGiftByID(gifts, req.GiftID)
-				if !ok {
-					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
-					return
-				}
-				giftID = gift.ID
-				giftName = gift.NamaGift
-				diamond = gift.Diamond
-			}
-			item, err := store.update(id, req.Type, req.Title, req.Label, giftID, repeatByGiftCombo, showInExport, giftName, diamond, req.SoundURL, req.MCCommand, runMCCommand, runShortcut, shortcutKeys, req.ShortcutHold, shortcutPressCount, runDurationMs)
+			item, err := store.update(id, v.Type, v.Title, v.Label, v.GiftID, v.RepeatByGiftCombo, v.ShowInExport, v.GiftName, v.Diamond, v.SoundURL, v.MCCommand, v.RunMCCommand, v.RunShortcut, v.ShortcutKeys, v.ShortcutHold, v.ShortcutPressCount, v.RunDurationMs)
 			if err != nil {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 				return
@@ -3441,15 +3168,13 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/save-profile", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			ProfileName string `json:"profile_name"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		items := store.list()
@@ -3457,12 +3182,7 @@ func main() {
 
 		baseAbs, targetAbs, fileName, err := resolvePresetProfilePath(req.ProfileName)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "resolve preset directory") {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			writePresetPathError(w, err)
 			return
 		}
 		if err := os.MkdirAll(baseAbs, 0755); err != nil {
@@ -3505,17 +3225,12 @@ func main() {
 			return 0, errSaveImportedEvents
 		}
 
-		hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": fmt.Sprintf("Loaded %d event(s) from JSON", len(normalized)),
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		hub.broadcastStatus(fmt.Sprintf("Loaded %d event(s) from JSON", len(normalized)))
 		return len(normalized), nil
 	}
 
 	http.HandleFunc("/api/events/profiles", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -3586,26 +3301,19 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/create-profile", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			ProfileName string `json:"profile_name"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 
 		baseAbs, targetAbs, fileName, err := resolvePresetProfilePath(req.ProfileName)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "resolve preset directory") {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			writePresetPathError(w, err)
 			return
 		}
 
@@ -3644,16 +3352,14 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/load-profile", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			ProfileName string `json:"profile_name"`
 			FileName    string `json:"file_name"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 
@@ -3667,12 +3373,7 @@ func main() {
 		}
 		_, targetAbs, fileName, err := resolvePresetProfilePath(profileName)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "resolve preset directory") {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			writePresetPathError(w, err)
 			return
 		}
 
@@ -3745,8 +3446,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/rename-profile", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
@@ -3755,8 +3455,7 @@ func main() {
 			OldFileName    string `json:"old_file_name"`
 			NewFileName    string `json:"new_file_name"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 
@@ -3783,22 +3482,12 @@ func main() {
 
 		_, oldAbs, oldFileName, err := resolvePresetProfilePath(oldProfileName)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "resolve preset directory") {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			writePresetPathError(w, err)
 			return
 		}
 		_, newAbs, newFileName, err := resolvePresetProfilePath(newProfileName)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "resolve preset directory") {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+			writePresetPathError(w, err)
 			return
 		}
 
@@ -3853,8 +3542,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/load", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -3900,19 +3588,14 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/reset", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if err := store.resetAll(); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to reset events"})
 			return
 		}
-		hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": "event list has been reset",
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		hub.broadcastStatus("event list has been reset")
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
 
@@ -3929,8 +3612,7 @@ func main() {
 				Enabled        *bool  `json:"enabled"`
 				ResetProgress  bool   `json:"reset_progress"`
 			}
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			if !decodeJSONBody(w, r, &req) {
 				return
 			}
 			enabled := true
@@ -3949,8 +3631,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/like-goal/reset", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		state, err := likeGoal.ResetProgress()
@@ -3962,8 +3643,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/like-goal/test", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		state, err := likeGoal.TriggerTest()
@@ -3975,8 +3655,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/gifts", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		items, err := loadGiftListJSON(appGiftList)
@@ -3996,18 +3675,16 @@ func main() {
 	})
 
 	http.HandleFunc("/api/gifts/refresh", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			Username string `json:"username"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
-		username := strings.TrimSpace(strings.TrimPrefix(req.Username, "@"))
+		username := stripUsernamePrefix(req.Username)
 		if username == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "username is required"})
 			return
@@ -4021,11 +3698,7 @@ func main() {
 
 		downloadedCount, downloadErrs := downloadGiftImages(appGiftImage, gifts)
 		if len(downloadErrs) > 0 {
-			hub.broadcast(mustJSON(map[string]any{
-				"type":  "error",
-				"error": fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")),
-				"time":  time.Now().Format(time.RFC3339),
-			}))
+			hub.broadcastError(fmt.Sprintf("gift image download completed with %d error(s): %s", len(downloadErrs), strings.Join(downloadErrs[:min(len(downloadErrs), 3)], "; ")))
 		}
 
 		outFile, saveErr := saveGiftListJSON(appGiftList, username, gifts)
@@ -4034,11 +3707,7 @@ func main() {
 			return
 		}
 
-		hub.broadcast(mustJSON(map[string]any{
-			"type":    "status",
-			"message": fmt.Sprintf("Gift list refreshed for @%s (region: %s, source: %s), saved to %s and downloaded %d gift image(s) to %s", username, fallbackRegion(region), source, outFile, downloadedCount, appGiftImage),
-			"time":    time.Now().Format(time.RFC3339),
-		}))
+		hub.broadcastStatus(fmt.Sprintf("Gift list refreshed for @%s (region: %s, source: %s), saved to %s and downloaded %d gift image(s) to %s", username, fallbackRegion(region), source, outFile, downloadedCount, appGiftImage))
 		hub.broadcast(mustJSON(map[string]any{
 			"type":     "gift_catalog",
 			"username": username,
@@ -4063,8 +3732,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/upload/sound", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -4117,24 +3785,21 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/status", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		writeJSON(w, http.StatusOK, mcRCON.Status())
 	})
 
 	http.HandleFunc("/api/minecraft/status", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		writeJSON(w, http.StatusOK, mcRCON.Status())
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/connect", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
@@ -4142,8 +3807,7 @@ func main() {
 			Port     int    `json:"port"`
 			Password string `json:"password"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		if err := mcRCON.ConnectWithMode("rcon", req.Host, req.Port, req.Password, ""); err != nil {
@@ -4154,8 +3818,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/connect", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if !mcRCON.Enabled() {
@@ -4169,8 +3832,7 @@ func main() {
 			Password      string `json:"password"`
 			ServerTapPath string `json:"servertap_path"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		if err := mcRCON.ConnectWithMode(req.Mode, req.Host, req.Port, req.Password, req.ServerTapPath); err != nil {
@@ -4181,8 +3843,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/disconnect", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		mcRCON.Disconnect()
@@ -4190,8 +3851,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/disconnect", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		mcRCON.Disconnect()
@@ -4199,15 +3859,13 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/command", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			Command string `json:"command"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		out, err := executeCommands(mcRCON, req.Command)
@@ -4219,8 +3877,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/minecraft/command", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if !mcRCON.Enabled() {
@@ -4230,8 +3887,7 @@ func main() {
 		var req struct {
 			Command string `json:"command"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		out, err := executeCommands(mcRCON, req.Command)
@@ -4243,8 +3899,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/events/test/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		id, err := parseIDFromPath(r.URL.Path, "/api/events/test/")
@@ -4318,8 +3973,7 @@ func main() {
 	})
 
 	testEventHandler := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
@@ -4329,8 +3983,7 @@ func main() {
 			RepeatCount int    `json:"repeatcount"`
 			Text        string `json:"text"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 
@@ -4553,6 +4206,176 @@ func openBrowser(targetURL string) error {
 	return cmd.Start()
 }
 
+type eventRequest struct {
+	Type               string `json:"type"`
+	Title              string `json:"title"`
+	Label              string `json:"label"`
+	GiftID             int    `json:"gift_id"`
+	RepeatByGiftCombo  *bool  `json:"repeat_by_gift_combo"`
+	ShowInExport       *bool  `json:"show_in_export"`
+	SoundURL           string `json:"sound_url"`
+	MCCommand          string `json:"mc_command"`
+	RunMCCommand       *bool  `json:"run_mc_command"`
+	RunShortcut        *bool  `json:"run_shortcut"`
+	ShortcutKeys       string `json:"shortcut_keys"`
+	ShortcutHold       int    `json:"shortcut_hold_ms"`
+	ShortcutPressCount int    `json:"shortcut_press_count"`
+	RunDurationMs      *int   `json:"run_duration_ms"`
+}
+
+type validatedEvent struct {
+	Type               string
+	Title              string
+	Label              string
+	GiftID             int
+	GiftName           string
+	Diamond            int
+	RepeatByGiftCombo  bool
+	ShowInExport       bool
+	SoundURL           string
+	MCCommand          string
+	RunMCCommand       bool
+	RunShortcut        bool
+	ShortcutKeys       string
+	ShortcutHold       int
+	ShortcutPressCount int
+	RunDurationMs      int
+}
+
+func validateEventRequest(w http.ResponseWriter, req *eventRequest) (validatedEvent, bool) {
+	req.Type = strings.TrimSpace(strings.ToLower(req.Type))
+	if !isAllowedEventType(req.Type) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "type must be one of: join/comment/like/gift/share/follow/other"})
+		return validatedEvent{}, false
+	}
+	req.Title = strings.TrimSpace(req.Title)
+	req.Label = strings.TrimSpace(req.Label)
+	if req.Type == "like" && req.Label != "" {
+		n, err := strconv.Atoi(req.Label)
+		if err != nil || n < 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "like label must be a number >= 0"})
+			return validatedEvent{}, false
+		}
+	}
+	runMCCommand := true
+	if req.RunMCCommand != nil {
+		runMCCommand = *req.RunMCCommand
+	}
+	runShortcut := false
+	if req.RunShortcut != nil {
+		runShortcut = *req.RunShortcut
+	}
+	shortcutKeys := strings.TrimSpace(req.ShortcutKeys)
+	if runShortcut && shortcutKeys == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_keys is required when run_shortcut=true"})
+		return validatedEvent{}, false
+	}
+	if req.ShortcutHold < 0 || req.ShortcutHold > 10000 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_hold_ms must be between 0 and 10000"})
+		return validatedEvent{}, false
+	}
+	shortcutPressCount := req.ShortcutPressCount
+	if shortcutPressCount <= 0 {
+		shortcutPressCount = 1
+	}
+	if shortcutPressCount > 100 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "shortcut_press_count must be between 1 and 100"})
+		return validatedEvent{}, false
+	}
+	runDurationMs := 1000
+	if req.RunDurationMs != nil {
+		runDurationMs = *req.RunDurationMs
+	}
+	if runDurationMs < 0 || runDurationMs > 600000 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "run_duration_ms must be between 0 and 600000"})
+		return validatedEvent{}, false
+	}
+	if !runShortcut {
+		shortcutKeys = ""
+	}
+	repeatByGiftCombo := false
+	if req.RepeatByGiftCombo != nil {
+		repeatByGiftCombo = *req.RepeatByGiftCombo
+	}
+	if req.Type != "gift" {
+		repeatByGiftCombo = false
+	}
+	showInExport := true
+	if req.ShowInExport != nil {
+		showInExport = *req.ShowInExport
+	}
+	if !runMCCommand && !runShortcut {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "at least one action must be enabled"})
+		return validatedEvent{}, false
+	}
+	if runMCCommand && strings.TrimSpace(req.MCCommand) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "mc_command is required when run_mc_command=true"})
+		return validatedEvent{}, false
+	}
+	req.SoundURL = strings.TrimSpace(req.SoundURL)
+	giftID := 0
+	giftName := ""
+	diamond := 0
+	if req.Type == "gift" && req.GiftID > 0 {
+		gifts, err := loadGiftListJSON(appGiftList)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "failed to read gift list: " + err.Error()})
+			return validatedEvent{}, false
+		}
+		gift, ok := findGiftByID(gifts, req.GiftID)
+		if !ok {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "gift_id not found in gift list"})
+			return validatedEvent{}, false
+		}
+		giftID = gift.ID
+		giftName = gift.NamaGift
+		diamond = gift.Diamond
+	}
+	return validatedEvent{
+		Type:               req.Type,
+		Title:              req.Title,
+		Label:              req.Label,
+		GiftID:             giftID,
+		GiftName:           giftName,
+		Diamond:            diamond,
+		RepeatByGiftCombo:  repeatByGiftCombo,
+		ShowInExport:       showInExport,
+		SoundURL:           req.SoundURL,
+		MCCommand:          req.MCCommand,
+		RunMCCommand:       runMCCommand,
+		RunShortcut:        runShortcut,
+		ShortcutKeys:       shortcutKeys,
+		ShortcutHold:       req.ShortcutHold,
+		ShortcutPressCount: shortcutPressCount,
+		RunDurationMs:      runDurationMs,
+	}, true
+}
+
+func writePresetPathError(w http.ResponseWriter, err error) {
+	msg := err.Error()
+	if strings.Contains(msg, "resolve preset directory") {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+}
+
+func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(dst); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return false
+	}
+	return true
+}
+
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -4738,7 +4561,7 @@ func normalizeUnifiedSettings(s *unifiedSettingsJSON) {
 	if s == nil {
 		return
 	}
-	s.Username = strings.TrimSpace(strings.TrimPrefix(s.Username, "@"))
+	s.Username = stripUsernamePrefix(s.Username)
 	s.ActiveProfile = strings.TrimSpace(s.ActiveProfile)
 	s.Minecraft.Host = strings.TrimSpace(s.Minecraft.Host)
 	if s.Minecraft.Host == "" {
@@ -5055,11 +4878,12 @@ func parseIDFromPath(path, prefix string) (int, error) {
 	return id, nil
 }
 
+func stripUsernamePrefix(v string) string {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(v), "@"))
+}
+
 func normalizeUsername(v string) string {
-	v = strings.TrimSpace(v)
-	v = strings.TrimPrefix(v, "@")
-	v = strings.TrimSpace(v)
-	return strings.ToLower(v)
+	return strings.ToLower(stripUsernamePrefix(v))
 }
 
 func isAllowedEventType(v string) bool {
@@ -5226,7 +5050,7 @@ func loadProperties(path string) (map[string]string, error) {
 }
 
 func fetchGiftCatalogFromUsername(username string) ([]giftCatalogItem, string, string, string, error) {
-	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	username = stripUsernamePrefix(username)
 	if username == "" {
 		return nil, "", "", "", fmt.Errorf("username is required")
 	}
@@ -5316,7 +5140,7 @@ func resolveLiveInfoFromUsername(tiktok *gotiktoklive.TikTok, username string) (
 	if tiktok == nil {
 		return "", "", 0, false, false, fmt.Errorf("tiktok client is nil")
 	}
-	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	username = stripUsernamePrefix(username)
 	if username == "" {
 		return "", "", 0, false, false, fmt.Errorf("username is required")
 	}
@@ -5642,7 +5466,7 @@ func fetchGiftCatalog(tiktok *gotiktoklive.TikTok, roomID string, username strin
 	if strings.TrimSpace(roomID) == "" {
 		return nil, fmt.Errorf("room_id is empty")
 	}
-	username = strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	username = stripUsernamePrefix(username)
 
 	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 	baseURL := "https://webcast.tiktok.com/webcast/gift/list/"

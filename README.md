@@ -64,11 +64,46 @@ README ini fokus ke kode aplikasi utama dan web UI. Detail isi folder `server/` 
 - `third_party/gotiktoklive/`
   - dependency lokal untuk client TikTok Live
 
-## Menjalankan Aplikasi
+## Instalasi
 
-```bash
-go run .
-```
+### Prasyarat
+
+- **Go 1.25.0+** — download dari [go.dev/dl](https://go.dev/dl/)
+- **Git** — download dari [git-scm.com](https://git-scm.com/)
+
+### Langkah-langkah
+
+1. **Clone repository**
+
+   ```bash
+   git clone https://github.com/zufarrizal/Go-TikTok-Live-Connector.git
+   cd Go-TikTok-Live-Connector
+   ```
+
+2. **Download dependensi** (otomatis dari `go.mod`)
+
+   ```bash
+   go mod download
+   ```
+
+3. **Build & jalankan**
+
+   ```bash
+   go run .
+   ```
+
+   Atau build binary dulu:
+
+   ```bash
+   go build -o tikstream.exe .
+   ./tikstream.exe
+   ```
+
+### Catatan
+
+- Semua dependensi Go di-manage oleh `go.mod` + `go.sum`, tidak perlu install manual.
+- Server berjalan di `http://127.0.0.1:8080` (bisa ubah via env `PORT`).
+- Browser otomatis terbuka saat app start.
 
 Perilaku listener:
 

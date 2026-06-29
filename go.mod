@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/gorcon/rcon v1.4.0
-	github.com/steampoweredtaco/gotiktoklive v0.0.4
+	github.com/steampoweredtaco/gotiktoklive v1.0.8
 )
 
 require (

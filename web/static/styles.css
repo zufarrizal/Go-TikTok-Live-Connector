@@ -1085,10 +1085,18 @@ button:hover {
 
 .crud-table {
   width: 100%;
-  min-width: 1040px;
   border-collapse: collapse;
   font-size: 12px;
-  table-layout: fixed;
+}
+
+/* Drag handle column - narrow */
+.crud-table th:nth-child(1),
+.crud-table td:nth-child(1) {
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  text-align: center;
+  padding: 4px 2px;
 }
 
 .crud-table th,
@@ -1097,9 +1105,6 @@ button:hover {
   padding: 8px 9px;
   text-align: left;
   vertical-align: middle;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1.25;
 }
 
@@ -1107,6 +1112,14 @@ button:hover {
   color: var(--muted);
   background: #0b1220;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.crud-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
 .crud-table td button {
@@ -1140,50 +1153,14 @@ button:hover {
   border-color: var(--danger-border);
 }
 
-.crud-table th:nth-child(6),
-.crud-table td:nth-child(6) {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Show full text on key content columns while keeping table inside its box */
-.crud-table th:nth-child(2),
-.crud-table td:nth-child(2),
-.crud-table th:nth-child(3),
-.crud-table td:nth-child(3),
-.crud-table th:nth-child(5),
-.crud-table td:nth-child(5),
-.crud-table th:nth-child(6),
-.crud-table td:nth-child(6),
-.crud-table th:nth-child(7),
-.crud-table td:nth-child(7) {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.crud-table td:nth-child(6) {
+/* MC Command column - allow wrap for long commands */
+.crud-table td:nth-child(8) {
   white-space: pre-wrap;
+  max-width: 320px;
 }
 
-.crud-table th:nth-child(1),
-.crud-table td:nth-child(1),
-.crud-table th:nth-child(4),
-.crud-table td:nth-child(4),
-.crud-table th:nth-child(7),
-.crud-table td:nth-child(7),
-.crud-table th:nth-child(8),
-.crud-table td:nth-child(8),
-.crud-table th:nth-child(9),
-.crud-table td:nth-child(9) {
-  white-space: nowrap;
-}
-
-.crud-table th:nth-child(9),
-.crud-table td:nth-child(9) {
+/* Actions column - keep buttons on one line */
+.crud-table td:last-child {
   white-space: nowrap;
 }
 
@@ -2695,15 +2672,17 @@ pre {
 
 .event-drag-handle {
   cursor: grab;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 1rem;
-  padding: 4px 6px;
+  padding: 4px 2px;
   user-select: none;
   transition: color 0.15s;
+  text-align: center;
+  letter-spacing: -2px;
 }
 
 .event-drag-handle:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .event-drag-handle:active {

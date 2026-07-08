@@ -4252,7 +4252,7 @@ const statusEl = document.getElementById("status");
       if (!eventRowsEl) return;
       eventRowsEl.addEventListener("dragstart", (e) => {
         const tr = e.target.closest("tr");
-        if (!tr) return;
+        if (!tr || !tr.dataset.eventId) return;
         dragSrcRow = tr;
         tr.classList.add("dragging");
         e.dataTransfer.effectAllowed = "move";
@@ -4262,24 +4262,27 @@ const statusEl = document.getElementById("status");
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         const tr = e.target.closest("tr");
-        if (tr && tr !== dragSrcRow) {
-          // Remove previous drag-over highlights.
+        if (tr && tr !== dragSrcRow && tr.dataset.eventId) {
           eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
           tr.classList.add("drag-over");
         }
       });
       eventRowsEl.addEventListener("dragleave", (e) => {
+        // Only remove highlight if we actually left the row (not just moving between cells).
         const tr = e.target.closest("tr");
-        if (tr) tr.classList.remove("drag-over");
+        if (!tr) return;
+        const related = e.relatedTarget;
+        if (related && related.closest && related.closest("tr") === tr) return;
+        tr.classList.remove("drag-over");
       });
       eventRowsEl.addEventListener("drop", async (e) => {
         e.preventDefault();
         eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
         if (dragSrcRow) dragSrcRow.classList.remove("dragging");
         const targetTr = e.target.closest("tr");
-        if (!targetTr || !dragSrcRow || targetTr === dragSrcRow) return;
-        const srcId = Number(dragSrcRow.dataset.eventId || 0);
-        const dstId = Number(targetTr.dataset.eventId || 0);
+        if (!targetTr || !dragSrcRow || targetTr === dragSrcRow || !targetTr.dataset.eventId) return;
+        const srcId = Number(dragSrcRow.dataset.eventId);
+        const dstId = Number(targetTr.dataset.eventId);
         if (!srcId || !dstId) return;
         // Build new order.
         const rows = Array.from(eventRowsEl.querySelectorAll("tr[data-event-id]"));

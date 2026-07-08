@@ -1,132 +1,154 @@
-# TikStream
+<p align="center">
+  <img src="web/static/app-logo.svg" width="100" alt="TikStream Logo">
+</p>
 
-Bridge event TikTok Live ke aksi otomatis (Minecraft command + keyboard shortcut) dengan backend Go dan dashboard web.
+<h1 align="center">TikStream</h1>
 
-README ini fokus ke kode aplikasi utama dan web UI. Detail isi folder `server/` tidak dibahas.
+<p align="center">
+  <strong>Bridge TikTok Live events to Minecraft commands & keyboard shortcuts</strong><br>
+  Real-time automation engine with web dashboard, OBS overlays, and gift analytics.
+</p>
 
-## Ringkasan Fitur
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/HTML-CSS--JS-E34F26?style=flat-square&logo=html5&logoColor=white" alt="Frontend">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/License-Private-red?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/last-commit/zufarrizal/Go-TikTok-Live-Connector?style=flat-square" alt="Last Commit">
+</p>
 
-- Tracking TikTok Live dengan auto reconnect.
-- License gate saat `POST /start` berbasis allowlist username dari GitHub.
-- Otomasi event:
-  - `gift`, `join`, `follow`, `comment`, `like`, `share`, `other`
-- Aksi per event:
-  - jalankan command ke connector Minecraft (`run_mc_command`)
-  - jalankan shortcut keyboard (`run_shortcut`, Windows-only)
-  - atau keduanya
-- Gift catalog:
-  - refresh per username (`/api/gifts/refresh`)
-  - simpan ke `gift-list.json`
-  - cache gambar ke `giftimage/`
-- SSE realtime (`/events`) untuk status, log event, dan update like goal.
-- CRUD event + test event + preset profile (`P-*.json`) dari dashboard.
-- Like Goal (OBS overlay) dengan endpoint khusus dan halaman `/overlay/like-goal`.
-- Event List Box (gift cards) + export PNG slides.
-- UI bilingual (Indonesia/English).
+---
 
-## Teknologi
+## What is TikStream?
 
-- Go `1.25.0` (sesuai `go.mod`)
-- `github.com/steampoweredtaco/gotiktoklive v0.0.4` (di-`replace` ke `./third_party/gotiktoklive`)
-- `github.com/gorcon/rcon v1.4.0`
-- HTML, CSS, Vanilla JS
+TikStream is a **real-time bridge** between TikTok Live and Minecraft. When someone sends a gift, follows, likes, or comments on your TikTok Live, TikStream automatically triggers Minecraft commands, keyboard shortcuts, or both.
 
-## Struktur Proyek
+Built with **Go** for blazing-fast backend and **Vanilla JS** for a lightweight, zero-dependency frontend.
 
-- `main.go`
-  - HTTP server + SSE
-  - TikTok stream controller
-  - automation engine
-  - connector Minecraft (RCON + ServerTap mode)
-  - API settings, event, gift, simulator, like goal
-- `shortcut_windows.go`, `shortcut_nonwindows.go`
-  - eksekusi keyboard shortcut per OS
-- `web/index.html`
-  - dashboard utama
-- `web/overlay-like-goal.html`
-  - halaman overlay like goal
-- `web/static/app.js`
-  - seluruh logic frontend dashboard
-- `web/static/overlay-like-goal.js`
-  - logic realtime overlay
-- `web/static/styles.css`
-  - styling dashboard + overlay
-- `gift-list.json`
-  - cache daftar gift
-- `giftimage/`
-  - cache gambar gift
-- `sounds/`
-  - upload audio trigger
-- `settings.json`
-  - unified settings aplikasi
-- `P-Default.json`, `P-*.json`
-  - default/preset event profile
-- `third_party/gotiktoklive/`
-  - dependency lokal untuk client TikTok Live
+```
+┌──────────────┐     WebSocket      ┌──────────────┐     RCON/ServerTap     ┌──────────────┐
+│  TikTok Live │ ──────────────────► │   TikStream  │ ────────────────────► │   Minecraft  │
+│    Events    │                     │   Engine     │                       │    Server    │
+└──────────────┘                     └──────┬───────┘                       └──────────────┘
+                                            │
+                                            │ SSE
+                                            ▼
+                                     ┌──────────────┐
+                                     │   Dashboard  │
+                                     │   + Overlays │
+                                     └──────────────┘
+```
 
-## Instalasi
+---
 
-### Prasyarat
+## Features
 
-- **Go 1.25.0+** — download dari [go.dev/dl](https://go.dev/dl/)
-- **Git** — download dari [git-scm.com](https://git-scm.com/)
+### Core Engine
+- **Real-time TikTok Live tracking** with auto-reconnect
+- **7 event types**: `gift`, `join`, `follow`, `comment`, `like`, `share`, `other`
+- **Gift combo tracking** — handles grouped gifts with repeat count
+- **Command injection protection** — `sanitizeMCVar()` strips dangerous characters
+- **License gate** — username allowlist via GitHub raw file
 
-### Langkah-langkah
+### Automation
+- **Minecraft commands** via RCON or ServerTap
+- **Keyboard shortcuts** (Windows) with configurable hold duration & press count
+- **Sound triggers** — upload custom audio per event
+- **Placeholder templates** — `{username}`, `{giftname}`, `{coins}`, `{repeatcount}`, etc.
+- **Repeat by Gift Combo** — trigger once per combo or per individual gift
 
-1. **Clone repository**
+### Dashboard
+- **Session Statistics** — real-time diamonds, gifts, likes, follows, comments, duration
+- **Top Gifters** leaderboard with diamond counts
+- **Session Summary** modal on stream stop
+- **Event Panel** with drag-to-reorder (click-to-select)
+- **Event List Box** with PNG slide export
+- **Auto-save settings** — MC connector fields save automatically with debounce
+- **Bilingual UI** — Indonesia / English toggle
+- **Event Simulator** — test any event type without going live
 
-   ```bash
-   git clone https://github.com/zufarrizal/Go-TikTok-Live-Connector.git
-   cd Go-TikTok-Live-Connector
-   ```
+### OBS Overlays
+- **Like Goal** — progress bar overlay with increase/double modes
+- **Overlay URL** — copy-paste into OBS Browser Source
 
-2. **Download dependensi** (otomatis dari `go.mod`)
+### Data & Profiles
+- **Preset profiles** — save/load event configurations (`P-*.json`)
+- **Gift catalog** — auto-download with image cache
+- **Unified settings** — single `settings.json` for all config
 
-   ```bash
-   go mod download
-   ```
+### Security
+- **Watermark protection** — XOR-encrypted integrity verification
+- **Tamper-proof** — modifying watermark data kills the app
+- **Command injection prevention** — all template variables are sanitized
 
-3. **Build & jalankan**
+---
 
-   ```bash
-   go run .
-   ```
+## Quick Start
 
-   Atau build binary dulu:
+### Prerequisites
 
-   ```bash
-   go build -o tikstream.exe .
-   ./tikstream.exe
-   ```
+- **Go 1.25.0+** — [go.dev/dl](https://go.dev/dl/)
+- **Git** — [git-scm.com](https://git-scm.com/)
 
-### Catatan
+### Install & Run
 
-- Semua dependensi Go di-manage oleh `go.mod` + `go.sum`, tidak perlu install manual.
-- Server berjalan di `http://127.0.0.1:8080` (bisa ubah via env `PORT`).
-- Browser otomatis terbuka saat app start.
+```bash
+# Clone
+git clone https://github.com/zufarrizal/Go-TikTok-Live-Connector.git
+cd Go-TikTok-Live-Connector
 
-Perilaku listener:
+# Build
+go build -o tikstream .
 
-- bind ke `127.0.0.1:${PORT}`
-- default `PORT=8080`
-- jika `VERCEL` atau `AWS_LAMBDA_FUNCTION_NAME` terdeteksi: host jadi `0.0.0.0`
-- URL dicetak ke log: `Web ready at http://<host>:<port>`
-- browser dibuka otomatis (kecuali mode serverless)
-- jika port gagal dibind, aplikasi `exit` (tidak ada fallback ke random port)
+# Run
+./tikstream
+```
 
-## Alur Penggunaan Dashboard
+Open **http://127.0.0.1:8080** in your browser.
 
-1. Isi username TikTok.
-2. Klik `Start` untuk refresh gift list berdasarkan username (`/api/gifts/refresh`).
-3. Klik `Connect` untuk mulai tracking live (`/start`).
-4. Atur connector Minecraft (`rcon` atau `servertap`) lalu connect bila diperlukan.
-5. Buat/edit event rule.
-6. Pantau history realtime di panel `History` (SSE `/events`).
-7. Gunakan `Event Simulator` atau tombol `Run` per event untuk pengujian.
+### Usage Flow
 
-## Format Event Rule
+```
+1. Enter TikTok username → Click "Download" (fetches gift list)
+2. Click "Connect" → Starts tracking live events
+3. Connect Minecraft (RCON/ServerTap) if needed
+4. Create event rules → Commands trigger automatically
+5. Monitor in History panel (real-time SSE)
+```
 
-Contoh item:
+---
+
+## Project Structure
+
+```
+TikStream/
+├── main.go                    # HTTP server, SSE, automation engine, MC connector
+├── watermark.go               # Integrity verification (XOR-encrypted)
+├── shortcut_windows.go        # Keyboard shortcut execution (Windows)
+├── shortcut_nonwindows.go     # Stub for non-Windows platforms
+├── go.mod / go.sum            # Go module dependencies
+├── web/
+│   ├── index.html             # Main dashboard
+│   ├── overlay-like-goal.html # OBS overlay page
+│   └── static/
+│       ├── app.js             # Frontend logic (4400+ lines)
+│       ├── overlay-like-goal.js
+│       ├── styles.css         # Dark theme UI
+│       ├── app-logo.svg
+│       ├── html2canvas.min.js
+│       ├── flags/             # Language flag icons
+│       └── vendor/            # Third-party JS
+├── third_party/gotiktoklive/  # Forked TikTok Live client (custom GroupID support)
+├── settings.json              # Unified app settings
+├── P-Default.json             # Default event profile
+├── gift-list.json             # Gift catalog cache
+├── giftimage/                 # Gift image cache
+└── sounds/                    # Uploaded audio triggers
+```
+
+---
+
+## Event Rule Format
 
 ```json
 {
@@ -140,183 +162,261 @@ Contoh item:
   "repeat_by_gift_combo": false,
   "show_in_export": true,
   "sound_url": "/static/sounds/example.mp3",
-  "mc_command": "say {username}",
+  "mc_command": "say {username} sent {giftname} x{repeatcount}!",
   "run_mc_command": true,
   "run_shortcut": false,
   "shortcut_keys": "",
   "shortcut_hold_ms": 0,
-  "run_duration_ms": 0
+  "shortcut_press_count": 1,
+  "run_duration_ms": 1000
 }
 ```
 
-Catatan validasi penting:
+### Validation Rules
 
-- `type`: `join | comment | like | gift | share | follow | other`
-- `label` untuk `like` harus angka `>= 0`
-- `gift_id` (jika diisi) harus ada di `gift-list.json`
-- minimal satu aksi wajib aktif: `run_mc_command` atau `run_shortcut`
-- jika `run_mc_command=true`, `mc_command` wajib terisi
-- jika `run_shortcut=true`, `shortcut_keys` wajib terisi
-- `shortcut_hold_ms`: `0..10000`
-- `run_duration_ms`: `0..600000`
+| Field | Rule |
+|-------|------|
+| `type` | `join \| comment \| like \| gift \| share \| follow \| other` |
+| `label` | For `like` events: must be a number `>= 0` |
+| `gift_id` | If set, must exist in `gift-list.json` |
+| Actions | At least one of `run_mc_command` or `run_shortcut` must be `true` |
+| `mc_command` | Required if `run_mc_command=true` |
+| `shortcut_keys` | Required if `run_shortcut=true` |
+| `shortcut_hold_ms` | Range: `0..10000` |
+| `run_duration_ms` | Range: `0..600000` |
 
-## Placeholder Template
+### Placeholders
 
-Didukung pada `mc_command` dan `shortcut_keys`:
+Available in `mc_command` and `shortcut_keys`:
 
-- `{playername}`
-- `{username}`
-- `{nickname}`
-- `{comment}`
-- `{giftname}`
-- `{coins}`
-- `{repeatcount}`
-- `{likecount}`
-- `{totallikecount}`
+| Placeholder | Description |
+|-------------|-------------|
+| `{playername}` | TikTok username |
+| `{username}` | TikTok username |
+| `{nickname}` | TikTok display name |
+| `{comment}` | Comment text |
+| `{giftname}` | Gift name |
+| `{coins}` | Gift diamond value |
+| `{repeatcount}` | Gift repeat count |
+| `{likecount}` | Like delta |
+| `{totallikecount}` | Total likes from user |
 
-## Repeat by Gift Combo
+---
 
-Khusus event `gift`:
+## API Reference
 
-- `repeat_by_gift_combo=false`:
-  - trigger per event (delta repeat count)
-- `repeat_by_gift_combo=true`:
-  - tunggu hingga combo selesai (`RepeatEnd=true`)
-  - trigger dijalankan berurutan satu per satu sesuai total akhir combo
-  - setiap trigger memakai `repeatcount=1`
+### Stream Control
 
-## Settings dan Data Runtime
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Dashboard |
+| `GET` | `/overlay/like-goal` | OBS overlay |
+| `GET` | `/state` | Current stream state |
+| `POST` | `/start` | Start tracking |
+| `POST` | `/stop` | Stop tracking |
+| `GET` | `/events` | SSE stream |
 
-File utama:
+### Settings
 
-- `settings.json` menyimpan:
-  - `username`
-  - `active_profile`
-  - `minecraft` (`enabled`, `mode`, `host`, `rcon_port`, `servertap_port`, `rcon_password`, `servertap_password`, `servertap_path`)
-  - `like_goal`
-  - `event_box`
-- event default tersimpan di `P-Default.json`
-- preset profile memakai pola `P-<Nama>.json`
-- upload audio tersimpan di `sounds/`
-- cache gambar gift tersimpan di `giftimage/`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/settings` | Load settings |
+| `PUT` | `/api/settings` | Save settings |
 
-Penentuan root data:
+### Events
 
-- jika `APP_DATA_DIR` di-set, semua file runtime dipakai dari folder itu
-- jika runtime serverless, dipakai `${TMP}/tikstream`
-- selain itu pakai lokasi file yang tersedia dari `cwd`/direktori executable
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/events` | List events |
+| `POST` | `/api/events` | Create event |
+| `PUT` | `/api/events/{id}` | Update event |
+| `DELETE` | `/api/events/{id}` | Delete event |
+| `POST` | `/api/events/reorder` | Reorder events |
+| `POST` | `/api/events/load` | Import events from JSON |
+| `POST` | `/api/events/reset` | Reset all events |
+| `POST` | `/api/events/test/{id}` | Test event |
 
-## Like Goal
+### Profiles
 
-- API:
-  - `GET/PUT /api/like-goal`
-  - `POST /api/like-goal/reset`
-  - `POST /api/like-goal/test`
-- Overlay:
-  - halaman `GET /overlay/like-goal`
-  - stream update dari SSE `/events` (`type=like_goal_state`)
-- Mode:
-  - `increase`
-  - `double`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/events/profiles` | List profiles |
+| `POST` | `/api/events/create-profile` | Create profile |
+| `POST` | `/api/events/load-profile` | Load profile |
+| `POST` | `/api/events/save-profile` | Save profile |
+| `POST` | `/api/events/rename-profile` | Rename profile |
 
-## Endpoint API
+### Statistics
 
-Halaman, state, stream:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/stats` | Session statistics |
 
-- `GET /`
-- `GET /overlay/like-goal`
-- `GET /state`
-- `POST /start`
-- `POST /stop`
-- `GET /events` (SSE)
+### Gifts & Assets
 
-Settings:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/gifts` | List gifts |
+| `POST` | `/api/gifts/refresh` | Refresh gift catalog |
+| `POST` | `/api/upload/sound` | Upload audio |
 
-- `GET /api/settings`
-- `PUT /api/settings`
+### Minecraft Connector
 
-Event:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/minecraft/status` | Connection status |
+| `POST` | `/api/minecraft/connect` | Connect (RCON/ServerTap) |
+| `POST` | `/api/minecraft/disconnect` | Disconnect |
+| `POST` | `/api/minecraft/command` | Send command |
 
-- `GET /api/events`
-- `POST /api/events`
-- `PUT /api/events/{id}`
-- `DELETE /api/events/{id}`
-- `POST /api/events/load`
-- `POST /api/events/reset`
-- `POST /api/events/test/{id}`
+### Like Goal
 
-Preset profile:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET/PUT` | `/api/like-goal` | Get/update config |
+| `POST` | `/api/like-goal/reset` | Reset progress |
+| `POST` | `/api/like-goal/test` | Send test event |
 
-- `GET /api/events/profiles`
-- `POST /api/events/create-profile`
-- `POST /api/events/load-profile`
-- `POST /api/events/save-profile`
-- `POST /api/events/rename-profile`
+### Simulator
 
-Gift, asset, sound:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/test/event` | Simulate event |
 
-- `GET /api/gifts`
-- `POST /api/gifts/refresh`
-- `POST /api/upload/sound`
-- `GET /giftimage/...`
-- `GET /static/...`
+Supported simulation types: `gift`, `chat`, `user_join`, `user_follow`, `user_share`, `like`, `room`, `viewers`, `question`, `control`, `mic_battle`, `battles`, `room_banner`, `intro`
 
-Minecraft connector:
-
-- `GET /api/minecraft/status`
-- `POST /api/minecraft/connect`
-- `POST /api/minecraft/disconnect`
-- `POST /api/minecraft/command`
-
-Alias legacy (tetap tersedia):
-
-- `GET /api/minecraft/rcon/status`
-- `POST /api/minecraft/rcon/connect`
-- `POST /api/minecraft/rcon/disconnect`
-- `POST /api/minecraft/rcon/command`
-
-Simulator:
-
-- `POST /api/test/event`
-- `POST /api/test/gift` (alias handler yang sama)
-
-`/api/test/event` menerima `type`:
-
-- `gift`
-- `chat`
-- `user_join`
-- `user_follow`
-- `user_share`
-- `like`
-- `room`
-- `viewers`
-- `question`
-- `control`
-- `mic_battle`
-- `battles`
-- `room_banner`
-- `intro`
+---
 
 ## Gift Refresh Fallback
 
-Urutan sumber `/api/gifts/refresh`:
+The `/api/gifts/refresh` endpoint tries sources in order:
 
-1. `live_room`
-2. `web_fallback`
-3. `local_cache` (`gift-list.json`)
+1. **live_room** — fetch from active TikTok Live room
+2. **web_fallback** — fetch from TikTok web API
+3. **local_cache** — read from `gift-list.json`
 
-Response memuat metadata: `source`, `region`, `room_id`.
+Response includes metadata: `source`, `region`, `room_id`.
+
+---
+
+## Like Goal Overlay
+
+### Modes
+
+- **Increase** — progress bar fills toward the goal
+- **Double** — goal doubles each time it's reached
+
+### OBS Setup
+
+1. Add a **Browser Source** in OBS
+2. Set URL to: `http://127.0.0.1:8080/overlay/like-goal`
+3. Set width/height as needed
+4. Check "Refresh browser when scene becomes active"
+
+---
+
+## Gift Combo Mode
+
+For `gift` events:
+
+| Mode | Behavior |
+|------|----------|
+| `repeat_by_gift_combo: false` | Trigger per event (delta repeat count) |
+| `repeat_by_gift_combo: true` | Wait for combo end, then trigger sequentially |
+
+---
+
+## Settings & Runtime Data
+
+### Settings File (`settings.json`)
+
+```json
+{
+  "settings": {
+    "username": "your_tiktok_username",
+    "active_profile": "Default",
+    "minecraft": {
+      "enabled": true,
+      "mode": "rcon",
+      "host": "127.0.0.1",
+      "port": 25575,
+      "password": "your_rcon_password"
+    },
+    "like_goal": {
+      "title": "Like Goal",
+      "goal": 1000,
+      "mode": "increase",
+      "enabled": true
+    }
+  }
+}
+```
+
+### Data Paths
+
+| Path | Description |
+|------|-------------|
+| `settings.json` | Unified app settings |
+| `P-Default.json` | Default event profile |
+| `P-<name>.json` | Preset profiles |
+| `gift-list.json` | Gift catalog cache |
+| `giftimage/` | Gift image cache |
+| `sounds/` | Uploaded audio files |
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server port (default: `8080`) |
+| `APP_DATA_DIR` | Custom data directory |
+| `VERCEL` | Auto-detected: binds to `0.0.0.0` |
+| `AWS_LAMBDA_FUNCTION_NAME` | Auto-detected: binds to `0.0.0.0` |
+
+---
+
+## Platform Notes
+
+| Feature | Windows | Linux | macOS |
+|---------|---------|-------|-------|
+| Keyboard shortcuts | ✅ Full support | ❌ Not supported | ❌ Not supported |
+| RCON connector | ✅ | ✅ | ✅ |
+| ServerTap connector | ✅ | ✅ | ✅ |
+| Gift tracking | ✅ | ✅ | ✅ |
+| OBS overlays | ✅ | ✅ | ✅ |
+
+---
 
 ## License Gate
 
-Saat `POST /start`, username wajib lolos allowlist:
+The `POST /start` endpoint requires the TikTok username to pass an allowlist check:
 
-- URL default:
-  - `https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt`
-- cache TTL: 30 detik
-- jika gagal/tidak terdaftar: HTTP `403`
+- **Allowlist URL**: `https://raw.githubusercontent.com/zufarrizal/akses-go/refs/heads/main/username.txt`
+- **Cache TTL**: 30 seconds
+- **Failure**: HTTP `403 Forbidden`
 
-## Catatan Platform
+---
 
-- Keyboard shortcut hanya didukung Windows.
-- Di OS non-Windows, trigger shortcut akan error: `keyboard shortcut is only supported on Windows`.
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Go 1.25.0 |
+| TikTok Client | `gotiktoklive` (forked, custom GroupID support) |
+| Minecraft | `gorcon/rcon` + ServerTap HTTP API |
+| Frontend | Vanilla HTML/CSS/JS (zero dependencies) |
+| Communication | SSE (Server-Sent Events) |
+| Styling | Custom dark theme, responsive |
+
+---
+
+## Author
+
+Built by **[MASJUP](https://wa.me/6285156560055)**
+
+GitHub: **[@zufarrizal](https://github.com/zufarrizal)**
+
+---
+
+<p align="center">
+  <sub>🔒 Protected by watermark integrity verification</sub>
+</p>

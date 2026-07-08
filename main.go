@@ -6449,10 +6449,6 @@ func downloadGiftImages(dir string, gifts []giftCatalogItem) (int, []string) {
 		fileBase := giftImageFileBase(gifts[i].Diamonds, gifts[i].Name, gifts[i].ID)
 		fileExt := detectGiftImageExt(imageURL, "")
 		targetPath := filepath.Join(dir, fileBase+fileExt)
-		if existingPath, ok := existingGiftImagePath(dir, fileBase); ok {
-			gifts[i].ImagePath = giftImageWebPathFromDiskPath(existingPath)
-			continue
-		}
 
 		req, err := http.NewRequest(http.MethodGet, imageURL, nil)
 		if err != nil {
@@ -6498,15 +6494,6 @@ func giftImageWebPathFromDiskPath(path string) string {
 		return ""
 	}
 	return filepath.ToSlash(filepath.Join("giftimage", base))
-}
-
-func existingGiftImagePath(dir string, fileBase string) (string, bool) {
-	pattern := filepath.Join(dir, fileBase+".*")
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		return "", false
-	}
-	return matches[0], true
 }
 
 func giftImageFileBase(diamonds int, name string, giftID int) string {

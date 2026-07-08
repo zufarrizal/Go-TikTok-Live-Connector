@@ -4243,83 +4243,61 @@ const statusEl = document.getElementById("status");
     }
 
     // =========================
-    // Drag & Drop Event Reorder (Feature #11)
+    // Event Reorder (click-to-select, reliable cross-browser)
     // =========================
-    // Drag & Drop Event Reorder (mousedown-based, reliable cross-browser)
-    // =========================
-    let dragSrcId = null;
-    let dragStartY = 0;
-    let dragOverlay = null;
+    let selectedEventId = null;
+
+    function clearSelection() {
+      if (selectedEventId === null) return;
+      selectedEventId = null;
+      eventRowsEl.querySelectorAll(".drag-selected").forEach(el => el.classList.remove("drag-selected"));
+    }
+
+    async function swapEvents(srcId, dstId) {
+      const rows = Array.from(eventRowsEl.querySelectorAll("tr[data-event-id]"));
+      const ids = rows.map(r => Number(r.dataset.eventId));
+      const srcIdx = ids.indexOf(srcId);
+      const dstIdx = ids.indexOf(dstId);
+      if (srcIdx < 0 || dstIdx < 0) return;
+      ids.splice(srcIdx, 1);
+      ids.splice(dstIdx, 0, srcId);
+      try {
+        await fetch("/api/events/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids })
+        });
+        await loadEventsTable();
+      } catch (_) {}
+    }
 
     function initDragDrop() {
       if (!eventRowsEl) return;
-      eventRowsEl.addEventListener("mousedown", (e) => {
+      eventRowsEl.addEventListener("click", (e) => {
         const handle = e.target.closest(".event-drag-handle");
         if (!handle) return;
         const tr = handle.closest("tr");
         if (!tr || !tr.dataset.eventId) return;
-        e.preventDefault();
-        dragSrcId = Number(tr.dataset.eventId);
-        dragStartY = e.clientY;
-        tr.classList.add("dragging");
-        // Create visual overlay
-        dragOverlay = document.createElement("div");
-        dragOverlay.className = "drag-ghost";
-        dragOverlay.textContent = tr.cells[1]?.textContent + " — " + (tr.cells[2]?.textContent || "");
-        document.body.appendChild(dragOverlay);
-        dragOverlay.style.left = e.clientX + 12 + "px";
-        dragOverlay.style.top = e.clientY - 12 + "px";
-      });
-
-      document.addEventListener("mousemove", (e) => {
-        if (!dragSrcId) return;
-        e.preventDefault();
-        if (dragOverlay) {
-          dragOverlay.style.left = e.clientX + 12 + "px";
-          dragOverlay.style.top = e.clientY - 12 + "px";
-        }
-        // Highlight target row
-        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
-        const target = document.elementFromPoint(e.clientX, e.clientY);
-        if (target) {
-          const tr = target.closest("tr");
-          if (tr && tr.dataset.eventId && Number(tr.dataset.eventId) !== dragSrcId) {
-            tr.classList.add("drag-over");
-          }
+        const clickedId = Number(tr.dataset.eventId);
+        if (selectedEventId === null) {
+          // First click: select this row.
+          selectedEventId = clickedId;
+          tr.classList.add("drag-selected");
+        } else if (selectedEventId === clickedId) {
+          // Click same row: deselect.
+          clearSelection();
+        } else {
+          // Second click on different row: swap them.
+          const srcId = selectedEventId;
+          clearSelection();
+          swapEvents(srcId, clickedId);
         }
       });
-
-      document.addEventListener("mouseup", async (e) => {
-        if (!dragSrcId) return;
-        // Find drop target
-        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
-        eventRowsEl.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
-        if (dragOverlay) {
-          dragOverlay.remove();
-          dragOverlay = null;
-        }
-        const target = document.elementFromPoint(e.clientX, e.clientY);
-        const targetTr = target ? target.closest("tr") : null;
-        const dstId = targetTr && targetTr.dataset.eventId ? Number(targetTr.dataset.eventId) : null;
-        const srcId = dragSrcId;
-        dragSrcId = null;
-        if (!dstId || dstId === srcId) return;
-        // Build new order
-        const rows = Array.from(eventRowsEl.querySelectorAll("tr[data-event-id]"));
-        const ids = rows.map(r => Number(r.dataset.eventId));
-        const srcIdx = ids.indexOf(srcId);
-        const dstIdx = ids.indexOf(dstId);
-        if (srcIdx < 0 || dstIdx < 0) return;
-        ids.splice(srcIdx, 1);
-        ids.splice(dstIdx, 0, srcId);
-        try {
-          await fetch("/api/events/reorder", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids })
-          });
-          await loadEventsTable();
-        } catch (_) {}
+      // Click anywhere else to deselect.
+      document.addEventListener("click", (e) => {
+        if (selectedEventId === null) return;
+        if (e.target.closest(".event-drag-handle")) return;
+        clearSelection();
       });
     }
 

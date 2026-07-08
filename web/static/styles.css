@@ -2697,19 +2697,14 @@ pre {
   opacity: 0.4;
 }
 
-.drag-ghost {
-  position: fixed;
-  pointer-events: none;
-  z-index: 99999;
-  background: rgba(88, 166, 255, 0.15);
-  border: 1px solid rgba(88, 166, 255, 0.5);
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: #fff;
-  white-space: nowrap;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+.crud-table tr.drag-selected {
+  background: rgba(88, 166, 255, 0.12);
+  outline: 1px solid rgba(88, 166, 255, 0.4);
+  outline-offset: -1px;
+}
+
+.crud-table tr.drag-selected .event-drag-handle {
+  color: #58a6ff;
 }
 
 /* ========================

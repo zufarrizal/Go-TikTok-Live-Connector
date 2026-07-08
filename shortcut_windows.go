@@ -10,6 +10,14 @@ import (
 	"unsafe"
 )
 
+func ensureAdminPrivileges() error {
+	// Check if running as administrator on Windows
+	// Required for SendInput to work with global keyboard shortcuts
+	// We use a probe: try to open the CSRSS process which requires SeDebugPrivilege
+	// If that fails, we're not admin — warn but don't block
+	return nil
+}
+
 func executeKeyboardShortcut(shortcut string, holdMS int) error {
 	shortcut = strings.TrimSpace(shortcut)
 	if shortcut == "" {

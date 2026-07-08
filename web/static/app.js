@@ -167,7 +167,7 @@ const statusEl = document.getElementById("status");
     const I18N_STORAGE_KEY = "gtlc_lang";
     const EVENT_BOX_PER_ROW_STORAGE_KEY = "gtlc_event_box_per_row";
     const ACTIVE_PRESET_PROFILE_STORAGE_KEY = "gtlc_active_preset_profile";
-    let currentLang = "id";
+    let currentLang = (String(localStorage.getItem("gtlc_lang") || "").toLowerCase() === "en" || (!String(localStorage.getItem("gtlc_lang") || "").toLowerCase().startsWith("id") && !String(navigator.language || "").toLowerCase().startsWith("id"))) ? "en" : "id";
     const I18N = {
       id: {
         "ui.howToUse": "Cara Pakai",
@@ -291,7 +291,26 @@ const statusEl = document.getElementById("status");
         "msg.mcConnectorDisabled": "konektor Minecraft nonaktif",
         "msg.simulatedOutput": "Simulasi {type} - {message}",
         "msg.noOutput": "(tidak ada output)",
-        "msg.uploading": "Mengunggah..."
+        "msg.uploading": "Mengunggah...",
+        "ui.sessionStats": "Statistik Sesi",
+        "ui.topGifters": "Top Gift",
+        "ui.duration": "Durasi",
+        "ui.gifts": "Gift",
+        "ui.diamonds": "Diamond",
+        "ui.follows": "Follow",
+        "ui.comments": "Komentar",
+        "ui.shares": "Share",
+        "ui.joins": "Join",
+        "ui.sessionSummary": "Ringkasan Sesi",
+        "ui.sessionEnded": "Sesi berakhir",
+        "ui.totalDiamonds": "Total Diamond",
+        "ui.totalGifts": "Total Gift",
+        "ui.totalLikes": "Total Like",
+        "ui.totalFollows": "Total Follow",
+        "ui.totalComments": "Total Komentar",
+        "ui.totalShares": "Total Share",
+        "ui.totalJoins": "Total Join",
+        "ui.autosaved": "tersimpan otomatis"
       },
       en: {
         "ui.howToUse": "How to Use",
@@ -415,7 +434,26 @@ const statusEl = document.getElementById("status");
         "msg.mcConnectorDisabled": "minecraft connector is disabled",
         "msg.simulatedOutput": "Simulated {type} - {message}",
         "msg.noOutput": "(no output)",
-        "msg.uploading": "Uploading..."
+        "msg.uploading": "Uploading...",
+        "ui.sessionStats": "Session Statistics",
+        "ui.topGifters": "Top Gifters",
+        "ui.duration": "Duration",
+        "ui.gifts": "Gifts",
+        "ui.diamonds": "Diamonds",
+        "ui.follows": "Follows",
+        "ui.comments": "Comments",
+        "ui.shares": "Shares",
+        "ui.joins": "Joins",
+        "ui.sessionSummary": "Session Summary",
+        "ui.sessionEnded": "Session ended",
+        "ui.totalDiamonds": "Total Diamonds",
+        "ui.totalGifts": "Total Gifts",
+        "ui.totalLikes": "Total Likes",
+        "ui.totalFollows": "Total Follows",
+        "ui.totalComments": "Total Comments",
+        "ui.totalShares": "Total Shares",
+        "ui.totalJoins": "Total Joins",
+        "ui.autosaved": "auto-saved"
       }
     };
 
@@ -2667,7 +2705,7 @@ const statusEl = document.getElementById("status");
       eventRowsEl.innerHTML = "";
       if (!items || items.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"9\">" + esc(t("ui.noEventsYet")) + "</td>";
+        tr.innerHTML = "<td colspan=\"10\">" + esc(t("ui.noEventsYet")) + "</td>";
         eventRowsEl.appendChild(tr);
         return;
       }
@@ -2700,7 +2738,10 @@ const statusEl = document.getElementById("status");
         const showInExport = item.show_in_export !== false;
         const showInExportHTML = "<input type=\"checkbox\" class=\"event-show-export-toggle\" data-id=\"" + item.id + "\"" + (showInExport ? " checked" : "") + ">";
         const tr = document.createElement("tr");
+        tr.setAttribute("draggable", "true");
+        tr.dataset.eventId = item.id;
         tr.innerHTML =
+          "<td class=\"event-drag-handle\" title=\"Drag to reorder\">⋮⋮</td>" +
           "<td>" + (item.type || "") + "</td>" +
           "<td>" + esc(item.title || "") + "</td>" +
           "<td><div class=\"event-table-gift-cell\">" +
@@ -4092,6 +4133,236 @@ const statusEl = document.getElementById("status");
     }, { passive: true });
 
     // =========================
+    // Session Statistics (Feature #8)
+    // =========================
+    const statDiamondsEl = document.getElementById("statDiamonds");
+    const statGiftsEl = document.getElementById("statGifts");
+    const statLikesEl = document.getElementById("statLikes");
+    const statFollowsEl = document.getElementById("statFollows");
+    const statCommentsEl = document.getElementById("statComments");
+    const statDurationEl = document.getElementById("statDuration");
+    const topGiftersWrapEl = document.getElementById("topGiftersWrap");
+    const topGiftersListEl = document.getElementById("topGiftersList");
+
+    function formatDuration(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      if (m >= 60) {
+        const h = Math.floor(m / 60);
+        return h + ":" + String(m % 60).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      }
+      return m + ":" + String(s).padStart(2, "0");
+    }
+
+    function renderStats(stats) {
+      if (!stats) return;
+      if (statDiamondsEl) statDiamondsEl.textContent = Number(stats.diamonds_total || 0).toLocaleString();
+      if (statGiftsEl) statGiftsEl.textContent = Number(stats.gifts_received || 0).toLocaleString();
+      if (statLikesEl) statLikesEl.textContent = Number(stats.likes_received || 0).toLocaleString();
+      if (statFollowsEl) statFollowsEl.textContent = Number(stats.follows_received || 0).toLocaleString();
+      if (statCommentsEl) statCommentsEl.textContent = Number(stats.comments_received || 0).toLocaleString();
+      if (statDurationEl) statDurationEl.textContent = formatDuration(Number(stats.duration_seconds || 0));
+      // Top gifters
+      const gifters = stats.top_gifters || [];
+      if (topGiftersWrapEl) {
+        topGiftersWrapEl.style.display = gifters.length > 0 ? "" : "none";
+      }
+      if (topGiftersListEl && gifters.length > 0) {
+        topGiftersListEl.innerHTML = "";
+        for (const g of gifters) {
+          const li = document.createElement("li");
+          li.innerHTML = "<span class=\"gifter-name\">" + esc(g.name) + "</span>" +
+            "<span class=\"gifter-diamonds\">" + Number(g.diamonds || 0).toLocaleString() + " 💎</span>";
+          topGiftersListEl.appendChild(li);
+        }
+      }
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        if (data && data.stats) renderStats(data.stats);
+      } catch (_) {}
+    }
+
+    // =========================
+    // Session Summary Modal (Feature #9)
+    // =========================
+    const sessionSummaryModalEl = document.getElementById("sessionSummaryModal");
+    const sessionSummaryContentEl = document.getElementById("sessionSummaryContent");
+    const closeSessionSummaryModalBtn = document.getElementById("closeSessionSummaryModalBtn");
+    const closeSessionSummaryBtn = document.getElementById("closeSessionSummaryBtn");
+
+    function showSessionSummary(summary) {
+      if (!sessionSummaryModalEl || !sessionSummaryContentEl || !summary) return;
+      const gifters = summary.top_gifters || [];
+      let gifterHTML = "";
+      if (gifters.length > 0) {
+        gifterHTML = "<div class=\"summary-section-title\">" + t("ui.topGifters") + "</div>" +
+          "<ol class=\"top-gifters-list\">";
+        for (const g of gifters) {
+          gifterHTML += "<li><span class=\"gifter-name\">" + esc(g.name) + "</span>" +
+            "<span class=\"gifter-diamonds\">" + Number(g.diamonds || 0).toLocaleString() + " 💎</span></li>";
+        }
+        gifterHTML += "</ol>";
+      }
+      sessionSummaryContentEl.innerHTML =
+        "<div class=\"summary-stats-grid\">" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + Number(summary.diamonds_total || 0).toLocaleString() + "</div><div class=\"stat-label\">" + t("ui.totalDiamonds") + "</div></div>" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + Number(summary.gifts_received || 0).toLocaleString() + "</div><div class=\"stat-label\">" + t("ui.totalGifts") + "</div></div>" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + Number(summary.likes_received || 0).toLocaleString() + "</div><div class=\"stat-label\">" + t("ui.totalLikes") + "</div></div>" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + Number(summary.follows_received || 0).toLocaleString() + "</div><div class=\"stat-label\">" + t("ui.totalFollows") + "</div></div>" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + Number(summary.comments_received || 0).toLocaleString() + "</div><div class=\"stat-label\">" + t("ui.totalComments") + "</div></div>" +
+          "<div class=\"summary-stat\"><div class=\"stat-value\">" + formatDuration(Number(summary.duration_seconds || 0)) + "</div><div class=\"stat-label\">" + t("ui.duration") + "</div></div>" +
+        "</div>" + gifterHTML;
+      sessionSummaryModalEl.setAttribute("aria-hidden", "false");
+      sessionSummaryModalEl.classList.add("show");
+    }
+
+    function closeSessionSummary() {
+      if (sessionSummaryModalEl) {
+        sessionSummaryModalEl.setAttribute("aria-hidden", "true");
+        sessionSummaryModalEl.classList.remove("show");
+      }
+    }
+    if (closeSessionSummaryModalBtn) closeSessionSummaryModalBtn.addEventListener("click", closeSessionSummary);
+    if (closeSessionSummaryBtn) closeSessionSummaryBtn.addEventListener("click", closeSessionSummary);
+
+    // Periodically refresh stats while streaming.
+    let statsRefreshInterval = null;
+    function startStatsRefresh() {
+      if (statsRefreshInterval) return;
+      fetchStats();
+      statsRefreshInterval = setInterval(fetchStats, 5000);
+    }
+    function stopStatsRefresh() {
+      if (statsRefreshInterval) {
+        clearInterval(statsRefreshInterval);
+        statsRefreshInterval = null;
+      }
+    }
+
+    // =========================
+    // Drag & Drop Event Reorder (Feature #11)
+    // =========================
+    let dragSrcRow = null;
+
+    function initDragDrop() {
+      if (!eventRowsEl) return;
+      eventRowsEl.addEventListener("dragstart", (e) => {
+        const tr = e.target.closest("tr");
+        if (!tr) return;
+        dragSrcRow = tr;
+        tr.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", tr.dataset.eventId || "");
+      });
+      eventRowsEl.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        const tr = e.target.closest("tr");
+        if (tr && tr !== dragSrcRow) {
+          // Remove previous drag-over highlights.
+          eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+          tr.classList.add("drag-over");
+        }
+      });
+      eventRowsEl.addEventListener("dragleave", (e) => {
+        const tr = e.target.closest("tr");
+        if (tr) tr.classList.remove("drag-over");
+      });
+      eventRowsEl.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+        if (dragSrcRow) dragSrcRow.classList.remove("dragging");
+        const targetTr = e.target.closest("tr");
+        if (!targetTr || !dragSrcRow || targetTr === dragSrcRow) return;
+        const srcId = Number(dragSrcRow.dataset.eventId || 0);
+        const dstId = Number(targetTr.dataset.eventId || 0);
+        if (!srcId || !dstId) return;
+        // Build new order.
+        const rows = Array.from(eventRowsEl.querySelectorAll("tr[data-event-id]"));
+        const ids = rows.map(r => Number(r.dataset.eventId));
+        const srcIdx = ids.indexOf(srcId);
+        const dstIdx = ids.indexOf(dstId);
+        if (srcIdx < 0 || dstIdx < 0) return;
+        ids.splice(srcIdx, 1);
+        ids.splice(dstIdx, 0, srcId);
+        try {
+          await fetch("/api/events/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids })
+          });
+          await loadEventsTable();
+        } catch (_) {}
+      });
+      eventRowsEl.addEventListener("dragend", () => {
+        if (dragSrcRow) dragSrcRow.classList.remove("dragging");
+        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+        dragSrcRow = null;
+      });
+    }
+
+    // =========================
+    // Auto-save Settings (Feature #13)
+    // =========================
+    let autosaveTimer = null;
+    const AUTOSAVE_DELAY_MS = 1500;
+
+    function showAutosaveIndicator(status) {
+      let indicator = document.querySelector(".autosave-indicator");
+      if (!indicator) {
+        indicator = document.createElement("span");
+        indicator.className = "autosave-indicator";
+        const headActions = document.querySelector(".head-actions");
+        if (headActions) headActions.appendChild(indicator);
+      }
+      indicator.textContent = status === "saving" ? "..." : t("ui.autosaved");
+      indicator.classList.remove("saved");
+      indicator.classList.add("visible");
+      if (status === "saved") {
+        indicator.classList.add("saved");
+        setTimeout(() => indicator.classList.remove("visible"), 2000);
+      }
+    }
+
+    function debounceAutosave() {
+      if (autosaveTimer) clearTimeout(autosaveTimer);
+      showAutosaveIndicator("saving");
+      autosaveTimer = setTimeout(async () => {
+        try {
+          // Load current settings first, then merge minecraft changes.
+          const getRes = await fetch("/api/settings");
+          const getData = await getRes.json();
+          const current = getData.settings || {};
+          current.minecraft = Object.assign({}, current.minecraft || {}, {
+            enabled: mcEnabledEl ? mcEnabledEl.checked : true,
+            mode: mcModeEl ? mcModeEl.value : "rcon",
+            host: mcHostEl ? mcHostEl.value : "127.0.0.1",
+            port: mcPortEl ? Number(mcPortEl.value) : 25575,
+            password: mcPasswordEl ? mcPasswordEl.value : "",
+            servertap_path: mcServerTapPathEl ? mcServerTapPathEl.value : "/v1/server/exec"
+          });
+          await fetch("/api/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(current)
+          });
+          showAutosaveIndicator("saved");
+        } catch (_) {}
+      }, AUTOSAVE_DELAY_MS);
+    }
+
+    // Attach auto-save listeners to MC connector inputs.
+    [mcHostEl, mcPortEl, mcPasswordEl, mcServerTapPathEl].forEach(el => {
+      if (el) el.addEventListener("input", debounceAutosave);
+    });
+    if (mcEnabledEl) mcEnabledEl.addEventListener("change", debounceAutosave);
+    if (mcModeEl) mcModeEl.addEventListener("change", debounceAutosave);
+
+    // =========================
     // Stream Events (SSE)
     // =========================
     const source = new EventSource("/events");
@@ -4125,6 +4396,20 @@ const statusEl = document.getElementById("status");
         if (payload.type === "error") {
           setStatus(payload.error || "error", false);
         }
+        if (payload.type === "session_summary") {
+          showSessionSummary(payload.summary || {});
+          stopStatsRefresh();
+          fetchStats();
+        }
+        if (payload.type === "status") {
+          const msg = String(payload.message || "").toLowerCase();
+          if (msg.includes("tracking") || msg.includes("melacak") || msg.includes("connected to") || msg.includes("terhubung")) {
+            startStatsRefresh();
+          }
+          if (msg.includes("stopped") || msg.includes("berhenti")) {
+            stopStatsRefresh();
+          }
+        }
       } catch (_) {
       }
     };
@@ -4143,6 +4428,8 @@ const statusEl = document.getElementById("status");
     }
     refreshState();
     syncExecutionModeFields();
+    initDragDrop();
+    fetchStats();
     syncLabelHint();
     loadGiftOptions();
     loadEventsTable();

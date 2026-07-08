@@ -55,6 +55,7 @@ type githubUsernameAllowlist struct {
 	ttl        time.Duration
 	lastFetch  time.Time
 	cachedList map[string]struct{}
+	refreshing bool
 }
 
 func newGithubUsernameAllowlist(url string, ttl time.Duration) *githubUsernameAllowlist {
@@ -80,10 +81,26 @@ func (a *githubUsernameAllowlist) isAllowed(username string) (bool, error) {
 
 	a.mu.Lock()
 	needRefresh := len(a.cachedList) == 0 || time.Since(a.lastFetch) > a.ttl
+	if needRefresh {
+		if a.refreshing {
+			// Another goroutine is already refreshing; wait for it.
+			a.mu.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			a.mu.Lock()
+			_, ok := a.cachedList[username]
+			a.mu.Unlock()
+			return ok, nil
+		}
+		a.refreshing = true
+	}
 	a.mu.Unlock()
 
 	if needRefresh {
-		if err := a.refresh(); err != nil {
+		err := a.refresh()
+		a.mu.Lock()
+		a.refreshing = false
+		a.mu.Unlock()
+		if err != nil {
 			return false, err
 		}
 	}
@@ -179,6 +196,7 @@ type streamController struct {
 	hub      *eventHub
 	onEvent  func(any)
 	rcon     *mcRCONManager
+	stats    *sessionStats
 	running  bool
 	username string
 	session  uint64
@@ -189,8 +207,8 @@ type streamController struct {
 const streamReconnectDelay = 3 * time.Second
 const rconReconnectDelayOnTikTokConnect = 2 * time.Second
 
-func newStreamController(hub *eventHub, onEvent func(any), rcon *mcRCONManager) *streamController {
-	return &streamController{hub: hub, onEvent: onEvent, rcon: rcon}
+func newStreamController(hub *eventHub, onEvent func(any), rcon *mcRCONManager, stats *sessionStats) *streamController {
+	return &streamController{hub: hub, onEvent: onEvent, rcon: rcon, stats: stats}
 }
 
 func (c *streamController) Start(username string) error {
@@ -220,6 +238,7 @@ func (c *streamController) Start(username string) error {
 		"message": "Starting @" + username + "...",
 		"time":    time.Now().Format(time.RFC3339),
 	}))
+	c.stats.Start()
 	go c.run(ctx, session, username)
 	return nil
 }
@@ -239,6 +258,13 @@ func (c *streamController) Stop() {
 	c.username = ""
 	c.mu.Unlock()
 
+	// Broadcast session summary before the stopped status.
+	summary := c.stats.Stop()
+	c.hub.broadcast(mustJSON(map[string]any{
+		"type":    "session_summary",
+		"summary": summary,
+		"time":    time.Now().Format(time.RFC3339),
+	}))
 	c.hub.broadcast(mustJSON(map[string]any{
 		"type":    "status",
 		"message": "Stopped",
@@ -333,7 +359,8 @@ func (c *streamController) run(ctx context.Context, session uint64, username str
 				"time":  time.Now().Format(time.RFC3339),
 			}))
 			c.broadcastReconnect(username)
-			if sleepOrCancel(ctx, streamReconnectDelay) {
+			// Re-enter only if context is still valid AND session is still current.
+			if ctx.Err() == nil && sleepOrCancel(ctx, streamReconnectDelay) && c.isCurrentSession(session) {
 				go c.run(ctx, session, username)
 			}
 		}
@@ -818,7 +845,29 @@ func (m *mcRCONManager) RestartAfterDelay(delay time.Duration) (bool, error) {
 		time.Sleep(delay)
 	}
 
-	if err := m.ConnectWithMode(mode, host, port, password, serverTapPath); err != nil {
+	// Re-read config under lock in case it changed during sleep.
+	m.mu.Lock()
+	freshMode := normalizeMinecraftMode(m.cfg.Mode)
+	freshHost := strings.TrimSpace(m.cfg.Host)
+	freshPort := m.cfg.Port
+	freshPassword := strings.TrimSpace(m.cfg.Password)
+	freshPath := strings.TrimSpace(m.cfg.ServerTapPath)
+	m.mu.Unlock()
+
+	if freshHost == "" {
+		freshHost = host
+	}
+	if freshPort <= 0 || freshPort > 65535 {
+		freshPort = port
+	}
+	if freshPassword == "" {
+		freshPassword = password
+	}
+	if freshPath == "" {
+		freshPath = serverTapPath
+	}
+
+	if err := m.ConnectWithMode(freshMode, freshHost, freshPort, freshPassword, freshPath); err != nil {
 		return true, err
 	}
 	return true, nil
@@ -1199,6 +1248,40 @@ func (s *eventStore) replaceAll(items []eventRecord) error {
 	return s.saveLocked()
 }
 
+func (s *eventStore) reorder(ids []int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Build lookup from current items.
+	byID := make(map[int]eventRecord, len(s.items))
+	for _, it := range s.items {
+		byID[it.ID] = it
+	}
+	// Validate all IDs exist.
+	for _, id := range ids {
+		if _, ok := byID[id]; !ok {
+			return fmt.Errorf("event id %d not found", id)
+		}
+	}
+	// Build reordered list. Include any items not in the IDs list at the end.
+	ordered := make([]eventRecord, 0, len(s.items))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ordered = append(ordered, byID[id])
+	}
+	for _, it := range s.items {
+		if _, done := seen[it.ID]; !done {
+			ordered = append(ordered, it)
+		}
+	}
+	s.items = ordered
+	return s.saveLocked()
+}
+
 func (s *eventStore) resetAll() error {
 	return s.replaceAll([]eventRecord{})
 }
@@ -1533,12 +1616,10 @@ func (m *likeGoalManager) SyncFromUsername(username string, reasonLive string, r
 	if !isLive {
 		m.mu.Lock()
 		m.awaitingLiveBaseline = true
-		m.mu.Unlock()
 		if strings.TrimSpace(reasonOffline) != "" {
-			m.mu.Lock()
 			m.broadcastStateLocked(reasonOffline)
-			m.mu.Unlock()
 		}
+		m.mu.Unlock()
 		return nil
 	}
 	if hasTotalLikes {
@@ -1778,6 +1859,9 @@ type mcEventAutomation struct {
 	// Rule IDs reserved for internal triggers (for example like-goal reached).
 	reservedRuleIDs map[int]struct{}
 	queue           chan queuedMCTrigger
+	done            chan struct{}
+	// Session statistics tracker.
+	stats *sessionStats
 }
 
 type giftComboProgress struct {
@@ -1813,13 +1897,22 @@ func newMCEventAutomation(store *eventStore, rcon *mcRCONManager, hub *eventHub)
 		followSeen:       make(map[string]struct{}),
 		reservedRuleIDs:  make(map[int]struct{}),
 		queue:            make(chan queuedMCTrigger, 1000),
+		done:             make(chan struct{}),
+		stats:            newSessionStats(),
 	}
 	go a.processQueue()
 	return a
 }
 
 func (a *mcEventAutomation) processQueue() {
-	for job := range a.queue {
+	for {
+		select {
+		case <-a.done:
+			return
+		case job, ok := <-a.queue:
+			if !ok {
+				return
+			}
 		commandOut := ""
 		var commandErr error
 		mcEnabled := a.rcon.Enabled()
@@ -1879,6 +1972,7 @@ func (a *mcEventAutomation) processQueue() {
 			}))
 		}
 		a.hub.broadcast(mustJSON(triggerPayload))
+		}
 	}
 }
 
@@ -1942,6 +2036,7 @@ func (a *mcEventAutomation) handleLiveEvent(ev any, allowDuplicateFollow bool) {
 	if vars == nil {
 		vars = map[string]string{}
 	}
+	a.stats.TrackEvent(eventType, vars)
 	rules := a.store.rulesForTrigger(eventType, giftID)
 	if len(rules) == 0 {
 		return
@@ -2114,6 +2209,138 @@ func (a *mcEventAutomation) reservedRuleIDsSnapshot() map[int]struct{} {
 	return out
 }
 
+// ========================
+// Session Stats Tracker
+// ========================
+
+type sessionStats struct {
+	mu             sync.Mutex
+	StartedAt      time.Time        `json:"started_at"`
+	GiftsReceived  int              `json:"gifts_received"`
+	DiamondsTotal  int              `json:"diamonds_total"`
+	LikesReceived  int              `json:"likes_received"`
+	FollowsReceived int             `json:"follows_received"`
+	CommentsReceived int            `json:"comments_received"`
+	SharesReceived int              `json:"shares_received"`
+	JoinsReceived  int              `json:"joins_received"`
+	TopGifters     map[string]int   `json:"top_gifters"`
+	Active         bool             `json:"active"`
+}
+
+func newSessionStats() *sessionStats {
+	return &sessionStats{
+		TopGifters: make(map[string]int),
+	}
+}
+
+func (s *sessionStats) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.StartedAt = time.Now()
+	s.GiftsReceived = 0
+	s.DiamondsTotal = 0
+	s.LikesReceived = 0
+	s.FollowsReceived = 0
+	s.CommentsReceived = 0
+	s.SharesReceived = 0
+	s.JoinsReceived = 0
+	s.TopGifters = make(map[string]int)
+	s.Active = true
+}
+
+func (s *sessionStats) Stop() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Active = false
+	return s.snapshotLocked()
+}
+
+func (s *sessionStats) snapshotLocked() map[string]any {
+	// Build sorted top gifters list.
+	type gifter struct {
+		Name     string `json:"name"`
+		Diamonds int    `json:"diamonds"`
+	}
+	gifters := make([]gifter, 0, len(s.TopGifters))
+	for name, diamonds := range s.TopGifters {
+		gifters = append(gifters, gifter{Name: name, Diamonds: diamonds})
+	}
+	sort.Slice(gifters, func(i, j int) bool { return gifters[i].Diamonds > gifters[j].Diamonds })
+	if len(gifters) > 10 {
+		gifters = gifters[:10]
+	}
+
+	duration := time.Duration(0)
+	if !s.StartedAt.IsZero() {
+		duration = time.Since(s.StartedAt)
+	}
+
+	return map[string]any{
+		"started_at":        s.StartedAt.Format(time.RFC3339),
+		"duration_seconds":  int(duration.Seconds()),
+		"gifts_received":    s.GiftsReceived,
+		"diamonds_total":    s.DiamondsTotal,
+		"likes_received":    s.LikesReceived,
+		"follows_received":  s.FollowsReceived,
+		"comments_received": s.CommentsReceived,
+		"shares_received":   s.SharesReceived,
+		"joins_received":    s.JoinsReceived,
+		"top_gifters":       gifters,
+		"active":            s.Active,
+	}
+}
+
+func (s *sessionStats) Snapshot() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.snapshotLocked()
+}
+
+func (s *sessionStats) TrackEvent(eventType string, vars map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.Active {
+		return
+	}
+	switch eventType {
+	case "gift":
+		s.GiftsReceived++
+		diamond := 0
+		if v, err := strconv.Atoi(strings.TrimSpace(vars["diamond"])); err == nil {
+			diamond = v
+		}
+		if diamond <= 0 {
+			diamond = 1
+		}
+		repeatCount := 1
+		if v, err := strconv.Atoi(strings.TrimSpace(vars["repeatcount"])); err == nil && v > 0 {
+			repeatCount = v
+		}
+		s.DiamondsTotal += diamond * repeatCount
+		username := strings.TrimSpace(vars["username"])
+		if username == "" {
+			username = strings.TrimSpace(vars["nickname"])
+		}
+		if username != "" {
+			s.TopGifters[username] += diamond * repeatCount
+		}
+	case "like":
+		delta := 1
+		if v, err := strconv.Atoi(strings.TrimSpace(vars["likes_delta"])); err == nil && v > 0 {
+			delta = v
+		}
+		s.LikesReceived += delta
+	case "follow":
+		s.FollowsReceived++
+	case "comment":
+		s.CommentsReceived++
+	case "share":
+		s.SharesReceived++
+	case "join", "user_join":
+		s.JoinsReceived++
+	}
+}
+
 func ruleLabelMatches(rule eventRecord, vars map[string]string) bool {
 	label := strings.TrimSpace(rule.Label)
 	if label == "" {
@@ -2206,6 +2433,15 @@ func (a *mcEventAutomation) normalizeGiftCounts(ev any, fallback int) (int, bool
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	// Guard against unbounded growth: if combo maps exceed 500 entries
+	// (likely from orphaned streaks that never received RepeatEnd), reset them.
+	if len(a.giftCombo) > 500 {
+		a.giftCombo = make(map[int64]giftComboProgress)
+	}
+	if len(a.giftComboNoGroup) > 500 {
+		a.giftComboNoGroup = make(map[string]int)
+	}
 
 	state := a.giftCombo[g.GroupID]
 	// Some gift streams appear to reuse GroupID across separate combos.
@@ -2373,6 +2609,11 @@ func isFollowerFromIdentity(identity *gotiktoklive.UserIdentity, user *gotiktokl
 }
 
 func historyUsernameFromEvent(ev any, fallbackUser *gotiktoklive.User) string {
+	// Fast path: use the typed User field directly (avoids expensive JSON round-trip).
+	if name := safeUsernameFromUser(fallbackUser); name != "" {
+		return name
+	}
+	// Slow path: JSON round-trip only when typed field is empty.
 	b, err := json.Marshal(ev)
 	if err == nil {
 		var payload map[string]any
@@ -2389,7 +2630,7 @@ func historyUsernameFromEvent(ev any, fallbackUser *gotiktoklive.User) string {
 			}
 		}
 	}
-	return safeUsernameFromUser(fallbackUser)
+	return ""
 }
 
 func firstEventUsername(rawUser map[string]any) string {
@@ -2541,6 +2782,18 @@ func isLikelyNumericUserID(value string) bool {
 	return true
 }
 
+func sanitizeMCVar(v string) string {
+	// Remove characters that could inject additional Minecraft commands.
+	// Semicolons, newlines, and leading slashes are command injection vectors.
+	v = strings.ReplaceAll(v, ";", "")
+	v = strings.ReplaceAll(v, "\n", "")
+	v = strings.ReplaceAll(v, "\r", "")
+	v = strings.ReplaceAll(v, "\\", "")
+	// Strip leading slash to prevent injecting a new command.
+	v = strings.TrimLeft(v, "/")
+	return v
+}
+
 func applyCommandTemplate(command string, vars map[string]string) string {
 	out := command
 	if vars == nil {
@@ -2549,7 +2802,7 @@ func applyCommandTemplate(command string, vars map[string]string) string {
 
 	expanded := make(map[string]string, len(vars)+8)
 	for k, v := range vars {
-		expanded[k] = v
+		expanded[k] = sanitizeMCVar(v)
 	}
 
 	// Preferred placeholders for MC command templates.
@@ -2906,7 +3159,7 @@ func main() {
 	ctrl := newStreamController(hub, func(ev any) {
 		autoMC.HandleLiveEvent(ev)
 		likeGoal.HandleLiveEvent(ev)
-	}, mcRCON)
+	}, mcRCON, autoMC.stats)
 
 	embeddedStatic, err := fs.Sub(embeddedWebFS, "web/static")
 	if err != nil {
@@ -3139,9 +3392,18 @@ func main() {
 	})
 
 	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+			http.Error(w, "accept header must include text/event-stream", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -3916,6 +4178,39 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
 
+	// GET /api/stats — current session statistics
+	http.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"stats": autoMC.stats.Snapshot()})
+	})
+
+	// POST /api/events/reorder — reorder event rules by ID list
+	http.HandleFunc("/api/events/reorder", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			IDs []int `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON"})
+			return
+		}
+		if len(req.IDs) == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "ids array is required"})
+			return
+		}
+		if err := store.reorder(req.IDs); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(req.IDs)})
+	})
+
 	http.HandleFunc("/api/like-goal", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -4094,7 +4389,9 @@ func main() {
 			return
 		}
 
-		targetName := fileName
+		// Add timestamp prefix to avoid filename collisions.
+		baseName := strings.TrimSuffix(fileName, ext)
+		targetName := fmt.Sprintf("%d_%s%s", time.Now().UnixMilli(), baseName, ext)
 		targetPath := filepath.Join(soundsDir, targetName)
 
 		dst, err := os.Create(targetPath)
@@ -4177,7 +4474,27 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": mcRCON.Status()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": mcRCON.Status()})
+		// Persist connection details to settings.json.
+		status := mcRCON.Status()
+		if cfg, loadErr := loadUnifiedSettings(appSettings); loadErr == nil {
+			mode, _ := status["mode"].(string)
+			host, _ := status["host"].(string)
+			port, _ := status["port"].(int)
+			cfg.Minecraft.Enabled = true
+			cfg.Minecraft.Mode = mode
+			cfg.Minecraft.Host = host
+			cfg.Minecraft.Port = port
+			if mode == "servertap" {
+				cfg.Minecraft.ServerTapPort = port
+				cfg.Minecraft.ServerTapToken = req.Password
+				cfg.Minecraft.ServerTapPath, _ = status["servertap_path"].(string)
+			} else {
+				cfg.Minecraft.RCONPort = port
+				cfg.Minecraft.RCONPassword = req.Password
+			}
+			_ = saveUnifiedSettings(appSettings, cfg)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": status})
 	})
 
 	http.HandleFunc("/api/minecraft/rcon/disconnect", func(w http.ResponseWriter, r *http.Request) {

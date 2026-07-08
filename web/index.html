@@ -88,6 +88,42 @@
     </section>
 
     <section class="tools-single">
+      <section class="mc" aria-label="Session Statistics">
+        <h2 id="sessionStatsTitle">Session Statistics</h2>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card">
+            <div class="stat-value" id="statDiamonds">0</div>
+            <div class="stat-label" id="statDiamondsLabel">Diamonds</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statGifts">0</div>
+            <div class="stat-label" id="statGiftsLabel">Gifts</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statLikes">0</div>
+            <div class="stat-label" id="statLikesLabel">Likes</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statFollows">0</div>
+            <div class="stat-label" id="statFollowsLabel">Follows</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statComments">0</div>
+            <div class="stat-label" id="statCommentsLabel">Comments</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statDuration">0:00</div>
+            <div class="stat-label" id="statDurationLabel">Duration</div>
+          </div>
+        </div>
+        <div class="top-gifters-wrap" id="topGiftersWrap" style="display:none">
+          <h3 id="topGiftersTitle">Top Gifters</h3>
+          <ol id="topGiftersList" class="top-gifters-list"></ol>
+        </div>
+      </section>
+    </section>
+
+    <section class="tools-single">
       <section class="mc" aria-label="Like Goal">
         <h2 id="likeGoalSectionTitle">Like Goal (OBS Overlay)</h2>
         <div class="mc-row like-goal-row">
@@ -144,6 +180,7 @@
           <table class="crud-table">
             <thead>
               <tr>
+                <th id="thDrag"></th>
                 <th id="thType">Type</th>
                 <th id="thTitle">Title</th>
                 <th id="thGiftName">Gift Name</th>
@@ -335,6 +372,19 @@
     </div>
 
     <div id="eventExportStage" class="event-export-stage" aria-hidden="true"></div>
+
+    <div id="sessionSummaryModal" class="modal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="sessionSummaryModalTitle">
+        <div class="modal-head">
+          <h3 id="sessionSummaryModalTitle">Session Summary</h3>
+          <button id="closeSessionSummaryModalBtn" type="button">Close</button>
+        </div>
+        <div id="sessionSummaryContent" class="session-summary-content"></div>
+        <div class="modal-actions full">
+          <button id="closeSessionSummaryBtn" type="button" class="save">OK</button>
+        </div>
+      </div>
+    </div>
 
     <footer class="app-footer" aria-label="Application footer">
       <span id="appFooterText">Dibuat oleh</span>

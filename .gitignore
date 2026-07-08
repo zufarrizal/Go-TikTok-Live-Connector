@@ -33,3 +33,13 @@
 !web/static/flags/
 !web/static/flags/*.svg
 !web/static/vendor/html2canvas.min.js
+
+# Allow third_party gotiktoklive fork (custom GroupID support)
+!third_party/
+!third_party/gotiktoklive/
+!third_party/gotiktoklive/*.go
+!third_party/gotiktoklive/*.mod
+!third_party/gotiktoklive/*.sum
+!third_party/gotiktoklive/proto/
+!third_party/gotiktoklive/proto/*.go
+!third_party/gotiktoklive/proto/*.proto

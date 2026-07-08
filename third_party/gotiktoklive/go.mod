@@ -1,6 +1,6 @@
 module github.com/steampoweredtaco/gotiktoklive
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/erni27/imcache v1.2.1

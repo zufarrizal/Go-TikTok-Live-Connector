@@ -157,6 +157,7 @@
     }
   };
 
-  loadStateOnce().catch(() => {
+  loadStateOnce().catch((err) => {
+    console.warn("Failed to load like goal state:", err);
   });
 })();

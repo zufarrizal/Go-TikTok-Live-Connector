@@ -3109,6 +3109,9 @@ func main() {
 	if err := ensureAdminPrivileges(); err != nil {
 		log.Fatal(err)
 	}
+	if !WMVerify() {
+		log.Fatal("integrity check failed")
+	}
 
 	hub := newEventHub()
 	store, err := newEventStore(appEventsPath)
@@ -3144,17 +3147,6 @@ func main() {
 			}
 		}
 		mcRCON.SetEnabled(settings.Minecraft.Enabled)
-		if strings.TrimSpace(settings.Username) != "" {
-			go func(username string) {
-				if syncErr := likeGoal.SyncFromUsername(username, "startup_live_sync", "startup_live_offline"); syncErr != nil {
-					hub.broadcast(mustJSON(map[string]any{
-						"type":  "error",
-						"error": "failed to sync like goal on startup: " + syncErr.Error(),
-						"time":  time.Now().Format(time.RFC3339),
-					}))
-				}
-			}(settings.Username)
-		}
 	}
 	ctrl := newStreamController(hub, func(ev any) {
 		autoMC.HandleLiveEvent(ev)
@@ -3447,7 +3439,6 @@ func main() {
 		switch r.Method {
 		case http.MethodGet:
 			items := store.list()
-			sort.Slice(items, func(i, j int) bool { return items[i].ID > items[j].ID })
 			writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
 			var req struct {

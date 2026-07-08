@@ -3589,7 +3589,7 @@ const statusEl = document.getElementById("status");
         resetEventForm();
         closeEventModal();
         await loadEventsTable();
-        await persistActivePresetProfile({ silent: true });
+        try { await persistActivePresetProfile({ silent: true }); } catch (_) {}
       } catch (err) {
         setStatus(err.message || (currentLang === "id" ? "gagal menyimpan event" : "failed to save event"), false);
       }

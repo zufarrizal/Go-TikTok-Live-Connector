@@ -2738,7 +2738,6 @@ const statusEl = document.getElementById("status");
         const showInExport = item.show_in_export !== false;
         const showInExportHTML = "<input type=\"checkbox\" class=\"event-show-export-toggle\" data-id=\"" + item.id + "\"" + (showInExport ? " checked" : "") + ">";
         const tr = document.createElement("tr");
-        tr.setAttribute("draggable", "true");
         tr.dataset.eventId = item.id;
         tr.innerHTML =
           "<td class=\"event-drag-handle\" title=\"Drag to reorder\">⋮⋮</td>" +
@@ -4246,45 +4245,66 @@ const statusEl = document.getElementById("status");
     // =========================
     // Drag & Drop Event Reorder (Feature #11)
     // =========================
-    let dragSrcRow = null;
+    // Drag & Drop Event Reorder (mousedown-based, reliable cross-browser)
+    // =========================
+    let dragSrcId = null;
+    let dragStartY = 0;
+    let dragOverlay = null;
 
     function initDragDrop() {
       if (!eventRowsEl) return;
-      eventRowsEl.addEventListener("dragstart", (e) => {
-        const tr = e.target.closest("tr");
+      eventRowsEl.addEventListener("mousedown", (e) => {
+        const handle = e.target.closest(".event-drag-handle");
+        if (!handle) return;
+        const tr = handle.closest("tr");
         if (!tr || !tr.dataset.eventId) return;
-        dragSrcRow = tr;
-        tr.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", tr.dataset.eventId || "");
-      });
-      eventRowsEl.addEventListener("dragover", (e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        const tr = e.target.closest("tr");
-        if (tr && tr !== dragSrcRow && tr.dataset.eventId) {
-          eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
-          tr.classList.add("drag-over");
+        dragSrcId = Number(tr.dataset.eventId);
+        dragStartY = e.clientY;
+        tr.classList.add("dragging");
+        // Create visual overlay
+        dragOverlay = document.createElement("div");
+        dragOverlay.className = "drag-ghost";
+        dragOverlay.textContent = tr.cells[1]?.textContent + " — " + (tr.cells[2]?.textContent || "");
+        document.body.appendChild(dragOverlay);
+        dragOverlay.style.left = e.clientX + 12 + "px";
+        dragOverlay.style.top = e.clientY - 12 + "px";
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!dragSrcId) return;
+        e.preventDefault();
+        if (dragOverlay) {
+          dragOverlay.style.left = e.clientX + 12 + "px";
+          dragOverlay.style.top = e.clientY - 12 + "px";
+        }
+        // Highlight target row
+        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        if (target) {
+          const tr = target.closest("tr");
+          if (tr && tr.dataset.eventId && Number(tr.dataset.eventId) !== dragSrcId) {
+            tr.classList.add("drag-over");
+          }
         }
       });
-      eventRowsEl.addEventListener("dragleave", (e) => {
-        // Only remove highlight if we actually left the row (not just moving between cells).
-        const tr = e.target.closest("tr");
-        if (!tr) return;
-        const related = e.relatedTarget;
-        if (related && related.closest && related.closest("tr") === tr) return;
-        tr.classList.remove("drag-over");
-      });
-      eventRowsEl.addEventListener("drop", async (e) => {
-        e.preventDefault();
+
+      document.addEventListener("mouseup", async (e) => {
+        if (!dragSrcId) return;
+        // Find drop target
         eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
-        if (dragSrcRow) dragSrcRow.classList.remove("dragging");
-        const targetTr = e.target.closest("tr");
-        if (!targetTr || !dragSrcRow || targetTr === dragSrcRow || !targetTr.dataset.eventId) return;
-        const srcId = Number(dragSrcRow.dataset.eventId);
-        const dstId = Number(targetTr.dataset.eventId);
-        if (!srcId || !dstId) return;
-        // Build new order.
+        eventRowsEl.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
+        if (dragOverlay) {
+          dragOverlay.remove();
+          dragOverlay = null;
+        }
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        const targetTr = target ? target.closest("tr") : null;
+        const dstId = targetTr && targetTr.dataset.eventId ? Number(targetTr.dataset.eventId) : null;
+        const srcId = dragSrcId;
+        dragSrcId = null;
+        if (!dstId || dstId === srcId) return;
+        // Build new order
         const rows = Array.from(eventRowsEl.querySelectorAll("tr[data-event-id]"));
         const ids = rows.map(r => Number(r.dataset.eventId));
         const srcIdx = ids.indexOf(srcId);
@@ -4300,11 +4320,6 @@ const statusEl = document.getElementById("status");
           });
           await loadEventsTable();
         } catch (_) {}
-      });
-      eventRowsEl.addEventListener("dragend", () => {
-        if (dragSrcRow) dragSrcRow.classList.remove("dragging");
-        eventRowsEl.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
-        dragSrcRow = null;
       });
     }
 
